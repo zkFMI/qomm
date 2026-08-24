@@ -39,6 +39,7 @@ from qomm_sim.market import (                                                # n
 )
 from qomm_sim.tapes import TapeMarket, load_bybit, requests_from_tape         # noqa: E402
 from scripts.hosts import this_host                                          # noqa: E402
+from scripts.smallsample import mean_ci                                       # noqa: E402
 
 ARMS = ("none", "dp_uncorrected", "dp_corrected")
 
@@ -54,13 +55,13 @@ def mechanism(kind: str, cfg: SimConfig, dp: DPParams):
 
 
 def interval(values: list[float]) -> dict:
-    if not values:
-        return {"mean": None, "half_width": None, "excludes_zero": None, "n": 0}
-    mean = statistics.fmean(values)
-    half = (1.96 * statistics.stdev(values) / len(values) ** 0.5
-            if len(values) > 1 else 0.0)
-    return {"mean": mean, "half_width": half,
-            "excludes_zero": abs(mean) > half, "n": len(values)}
+    """Student, not normal: eight seeds do not know their own variance.
+
+    This used to multiply by 1.96 at every n. At the eight seeds these arms
+    actually run, the multiplier the sample earns is 2.365 --- 21% wider, and
+    wide enough to change which of these intervals excludes zero.
+    """
+    return mean_ci(values)
 
 
 def run(tape_path: Path | None, seeds, steps, window_steps, step_ms,

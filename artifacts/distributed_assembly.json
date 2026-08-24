@@ -1,0 +1,21 @@
+{
+ "host": "host-a",
+ "group": "ed25519",
+ "parties": 7,
+ "threshold": 2,
+ "processes": 3,
+ "each_node_held": "one share of the value, its blinding and the cross term, and nothing of any other node's",
+ "wall_ms": {
+  "median": 8.725313935428858,
+  "n": 9,
+  "min": 8.477558847516775,
+  "max": 9.171986021101475
+ },
+ "node_wait_ms": {
+  "median": 3.386514261364937
+ },
+ "bytes_between_nodes": {
+  "median": 288
+ },
+ "verified": true
+}

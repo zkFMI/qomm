@@ -49,8 +49,12 @@ pub struct PolicyBounds {
 impl Default for PolicyBounds {
     fn default() -> Self {
         PolicyBounds {
-            half: (1, 200), slope: (0, 16), invcoef: (0, 8),
-            maxqty: (1, 1_000), inv: (-4_000, 4_000), mid_band: 2_000,
+            half: (1, 200),
+            slope: (0, 16),
+            invcoef: (0, 8),
+            maxqty: (1, 1_000),
+            inv: (-4_000, 4_000),
+            mid_band: 2_000,
         }
     }
 }
@@ -84,8 +88,12 @@ pub struct Policy {
 impl Policy {
     pub fn field(&self, name: &str) -> i64 {
         match name {
-            "mid" => self.mid, "half" => self.half, "slope" => self.slope,
-            "invcoef" => self.invcoef, "inv" => self.inv, "maxqty" => self.maxqty,
+            "mid" => self.mid,
+            "half" => self.half,
+            "slope" => self.slope,
+            "invcoef" => self.invcoef,
+            "inv" => self.inv,
+            "maxqty" => self.maxqty,
             _ => panic!("no such audited field: {name}"),
         }
     }
@@ -141,11 +149,17 @@ pub struct PolicyCommitter {
 }
 
 fn scalar(value: i64) -> Scalar {
-    if value < 0 { -Scalar::from(value.unsigned_abs()) } else { Scalar::from(value as u64) }
+    if value < 0 {
+        -Scalar::from(value.unsigned_abs())
+    } else {
+        Scalar::from(value as u64)
+    }
 }
 
 impl Default for PolicyCommitter {
-    fn default() -> Self { Self::new(PolicyBounds::default()) }
+    fn default() -> Self {
+        Self::new(PolicyBounds::default())
+    }
 }
 
 impl PolicyCommitter {
@@ -162,7 +176,12 @@ impl PolicyCommitter {
     /// constant term *is* the field commitment, which is what ties the sharing
     /// to the range proof rather than leaving them two unrelated statements.
     pub fn share<R: RngCore + CryptoRng>(
-        &self, value: i64, blinding: &Scalar, n_parties: u64, threshold: usize, rng: &mut R,
+        &self,
+        value: i64,
+        blinding: &Scalar,
+        n_parties: u64,
+        threshold: usize,
+        rng: &mut R,
     ) -> (FieldCommitment, Vec<PolicyShare>) {
         let mut value_poly = vec![scalar(value)];
         let mut blind_poly = vec![*blinding];
@@ -170,22 +189,37 @@ impl PolicyCommitter {
             value_poly.push(Scalar::random(rng));
             blind_poly.push(Scalar::random(rng));
         }
-        let coefficients: Vec<RistrettoPoint> = value_poly.iter().zip(&blind_poly)
-            .map(|(v, b)| self.key.commit(v, b)).collect();
+        let coefficients: Vec<RistrettoPoint> = value_poly
+            .iter()
+            .zip(&blind_poly)
+            .map(|(v, b)| self.key.commit(v, b))
+            .collect();
 
-        let shares = (1..=n_parties).map(|party| {
-            let x = Scalar::from(party);
-            let mut power = Scalar::ONE;
-            let (mut v, mut b) = (Scalar::ZERO, Scalar::ZERO);
-            for k in 0..=threshold {
-                v += value_poly[k] * power;
-                b += blind_poly[k] * power;
-                power *= x;
-            }
-            PolicyShare { party, value_share: v, blinding_share: b }
-        }).collect();
+        let shares = (1..=n_parties)
+            .map(|party| {
+                let x = Scalar::from(party);
+                let mut power = Scalar::ONE;
+                let (mut v, mut b) = (Scalar::ZERO, Scalar::ZERO);
+                for k in 0..=threshold {
+                    v += value_poly[k] * power;
+                    b += blind_poly[k] * power;
+                    power *= x;
+                }
+                PolicyShare {
+                    party,
+                    value_share: v,
+                    blinding_share: b,
+                }
+            })
+            .collect();
 
-        (FieldCommitment { commitment: coefficients[0], coefficients }, shares)
+        (
+            FieldCommitment {
+                commitment: coefficients[0],
+                coefficients,
+            },
+            shares,
+        )
     }
 
     /// A node accepts its share only if it opens against the public ladder.
@@ -201,10 +235,20 @@ impl PolicyCommitter {
     }
 
     #[allow(clippy::type_complexity)]
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "all policy statement fields are explicit to prevent an unaudited default"
+    )]
     pub fn audit<R: RngCore + CryptoRng, S: Fn(&[u8]) -> Vec<u8>>(
-        &self, policy: &Policy, ref_mid: i64, now_t: i64,
-        n_parties: u64, threshold: usize, entity_nullifier: &RistrettoPoint,
-        signer: Option<S>, rng: &mut R,
+        &self,
+        policy: &Policy,
+        ref_mid: i64,
+        now_t: i64,
+        n_parties: u64,
+        threshold: usize,
+        entity_nullifier: &RistrettoPoint,
+        signer: Option<S>,
+        rng: &mut R,
     ) -> Result<(PolicyAudit, Vec<(String, Vec<PolicyShare>)>), &'static str> {
         let context = self.context(ref_mid, now_t, policy.expiry, entity_nullifier);
 
@@ -234,21 +278,38 @@ impl PolicyCommitter {
         let (ranges, range_commitments) = self.ranges.prove(&mut t, &offsets, &blindings)?;
 
         let active_blinding = Scalar::random(rng);
-        let active_commitment =
-            self.key.commit(&Scalar::from(u64::from(policy.active)), &active_blinding);
-        let active_proof = prove_bit(&self.key, &mut Self::transcript(&context, "active"),
-                                     &active_commitment, policy.active, &active_blinding, rng);
+        let active_commitment = self
+            .key
+            .commit(&Scalar::from(u64::from(policy.active)), &active_blinding);
+        let active_proof = prove_bit(
+            &self.key,
+            &mut Self::transcript(&context, "active"),
+            &active_commitment,
+            policy.active,
+            &active_blinding,
+            rng,
+        );
 
         let entity_signature = match signer {
             Some(sign) => sign(&self.digest(&fields, &active_commitment, &context)),
             None => Vec::new(),
         };
 
-        Ok((PolicyAudit {
-            ref_mid, now_t, expiry: policy.expiry, fields,
-            ranges, range_commitments, active_proof, active_commitment,
-            entity_signature, entity_nullifier: *entity_nullifier,
-        }, all_shares))
+        Ok((
+            PolicyAudit {
+                ref_mid,
+                now_t,
+                expiry: policy.expiry,
+                fields,
+                ranges,
+                range_commitments,
+                active_proof,
+                active_commitment,
+                entity_signature,
+                entity_nullifier: *entity_nullifier,
+            },
+            all_shares,
+        ))
     }
 
     fn transcript(context: &[u8], part: &str) -> Transcript {
@@ -258,8 +319,13 @@ impl PolicyCommitter {
         t
     }
 
-    fn context(&self, ref_mid: i64, now_t: i64, expiry: i64,
-               nullifier: &RistrettoPoint) -> Vec<u8> {
+    fn context(
+        &self,
+        ref_mid: i64,
+        now_t: i64,
+        expiry: i64,
+        nullifier: &RistrettoPoint,
+    ) -> Vec<u8> {
         let mut h = Sha256::new();
         h.update(b"qomm:policy-ctx:");
         for part in [ref_mid, now_t, expiry] {
@@ -269,8 +335,12 @@ impl PolicyCommitter {
         h.finalize().to_vec()
     }
 
-    fn digest(&self, fields: &[(String, FieldCommitment)],
-              active: &RistrettoPoint, context: &[u8]) -> Vec<u8> {
+    fn digest(
+        &self,
+        fields: &[(String, FieldCommitment)],
+        active: &RistrettoPoint,
+        context: &[u8],
+    ) -> Vec<u8> {
         let mut h = Sha256::new();
         h.update(b"qomm:policy-digest:");
         h.update(context);
@@ -293,18 +363,28 @@ pub struct PolicyAuditor {
 }
 
 impl Default for PolicyAuditor {
-    fn default() -> Self { Self::new(PolicyBounds::default()) }
+    fn default() -> Self {
+        Self::new(PolicyBounds::default())
+    }
 }
 
 impl PolicyAuditor {
     pub fn new(bounds: PolicyBounds) -> Self {
-        PolicyAuditor { committer: PolicyCommitter::new(bounds) }
+        PolicyAuditor {
+            committer: PolicyCommitter::new(bounds),
+        }
     }
 
-    pub fn key(&self) -> &Pedersen { &self.committer.key }
+    pub fn key(&self) -> &Pedersen {
+        &self.committer.key
+    }
 
     pub fn verify<V: Fn(&[u8], &[u8]) -> bool>(
-        &self, audit: &PolicyAudit, now_t: i64, ref_mid: i64, max_horizon: i64,
+        &self,
+        audit: &PolicyAudit,
+        now_t: i64,
+        ref_mid: i64,
+        max_horizon: i64,
         entity_verifier: Option<V>,
     ) -> Result<(), Invalid> {
         if audit.ref_mid != ref_mid || audit.now_t != now_t {
@@ -313,8 +393,9 @@ impl PolicyAuditor {
         if !(now_t < audit.expiry && audit.expiry <= now_t + max_horizon) {
             return Err(Invalid::ExpiryOutsideHorizon);
         }
-        let context = self.committer.context(ref_mid, now_t, audit.expiry,
-                                             &audit.entity_nullifier);
+        let context = self
+            .committer
+            .context(ref_mid, now_t, audit.expiry, &audit.entity_nullifier);
 
         // The range proof must cover the offset of each field's own commitment,
         // in the declared order, and the sharing's constant term must be that
@@ -322,7 +403,10 @@ impl PolicyAuditor {
         // numbers and neither constrains the other.
         let mut expected = Vec::with_capacity(FIELDS.len());
         for name in FIELDS {
-            let entry = audit.fields.iter().find(|(n, _)| n == name)
+            let entry = audit
+                .fields
+                .iter()
+                .find(|(n, _)| n == name)
                 .ok_or_else(|| Invalid::MissingField(name.to_string()))?;
             let field = &entry.1;
             if field.coefficients.first() != Some(&field.commitment) {
@@ -333,21 +417,32 @@ impl PolicyAuditor {
             expected.push(shifted.compress());
         }
         if audit.range_commitments.len() < expected.len()
-            || audit.range_commitments[..expected.len()] != expected[..] {
+            || audit.range_commitments[..expected.len()] != expected[..]
+        {
             return Err(Invalid::OutOfBand);
         }
         let mut t = PolicyCommitter::transcript(&context, "ranges");
-        if !self.committer.ranges.verify(&mut t, &audit.ranges, &audit.range_commitments) {
+        if !self
+            .committer
+            .ranges
+            .verify(&mut t, &audit.ranges, &audit.range_commitments)
+        {
             return Err(Invalid::OutOfBand);
         }
 
-        if !verify_bit(&self.committer.key, &mut PolicyCommitter::transcript(&context, "active"),
-                       &audit.active_commitment, &audit.active_proof) {
+        if !verify_bit(
+            &self.committer.key,
+            &mut PolicyCommitter::transcript(&context, "active"),
+            &audit.active_commitment,
+            &audit.active_proof,
+        ) {
             return Err(Invalid::ActiveNotABit);
         }
 
         if let Some(verify) = entity_verifier {
-            let digest = self.committer.digest(&audit.fields, &audit.active_commitment, &context);
+            let digest = self
+                .committer
+                .digest(&audit.fields, &audit.active_commitment, &context);
             if !verify(&digest, &audit.entity_signature) {
                 return Err(Invalid::NotSignedByCredential);
             }
@@ -368,7 +463,9 @@ pub fn reconstruct(shares: &[PolicyShare], threshold: usize) -> Scalar {
         let mut numerator = Scalar::ONE;
         let mut denominator = Scalar::ONE;
         for (j, other) in chosen.iter().enumerate() {
-            if i == j { continue; }
+            if i == j {
+                continue;
+            }
             numerator *= Scalar::from(other.party);
             denominator *= Scalar::from(other.party) - Scalar::from(share.party);
         }

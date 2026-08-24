@@ -240,6 +240,7 @@ The measurements narrow the realistic choices to three.
 | proofs | **no** quote proof | avoids +550 ms to complete the proof |
 | disclosure | threshold disclosure (arm B) | DP disclosure measured significantly worse |
 | protocol | malicious Shamir | 1.12 to 1.24x the wall clock over semi-honest. Cheap |
+| binding | **Shamir inputs over the group order, and the per-party input check** | see 1.2. Not on by default, and the quote proof means little without it |
 
 **What it gives**: sub-second quotes, secrecy for requests that do not settle
 (AUC 0.500).
@@ -255,9 +256,12 @@ node to a result; they do not show the result was correct.
 | the three times | priced 824 ms, proved +551 ms, settleable +655 ms = **2.03 s** | measured |
 | RFS update interval | set it to **3 s or more** | one second is not met (measured) |
 | disclosure interval | 60 s | proofs and audits fit comfortably |
+| binding | **required here** | see 1.2. A quote proof about inputs nothing checked is a proof of the wrong statement |
 
-**What it gives**: the computation is verifiable every slot, and the joint proof
-means no node holds the witness.
+**What it gives**: the computation is verifiable every slot. The joint path
+means no node holds the witness *of the sigma opening it assembles*; the quote
+proof as a whole is produced by a prover holding the witness, because its range
+proofs cannot be assembled from shares --- see `AUDIT.md`.
 **What it does not**: a sub-second settleable time, or a one-second RFS.
 
 ### Profile C: wide area, batched
@@ -268,6 +272,7 @@ means no node holds the witness.
 | batch Q | 16 to 32 | 284 ms per quote at Q=32 (measured) |
 | one user's wait | 9.09 s at Q=32 | the whole job's duration |
 | suited to | markets that value secrecy and dispersion over immediacy | |
+| binding | as Profile B | the traffic it costs is 2.03x, which is the profile that can afford it least and needs it as much |
 
 **Choosing Q**: time per quote falls monotonically as `T(Q)/Q` while the wait
 rises as `T(Q)`. At an arrival rate of lambda per second and a slot period of
@@ -275,13 +280,56 @@ rises as `T(Q)`. At an arrival rate of lambda per second and a slot period of
 `T(Q) ~ 3.4 + 0.18Q` seconds for Q <= 32, so for a target wait `W` take the
 largest Q with `Q <= (W - 3.4)/0.18`.
 
+### 1.2 What binds the computation to the commitments, and is off by default
+
+This is the switch most easily missed, so it is stated on its own.
+
+A quote proof proves that the opened price is the correct function *of the
+inputs the nodes used*. It says nothing about whether those inputs are the
+shares that were dealt and committed. Two mechanisms close that, they catch
+different parties, and **both are command-line flags that default to off**:
+
+- `--shamir-inputs` runs the circuit over the commitment group's scalar field,
+  so the shares the nodes already hold serve as witness shares. This is what
+  makes the proof assemble at all. It catches **a dealer** that deals what it
+  did not commit --- measured, at party 3, position 8, before anything is
+  computed.
+- `--input-check` opens one linear combination per node after the inputs are
+  fed. It catches **a node** that passed the share check and then supplied
+  something else --- which the first mechanism does not, because a substituted
+  input is a valid share of a different number and every commitment still
+  opens.
+
+Measured together on one market (`artifacts/binding_chain.json`, six arms, all
+verified against the cleartext reference):
+
+| inputs | field | check | rounds | global traffic |
+|---|---|---|---:|---:|
+| additive | default | none | 57 | 9.30 MB |
+| additive | default | per-party | 59 | 9.44 MB |
+| Shamir | group order | none | 57 | 18.60 MB |
+| **Shamir** | **group order** | **per-party** | **59** | **18.88 MB** |
+
+So the full arrangement costs **two rounds and 2.03x the traffic** against a run
+with neither. The traffic factor is the element width going from sixteen bytes
+to thirty-two and nothing else; the two rounds are the check.
+
+**Why the defaults are off, and why that is not an argument for leaving them
+off.** The flags default to off in the measurement harness because every arm has
+to be selectable and a default that doubled the traffic would make the arms
+incomparable. That is a property of a research harness. A deployment has no such
+reason, and a deployment that ran the audited profile without these would be
+publishing a proof about inputs that nothing checked --- which is a proof of a
+different statement than the one the venue is claiming.
+
 ### 1.1 Preprocessing between slots, which applies to all three
 
 The correlated randomness a round consumes does not depend on the request. It
 depends on the shape of the circuit, and the shape is fixed and compiled once.
 So it can be generated before the request arrives, and `AUDIT.md` measures what
-that is worth: with preprocessing on disk the online phase is **16% of the
-bytes and 71% of the rounds** (malicious Shamir, 7 parties, T=2, 8 makers).
+that is worth: with preprocessing on disk the online phase is **16% of party
+0's bytes** --- 19% of the global total, since a party's share depends on where
+it sits in the reconstruction --- **and 71% of the rounds** (malicious Shamir, 7 parties, T=2, 8 makers).
 
 Read that as bandwidth, not latency. Rounds are what a wide-area profile is
 mostly made of, and 44 rounds at a 17.4 ms round trip is still 0.77 s that
@@ -512,9 +560,22 @@ deployment that uses note rails, though, exists only in Python so far.
 3. **The target RFS update interval.** With auditing, set it to 3 s or more.
    Requiring one second means choosing between a lighter proof (replacing the
    range proofs with Bulletproofs) and dropping the audit.
-4. **A per-entity cap.** About ten probes recover a maker's inventory, so this
-   cap is the only defence. Tightening it also constrains legitimate users; the
-   measured probe counts are what to set the level from.
+4. **A per-entity cap, and where its counter lives.** Reading a maker's
+   inventory off its own two-sided quotes is the one attack the cryptography
+   does not touch, because a firm price is what the protocol exists to return.
+   Measured (`artifacts/probe_budget.json`): the correlation is about 0.53 and
+   **does not grow with the budget** --- what grows is the confidence, from a
+   correlation distinguishable from zero in 23% of seeds at ten probes, to a
+   majority at **24**, to essentially all at **96**. So the cap sets how often
+   an entity can refresh its picture, not whether it gets one. The shipped
+   default is 60 requests an epoch, which sits between those two figures.
+
+   Two things the cap needs that the code does not give it. `EntityRateLimiter`
+   holds its counters in memory, so **they reset when the venue restarts and
+   they do not compose across instances** --- a venue run as two processes for
+   capacity gives every entity twice the allowance. Persisting them, and
+   sharing them, is deployment work that has to happen before the cap means
+   what this section says it means.
 5. **What the settlement venue will accept.** zkPI's `InstructionBounds` --- the
    floor and ceiling on quantity and price, and the deadline horizon --- are the
    venue's to publish. Narrow is safer and also refuses legitimate trades. That

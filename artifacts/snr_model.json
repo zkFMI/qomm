@@ -8,14 +8,16 @@
  "trades_per_firm_per_s": 0.125,
  "clip_saturation_s": 231.24060585038737,
  "ceiling": {
-  "generated market": 0.8260904157536267,
-  "maker firms on a real venue": 1.131170888117706,
-  "requesting addresses on the replayed tape": 8.474979098425552
+  "generated market, entities configured": 0.8260904157536267,
+  "UniswapX: requests per window in the run (4485/2400)": 0.23051413726812664,
+  "UniswapX: distinct swappers per 150-block window, raw tape median": 0.5592658552736793
  },
+ "firms_per_window_for_snr_1": 35.168680531552624,
+ "ceiling_if_whole_tape_pooled": 8.474979098425552,
  "firm_counts": {
-  "generated market": 24,
-  "maker firms on a real venue": 45,
-  "requesting addresses on the replayed tape": 2526
+  "generated market, entities configured": 24,
+  "UniswapX: requests per window in the run (4485/2400)": 1.86875,
+  "UniswapX: distinct swappers per 150-block window, raw tape median": 11
  },
  "mean_field_noise": {
   "winning half-spread (ticks)": {

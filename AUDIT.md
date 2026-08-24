@@ -97,7 +97,9 @@ Linear in the number of makers. That fits a 60-second disclosure or a one-second
 | minimality proofs swapped between makers | **True** | maker 0: not shown to be at least the winner |
 | minimality for a false winner | **True** | value -1 outside [0, 2^25) |
 
-### Assembled jointly by the nodes
+### Assembled jointly by the nodes --- one opening, not the proof
+
+What is assembled jointly is **one Pedersen opening**: a single scalar dealt to seven nodes and one sigma proof built from a quorum of them. The quote proof's product and bit steps share the linearity that makes this work. Its range proofs do not --- a range proof commits to each bit of the value, extracting bits needs the value, and a node holding a share cannot do that. Assembling the whole proof from shares is MPC, which is what this construction was chosen to avoid, and the range proofs are its dominant cost. So the figures below are a lower bound on a fully assembled proof and not a measurement of one.
 
 | quorum | assemble | an ordinary verifier accepts | no node holds the witness |
 |---|---:|---|---|
@@ -214,10 +216,10 @@ Allowing settlement before the proof is complete gives up the guarantee, so the 
 
 | delay | priced | proved | settleable | total | meets an audited 1 s RFS slot |
 |---|---:|---:|---:|---:|---|
-| 1 ms one way | 909 ± 6 (n=3) ms | +624 ± 1 (n=3) ms | +716 ± 13 (n=3) ms | **2249 ± 19 (n=3)** ms | False |
-| 15 ms one way | 4017 ± 5 (n=3) ms | +623 ± 1 (n=3) ms | +708 ± 0 (n=3) ms | **5348 ± 5 (n=3)** ms | False |
+| 1 ms one way | 940 ± 32 (n=5) ms | +623 ± 1 (n=5) ms | +714 ± 11 (n=5) ms | **2277 ± 39 (n=5)** ms | False |
+| 15 ms one way | 4007 ± 77 (n=5) ms | +623 ± 1 (n=5) ms | +709 ± 1 (n=5) ms | **5340 ± 78 (n=5)** ms | False |
 
-**An audited RFS does not make a one-second slot.** After the price comes back, completing the proof takes 623--624 ms and verifying it plus reaching a quorum of receipts a further 708--716 ms --- and neither depends on the delay, so neither shrinks with a closer deployment. At one millisecond one way the total is still 2.25 s.
+**An audited RFS does not make a one-second slot.** After the price comes back, completing the proof takes 623--623 ms and verifying it plus reaching a quorum of receipts a further 709--714 ms --- and neither depends on the delay, so neither shrinks with a closer deployment. At one millisecond one way the total is still 2.28 s.
 
 How to read it: 'priced' includes compiling the circuit and starting the processes on every run, so it is an upper bound. 'Proved' and 'settleable' are the cost of the computation itself and do not shrink with deployment. The remedies are to make the proof lighter in the number of makers --- it is `O(M)` today --- or to set the update interval to what is measured.
 
@@ -262,7 +264,24 @@ The opening channel --- the comparison chain --- is **49 rounds under both proto
 | preprocessing batch 1000 | 124 rounds, 3.07 MB, 4.329 s |
 | preprocessing batch 100 | 700 rounds, 3.22 MB, 14.092 s |
 
-A smaller batch means more batches and so more rounds. At the default of 10,000 the preprocessing fits in one. Generating edaBits online was 23x worse when measured. Separating offline from online could not be measured: the bundled `Fake-Offline.x` does not produce malicious-Shamir preprocessing.
+A smaller batch means more batches and so more rounds. At the default of 10,000 the preprocessing fits in one. Generating edaBits online was 23x worse when measured. Separating offline from online is measured in its own section below.
+
+### Offline and online, separated
+
+An earlier version of this file said this could not be measured because `Fake-Offline.x` does not produce malicious-Shamir preprocessing. That was wrong. It does --- `./Fake-Offline.x 7 --threshold 2 --default 200000 -lgp 128` writes `Player-Data/7-MSpT2-128/` for malicious Shamir at T=2 and `7-SpT2-128/` for Shamir, which `atlas-party.x` reads too because `AtlasShare` does not override `type_short`. `-F` then makes a party take its correlated randomness from disk, so what is left on the wire is the online phase.
+
+| protocol | preprocessing | rounds | sent, party 0 | sent, all | time |
+|---|---|---:|---:|---:|---:|
+| malicious-shamir | in protocol | 62 | 2.738 MB | 16.184 MB | 55.8 ms |
+| malicious-shamir | from files | 44 | 0.436 MB | 3.049 MB | 25.5 ms |
+| atlas | in protocol | 100 | 0.614 MB | 2.474 MB | 77.7 ms |
+| atlas | from files | 91 | 0.131 MB | 0.900 MB | 56.3 ms |
+
+All four verify against the cleartext reference. The online phase is **16% of party 0's bytes** and 19% of the global total --- the two differ because a party's share of the traffic depends on where it sits in the reconstruction --- against 71% of the rounds. The byte saving was predicted at "at least 30%" and is 84%.
+
+**What this does not show.** `Fake-Offline.x` is a trusted dealer: it writes every party's share from one process that knows all of them, which is not a protocol any deployment can run. So this measures the *size of the online phase* and not the cost of putting the randomness there. A real offline phase among the nodes costs more than the dealer did, and the saving is moved off the critical path rather than removed.
+
+Measured on host-c; the absolute times are not comparable with the host-a tables above and the ratios are the result.
 
 ### What buys bandwidth but not rounds
 
@@ -313,6 +332,6 @@ Even at 15 ms one way (30 ms RTT), 32 requests together reach about 0.28 s each.
 | register a digest of the approved circuit and detect substitution | **built**. `qomm_dsl/registry.py`. The digest covers the expressions, the declared ranges, the circuit and the required bit width. Substituting a secret parameter passes; substituting the rule is refused |
 | relays over a real network, multiple hops | **measured** (3). Each hop is a real socket, about 4.4 ms per hop |
 | identify a node that emitted an inconsistent partial value | **built**. The joint proof's record names the node whose partial value does not agree with its own share |
-| measure offline/online separation | **not measured**. The bundled `Fake-Offline.x` does not produce malicious-Shamir preprocessing |
+| measure offline/online separation | **measured**. `artifacts/prep_split.json`. With preprocessing on disk the online phase is 16% of party 0's bytes --- 19% of the global total --- and 71% of the rounds |
 | secrecy after a trade, where settlement reveals market and size | **out of scope** for this stage |
 

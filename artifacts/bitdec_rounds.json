@@ -1,0 +1,411 @@
+{
+ "host": "host-a",
+ "bits": [
+  13,
+  26,
+  52
+ ],
+ "parties": 7,
+ "threshold": 2,
+ "binary": "malicious-shamir-party.x",
+ "marginal": {
+  "13bit_n1": {
+   "comparison_alone": 29,
+   "comparison_and_bits": 34,
+   "extra_rounds": 5,
+   "extra_mb": 0.067
+  },
+  "13bit_n48": {
+   "comparison_alone": 35,
+   "comparison_and_bits": 49,
+   "extra_rounds": 14,
+   "extra_mb": 2.681
+  },
+  "26bit_n1": {
+   "comparison_alone": 29,
+   "comparison_and_bits": 35,
+   "extra_rounds": 6,
+   "extra_mb": 0.123
+  },
+  "26bit_n48": {
+   "comparison_alone": 35,
+   "comparison_and_bits": 50,
+   "extra_rounds": 15,
+   "extra_mb": 5.341
+  },
+  "52bit_n1": {
+   "comparison_alone": 29,
+   "comparison_and_bits": 36,
+   "extra_rounds": 7,
+   "extra_mb": 0.256
+  },
+  "52bit_n48": {
+   "comparison_alone": 35,
+   "comparison_and_bits": 57,
+   "extra_rounds": 22,
+   "extra_mb": 11.692
+  }
+ },
+ "rows": [
+  {
+   "arm": "inputs_only",
+   "n": 1,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.00032,
+   "seconds": 0.00146869,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "inputs_only",
+   "n": 48,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.006336,
+   "seconds": 0.00165371,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "inputs_only",
+   "n": 1,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.00032,
+   "seconds": 0.00158811,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "inputs_only",
+   "n": 48,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.006336,
+   "seconds": 0.00161033,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "inputs_only",
+   "n": 1,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.00032,
+   "seconds": 0.00146715,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "inputs_only",
+   "n": 48,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 2,
+   "mb": 0.006336,
+   "seconds": 0.00150303,
+   "rounds_spread": [
+    2,
+    2
+   ],
+   "vm_rounds": 2
+  },
+  {
+   "arm": "compare",
+   "n": 1,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 29,
+   "mb": 0.323088,
+   "seconds": 0.0102997,
+   "rounds_spread": [
+    29,
+    29
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "compare",
+   "n": 48,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 35,
+   "mb": 15.4483,
+   "seconds": 0.10495,
+   "rounds_spread": [
+    35,
+    35
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "compare",
+   "n": 1,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 29,
+   "mb": 0.323088,
+   "seconds": 0.00746764,
+   "rounds_spread": [
+    29,
+    29
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "compare",
+   "n": 48,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 35,
+   "mb": 15.4483,
+   "seconds": 0.105912,
+   "rounds_spread": [
+    35,
+    35
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "compare",
+   "n": 1,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 29,
+   "mb": 0.323088,
+   "seconds": 0.00779845,
+   "rounds_spread": [
+    29,
+    29
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "compare",
+   "n": 48,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 35,
+   "mb": 15.4483,
+   "seconds": 0.104154,
+   "rounds_spread": [
+    35,
+    35
+   ],
+   "vm_rounds": 12
+  },
+  {
+   "arm": "bitdec",
+   "n": 1,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 25,
+   "mb": 0.06792,
+   "seconds": 0.00405502,
+   "rounds_spread": [
+    25,
+    25
+   ],
+   "vm_rounds": 8
+  },
+  {
+   "arm": "bitdec",
+   "n": 48,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 25,
+   "mb": 3.19786,
+   "seconds": 0.0309494,
+   "rounds_spread": [
+    25,
+    25
+   ],
+   "vm_rounds": 8
+  },
+  {
+   "arm": "bitdec",
+   "n": 1,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 26,
+   "mb": 0.123984,
+   "seconds": 0.00528936,
+   "rounds_spread": [
+    26,
+    26
+   ],
+   "vm_rounds": 9
+  },
+  {
+   "arm": "bitdec",
+   "n": 48,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 26,
+   "mb": 5.88806,
+   "seconds": 0.0489297,
+   "rounds_spread": [
+    26,
+    26
+   ],
+   "vm_rounds": 9
+  },
+  {
+   "arm": "bitdec",
+   "n": 1,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 27,
+   "mb": 0.25752,
+   "seconds": 0.00902101,
+   "rounds_spread": [
+    27,
+    27
+   ],
+   "vm_rounds": 10
+  },
+  {
+   "arm": "bitdec",
+   "n": 48,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 33,
+   "mb": 12.2992,
+   "seconds": 0.088944,
+   "rounds_spread": [
+    33,
+    33
+   ],
+   "vm_rounds": 10
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 1,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 34,
+   "mb": 0.389664,
+   "seconds": 0.0129106,
+   "rounds_spread": [
+    34,
+    34
+   ],
+   "vm_rounds": 18
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 48,
+   "edabit": false,
+   "bits": 13,
+   "repeats": 5,
+   "rounds": 49,
+   "mb": 18.1291,
+   "seconds": 0.130332,
+   "rounds_spread": [
+    49,
+    49
+   ],
+   "vm_rounds": 18
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 1,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 35,
+   "mb": 0.445632,
+   "seconds": 0.0116125,
+   "rounds_spread": [
+    35,
+    35
+   ],
+   "vm_rounds": 19
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 48,
+   "edabit": false,
+   "bits": 26,
+   "repeats": 5,
+   "rounds": 50,
+   "mb": 20.7892,
+   "seconds": 0.143343,
+   "rounds_spread": [
+    50,
+    50
+   ],
+   "vm_rounds": 19
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 1,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 36,
+   "mb": 0.579264,
+   "seconds": 0.0124002,
+   "rounds_spread": [
+    36,
+    36
+   ],
+   "vm_rounds": 20
+  },
+  {
+   "arm": "compare_and_bits",
+   "n": 48,
+   "edabit": false,
+   "bits": 52,
+   "repeats": 5,
+   "rounds": 57,
+   "mb": 27.1404,
+   "seconds": 0.180851,
+   "rounds_spread": [
+    57,
+    57
+   ],
+   "vm_rounds": 20
+  }
+ ]
+}

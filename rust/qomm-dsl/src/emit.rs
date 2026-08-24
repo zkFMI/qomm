@@ -16,7 +16,10 @@ use crate::rule::Rule;
 /// whole maker set is priced in a single pass --- which is why widening the maker
 /// count costs bandwidth and not rounds.
 pub fn to_mpc(rule: &Rule) -> BTreeMap<String, String> {
-    rule.outputs.iter().map(|(name, tree)| (name.clone(), mpc(tree))).collect()
+    rule.outputs
+        .iter()
+        .map(|(name, tree)| (name.clone(), mpc(tree)))
+        .collect()
 }
 
 fn mpc(node: &Expr) -> String {
@@ -50,9 +53,11 @@ fn mpc(node: &Expr) -> String {
                 ("min", [a, b]) => format!("(({a}).__lt__({b}).if_else({a}, {b}))"),
                 ("max", [a, b]) => format!("(({a}).__lt__({b}).if_else({b}, {a}))"),
                 ("clamp", [v, lo, hi]) => format!(
-                    "((({v}).__lt__({lo})).if_else({lo}, (({hi}).__lt__({v})).if_else({hi}, {v})))"),
-                ("signed", [side, magnitude]) =>
-                    format!("(({side}).if_else({magnitude}, -({magnitude})))"),
+                    "((({v}).__lt__({lo})).if_else({lo}, (({hi}).__lt__({v})).if_else({hi}, {v})))"
+                ),
+                ("signed", [side, magnitude]) => {
+                    format!("(({side}).if_else({magnitude}, -({magnitude})))")
+                }
                 _ => format!("/* unreachable: {name} */"),
             }
         }
@@ -61,9 +66,12 @@ fn mpc(node: &Expr) -> String {
 
 /// Evaluate the rule in the clear. Every circuit run is checked against this,
 /// which is what makes a disagreement a bug report rather than a mystery.
-pub fn evaluate(rule: &Rule, bindings: &BTreeMap<String, i128>)
-    -> Result<BTreeMap<String, i128>, RuleError> {
-    rule.outputs.iter()
+pub fn evaluate(
+    rule: &Rule,
+    bindings: &BTreeMap<String, i128>,
+) -> Result<BTreeMap<String, i128>, RuleError> {
+    rule.outputs
+        .iter()
         .map(|(name, tree)| Ok((name.clone(), eval(tree, bindings)?)))
         .collect()
 }
@@ -71,7 +79,9 @@ pub fn evaluate(rule: &Rule, bindings: &BTreeMap<String, i128>)
 fn eval(node: &Expr, b: &BTreeMap<String, i128>) -> Result<i128, RuleError> {
     Ok(match node {
         Expr::Const(v) => *v,
-        Expr::Name(n) => *b.get(n).ok_or_else(|| RuleError(format!("'{n}' has no value")))?,
+        Expr::Name(n) => *b
+            .get(n)
+            .ok_or_else(|| RuleError(format!("'{n}' has no value")))?,
         Expr::Neg(e) => -eval(e, b)?,
         Expr::Add(x, y) => eval(x, b)? + eval(y, b)?,
         Expr::Sub(x, y) => eval(x, b)? - eval(y, b)?,
@@ -79,13 +89,19 @@ fn eval(node: &Expr, b: &BTreeMap<String, i128>) -> Result<i128, RuleError> {
         Expr::Compare(x, op, y) => {
             let (l, r) = (eval(x, b)?, eval(y, b)?);
             i128::from(match op {
-                Cmp::Lt => l < r, Cmp::Le => l <= r, Cmp::Gt => l > r,
-                Cmp::Ge => l >= r, Cmp::Eq => l == r, Cmp::Ne => l != r,
+                Cmp::Lt => l < r,
+                Cmp::Le => l <= r,
+                Cmp::Gt => l > r,
+                Cmp::Ge => l >= r,
+                Cmp::Eq => l == r,
+                Cmp::Ne => l != r,
             })
         }
         Expr::And(parts) => {
             let mut all = 1;
-            for part in parts { all &= eval(part, b)?; }
+            for part in parts {
+                all &= eval(part, b)?;
+            }
             all
         }
         Expr::Call(name, args) => {
@@ -94,8 +110,13 @@ fn eval(node: &Expr, b: &BTreeMap<String, i128>) -> Result<i128, RuleError> {
                 ("min", [a, c]) => *a.min(c),
                 ("max", [a, c]) => *a.max(c),
                 ("clamp", [value, lo, hi]) => (*value).clamp(*lo, *hi),
-                ("signed", [side, magnitude]) =>
-                    if *side == 1 { *magnitude } else { -*magnitude },
+                ("signed", [side, magnitude]) => {
+                    if *side == 1 {
+                        *magnitude
+                    } else {
+                        -*magnitude
+                    }
+                }
                 _ => return Err(RuleError(format!("cannot evaluate {name}"))),
             }
         }

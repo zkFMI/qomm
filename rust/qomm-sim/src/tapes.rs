@@ -41,7 +41,9 @@ pub struct TapeRow {
 }
 
 impl Tape {
-    pub fn steps(&self) -> usize { self.mid.len() - 1 }
+    pub fn steps(&self) -> usize {
+        self.mid.len() - 1
+    }
 }
 
 /// A market whose price path and informed fraction are measured rather than drawn.
@@ -67,8 +69,14 @@ pub struct TapeMarket {
 }
 
 impl TapeMarket {
-    pub fn new(cfg: &SimConfig, tape: &Tape, horizon: usize, edge_percentile: f64,
-               phi_window: usize, seed: u64) -> Self {
+    pub fn new(
+        cfg: &SimConfig,
+        tape: &Tape,
+        horizon: usize,
+        edge_percentile: f64,
+        phi_window: usize,
+        seed: u64,
+    ) -> Self {
         let mid = tape.mid.clone();
         let move_over = |step: usize, horizon: usize| -> i64 {
             let end = (step + horizon).min(mid.len() - 1);
@@ -76,16 +84,30 @@ impl TapeMarket {
         };
         let mut rng = PyRandom::new(seed);
 
-        let agreements: Vec<bool> = tape.rows.iter().map(|row| {
-            let m = move_over(row.step, horizon);
-            if row.direction == 0 { m > 0 } else { m < 0 }
-        }).collect();
-        let rate = if agreements.is_empty() { 0.5 } else {
+        let agreements: Vec<bool> = tape
+            .rows
+            .iter()
+            .map(|row| {
+                let m = move_over(row.step, horizon);
+                if row.direction == 0 {
+                    m > 0
+                } else {
+                    m < 0
+                }
+            })
+            .collect();
+        let rate = if agreements.is_empty() {
+            0.5
+        } else {
             agreements.iter().filter(|a| **a).count() as f64 / agreements.len() as f64
         };
         // uninformed flow agrees half the time; the excess is the informed share
         let informed_share = (2.0 * rate - 1.0).clamp(0.0, 1.0);
-        let mark = if rate > 0.0 { informed_share / rate } else { 0.0 };
+        let mark = if rate > 0.0 {
+            informed_share / rate
+        } else {
+            0.0
+        };
 
         let mut informed_flags = Vec::with_capacity(tape.rows.len());
         let mut labels: Vec<(usize, bool)> = Vec::with_capacity(tape.rows.len());
@@ -96,12 +118,17 @@ impl TapeMarket {
         }
 
         // Kept for reporting only; the size of a move no longer gates the label.
-        let mut moves: Vec<i64> = tape.rows.iter()
-            .map(|r| move_over(r.step, horizon).abs()).collect();
+        let mut moves: Vec<i64> = tape
+            .rows
+            .iter()
+            .map(|r| move_over(r.step, horizon).abs())
+            .collect();
         moves.sort_unstable();
-        let edge = if moves.is_empty() { 1 } else {
-            let index = ((moves.len() as f64 * edge_percentile / 100.0) as usize)
-                .min(moves.len() - 1);
+        let edge = if moves.is_empty() {
+            1
+        } else {
+            let index =
+                ((moves.len() as f64 * edge_percentile / 100.0) as usize).min(moves.len() - 1);
             moves[index].max(1)
         };
 
@@ -112,7 +139,9 @@ impl TapeMarket {
         let mut cursor = 0usize;
         for (step, slot) in phi.iter_mut().enumerate() {
             while cursor < labels.len() && labels[cursor].0 <= step {
-                if recent.len() == phi_window { recent.pop_front(); }
+                if recent.len() == phi_window {
+                    recent.pop_front();
+                }
                 recent.push_back(labels[cursor].1);
                 cursor += 1;
             }
@@ -123,8 +152,15 @@ impl TapeMarket {
         let measured_phi = median(&phi);
 
         TapeMarket {
-            mid, phi, source: tape.source.clone(), horizon,
-            agreement_rate: rate, informed_share, informed_flags, edge, measured_phi,
+            mid,
+            phi,
+            source: tape.source.clone(),
+            horizon,
+            agreement_rate: rate,
+            informed_share,
+            informed_flags,
+            edge,
+            measured_phi,
         }
     }
 
@@ -135,12 +171,17 @@ impl TapeMarket {
 }
 
 fn median(values: &[f64]) -> Option<f64> {
-    if values.is_empty() { return None; }
+    if values.is_empty() {
+        return None;
+    }
     let mut ordered = values.to_vec();
     ordered.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = ordered.len() / 2;
-    Some(if ordered.len() % 2 == 1 { ordered[mid] }
-         else { 0.5 * (ordered[mid - 1] + ordered[mid]) })
+    Some(if ordered.len() % 2 == 1 {
+        ordered[mid]
+    } else {
+        0.5 * (ordered[mid - 1] + ordered[mid])
+    })
 }
 
 /// Put real sizes on the simulator's lot scale without reshaping them.
@@ -153,9 +194,13 @@ fn median(values: &[f64]) -> Option<f64> {
 /// happens is recorded rather than hidden.
 pub fn rescale_sizes(raw: &[f64], target_median: i64, ceiling: i64) -> Vec<i64> {
     let positive: Vec<f64> = raw.iter().copied().filter(|v| *v > 0.0).collect();
-    if positive.is_empty() { return vec![1; raw.len()]; }
+    if positive.is_empty() {
+        return vec![1; raw.len()];
+    }
     let factor = target_median as f64 / median(&positive).unwrap();
-    raw.iter().map(|v| py_round(v * factor).clamp(1, ceiling)).collect()
+    raw.iter()
+        .map(|v| py_round(v * factor).clamp(1, ceiling))
+        .collect()
 }
 
 /// What the entity column of a tape means.
@@ -179,9 +224,14 @@ pub struct TapeRequests {
     pub entity_kind: &'static str,
 }
 
-pub fn requests_from_tape(cfg: &SimConfig, market: &TapeMarket, tape: &Tape,
-                          entities: Entities, wallets_per_entity: usize, seed: u64)
-    -> TapeRequests {
+pub fn requests_from_tape(
+    cfg: &SimConfig,
+    market: &TapeMarket,
+    tape: &Tape,
+    entities: Entities,
+    wallets_per_entity: usize,
+    seed: u64,
+) -> TapeRequests {
     let mut rng = PyRandom::new(seed);
 
     // Insertion order, deduplicated, exactly as Python's dict.fromkeys gives.
@@ -196,36 +246,55 @@ pub fn requests_from_tape(cfg: &SimConfig, market: &TapeMarket, tape: &Tape,
     let (entity_of, n_entities, entity_kind) = match entities {
         Entities::RoundRobin(n) => {
             rng.shuffle(&mut order);
-            let map: BTreeMap<&str, usize> = order.iter().enumerate()
-                .map(|(i, a)| (*a, i % n)).collect();
+            let map: BTreeMap<&str, usize> =
+                order.iter().enumerate().map(|(i, a)| (*a, i % n)).collect();
             (map, n, "assigned round-robin (the tape has no identities)")
         }
         Entities::PerAddress => {
-            let map: BTreeMap<&str, usize> = order.iter().enumerate()
-                .map(|(i, a)| (*a, i)).collect();
+            let map: BTreeMap<&str, usize> =
+                order.iter().enumerate().map(|(i, a)| (*a, i)).collect();
             let n = order.len();
             (map, n, "one entity per observed address")
         }
     };
 
-    let requests: Vec<Request> = tape.rows.iter().enumerate().map(|(index, row)| {
-        let entity = entity_of[row.address.as_str()];
-        let wallet = entity * wallets_per_entity + if wallets_per_entity > 1 {
-            rng.randrange(0, wallets_per_entity as i64) as usize
-        } else { 0 };
-        let informed = market.informed_flags[index];
-        Request {
-            step: row.step, entity, wallet, size: row.size, direction: row.direction,
-            informed,
-            signal: if informed { market.move_over(row.step, market.horizon) } else { 0 },
-        }
-    }).collect();
+    let requests: Vec<Request> = tape
+        .rows
+        .iter()
+        .enumerate()
+        .map(|(index, row)| {
+            let entity = entity_of[row.address.as_str()];
+            let wallet = entity * wallets_per_entity
+                + if wallets_per_entity > 1 {
+                    rng.randrange(0, wallets_per_entity as i64) as usize
+                } else {
+                    0
+                };
+            let informed = market.informed_flags[index];
+            Request {
+                step: row.step,
+                entity,
+                wallet,
+                size: row.size,
+                direction: row.direction,
+                informed,
+                signal: if informed {
+                    market.move_over(row.step, market.horizon)
+                } else {
+                    0
+                },
+            }
+        })
+        .collect();
 
     let out_cfg = SimConfig {
-        steps: tape.steps(), n_entities, wallets_per_entity, ..*cfg
+        steps: tape.steps(),
+        n_entities,
+        wallets_per_entity,
+        ..*cfg
     };
-    let share = requests.iter().filter(|r| r.informed).count() as f64
-        / requests.len().max(1) as f64;
+    let share =
+        requests.iter().filter(|r| r.informed).count() as f64 / requests.len().max(1) as f64;
     let mut meta = tape.meta.clone();
     meta.insert("requests".into(), requests.len() as f64);
     meta.insert("entities".into(), n_entities as f64);
@@ -237,7 +306,12 @@ pub fn requests_from_tape(cfg: &SimConfig, market: &TapeMarket, tape: &Tape,
     meta.insert("edge_ticks_measured".into(), market.edge as f64);
     meta.insert("edge_ticks_assumed".into(), cfg.informed_edge_ticks);
 
-    TapeRequests { requests, cfg: out_cfg, meta, entity_kind }
+    TapeRequests {
+        requests,
+        cfg: out_cfg,
+        meta,
+        entity_kind,
+    }
 }
 
 /// One symbol-day from the Bybit public trading archive.
@@ -245,23 +319,38 @@ pub fn requests_from_tape(cfg: &SimConfig, market: &TapeMarket, tape: &Tape,
 /// Timestamp resolution changes with the era --- tenths of a millisecond before
 /// late 2021 and whole seconds after --- so `step_ms` should be at least a second
 /// on the later files, or every trade in a second lands on one step.
-pub fn load_bybit(text: &str, cfg: &SimConfig, name: &str, steps: Option<usize>,
-                  step_ms: Option<u64>, max_rows: Option<usize>)
-    -> Result<Tape, String> {
+pub fn load_bybit(
+    text: &str,
+    cfg: &SimConfig,
+    name: &str,
+    steps: Option<usize>,
+    step_ms: Option<u64>,
+    max_rows: Option<usize>,
+) -> Result<Tape, String> {
     let step_ms = step_ms.unwrap_or(cfg.step_ms);
     let total_steps = steps.unwrap_or(cfg.steps);
 
     let mut lines = text.lines();
     let header: Vec<&str> = lines.next().ok_or("empty file")?.split(',').collect();
-    let column = |name: &str| header.iter().position(|h| *h == name)
-        .ok_or_else(|| format!("no '{name}' column"));
-    let (ts, price_at, size_at, side_at) =
-        (column("timestamp")?, column("price")?, column("size")?, column("side")?);
+    let column = |name: &str| {
+        header
+            .iter()
+            .position(|h| *h == name)
+            .ok_or_else(|| format!("no '{name}' column"))
+    };
+    let (ts, price_at, size_at, side_at) = (
+        column("timestamp")?,
+        column("price")?,
+        column("size")?,
+        column("side")?,
+    );
 
     let mut trades: Vec<(f64, f64, f64, u8)> = Vec::new();
     for line in lines {
         let parts: Vec<&str> = line.split(',').collect();
-        if parts.len() <= price_at { continue; }
+        if parts.len() <= price_at {
+            continue;
+        }
         trades.push((
             parts[ts].parse().map_err(|_| "bad timestamp")?,
             parts[price_at].parse().map_err(|_| "bad price")?,
@@ -270,9 +359,13 @@ pub fn load_bybit(text: &str, cfg: &SimConfig, name: &str, steps: Option<usize>,
             // which is the simulator's direction 0.
             u8::from(parts[side_at] != "Buy"),
         ));
-        if max_rows.is_some_and(|m| trades.len() >= m) { break; }
+        if max_rows.is_some_and(|m| trades.len() >= m) {
+            break;
+        }
     }
-    if trades.is_empty() { return Err(format!("{name} yielded no trades")); }
+    if trades.is_empty() {
+        return Err(format!("{name} yielded no trades"));
+    }
 
     // These files are written newest-first. Reading them in file order silently
     // produces negative step indices, so the sort is not optional.
@@ -281,16 +374,19 @@ pub fn load_bybit(text: &str, cfg: &SimConfig, name: &str, steps: Option<usize>,
     let base = trades[0].0;
     trades.retain(|t| t.0 - base <= span_s);
 
-    let steps_of: Vec<usize> = trades.iter()
+    let steps_of: Vec<usize> = trades
+        .iter()
         .map(|t| (((t.0 - base) * 1000.0 / step_ms as f64) as usize).min(total_steps))
         .collect();
     // Clamping a negative index to zero would turn a tape read in the wrong
     // order into a tape where every trade happened at once --- which still loads,
     // still runs, and reports a market that never existed.
-    if steps_of.first().is_some_and(|s| *s != 0)
-        || steps_of.windows(2).any(|w| w[0] > w[1]) {
-        return Err("trades are not in time order after sorting; the tape's own \
-                    ordering changed or the sort was lost".into());
+    if steps_of.first().is_some_and(|s| *s != 0) || steps_of.windows(2).any(|w| w[0] > w[1]) {
+        return Err(
+            "trades are not in time order after sorting; the tape's own \
+                    ordering changed or the sort was lost"
+                .into(),
+        );
     }
 
     let prices: Vec<f64> = trades.iter().map(|t| t.1).collect();
@@ -310,23 +406,45 @@ pub fn load_bybit(text: &str, cfg: &SimConfig, name: &str, steps: Option<usize>,
 
     let sizes: Vec<f64> = trades.iter().map(|t| t.2).collect();
     let lots = rescale_sizes(&sizes, 40, SIZE_CEILING);
-    let rows: Vec<TapeRow> = steps_of.iter().zip(&lots).zip(&trades).enumerate()
+    let rows: Vec<TapeRow> = steps_of
+        .iter()
+        .zip(&lots)
+        .zip(&trades)
+        .enumerate()
         .map(|(i, ((step, lot), trade))| TapeRow {
-            step: *step, address: format!("taker:{i}"), size: *lot, direction: trade.3,
-        }).collect();
+            step: *step,
+            address: format!("taker:{i}"),
+            size: *lot,
+            direction: trade.3,
+        })
+        .collect();
 
     let span = trades.last().unwrap().0 - trades[0].0;
     let meta: BTreeMap<String, f64> = [
         ("trades".to_string(), rows.len() as f64),
         ("step_ms".to_string(), step_ms as f64),
         ("span_s".to_string(), span),
-        ("arrival_per_s".to_string(), rows.len() as f64 / span.max(1e-9)),
+        (
+            "arrival_per_s".to_string(),
+            rows.len() as f64 / span.max(1e-9),
+        ),
         ("tick_value".to_string(), tick),
-        ("sizes_over_largest_bucket".to_string(),
-         lots.iter().filter(|v| **v > 400).count() as f64),
-        ("sizes_at_ceiling".to_string(),
-         lots.iter().filter(|v| **v >= SIZE_CEILING).count() as f64),
-    ].into_iter().collect();
+        (
+            "sizes_over_largest_bucket".to_string(),
+            lots.iter().filter(|v| **v > 400).count() as f64,
+        ),
+        (
+            "sizes_at_ceiling".to_string(),
+            lots.iter().filter(|v| **v >= SIZE_CEILING).count() as f64,
+        ),
+    ]
+    .into_iter()
+    .collect();
 
-    Ok(Tape { mid, rows, source: format!("bybit:{name}"), meta })
+    Ok(Tape {
+        mid,
+        rows,
+        source: format!("bybit:{name}"),
+        meta,
+    })
 }

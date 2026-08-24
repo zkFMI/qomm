@@ -99,7 +99,10 @@ def main() -> int:
     ap.add_argument("--n-mm", type=int, default=16)
     ap.add_argument("--bit-length", type=int, default=31)
     ap.add_argument("--delays", type=float, nargs="+", default=[1, 15])
-    ap.add_argument("--slots", type=int, default=3)
+    # Five, because five or more is what the plan fixed in advance. It was
+    # three, and three is what got measured --- the deviation came from a
+    # default that disagreed with the pre-registration, not from a decision.
+    ap.add_argument("--slots", type=int, default=5)
     ap.add_argument("--nodes", type=int, default=7)
     ap.add_argument("--quorum", type=int, default=5)
     ap.add_argument("--rfs-interval-ms", type=float, default=1000.0)

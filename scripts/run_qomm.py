@@ -382,6 +382,14 @@ def main() -> int:
     ap.add_argument("--user-asset", type=int, default=0)
     ap.add_argument("--prime", type=int, default=None,
                     help="run the MPC over this prime instead of the default field")
+    ap.add_argument("--reference", choices=("anchored", "none"),
+                    default="anchored",
+                    help="whether the price rule adds a reference price at all")
+    ap.add_argument("--use-ref", type=int, default=1,
+                    help="whether makers anchor on the public reference price")
+    ap.add_argument("--persist-wires", action="store_true",
+                    help="each node keeps its share of every wire the joint "
+                         "prover needs, not only the winner")
     ap.add_argument("--shamir-inputs", action="store_true",
                     help="deal inputs as Shamir shares of the commitment group's "
                          "scalar field, so the shares the nodes feed are the ones "
@@ -444,6 +452,9 @@ def main() -> int:
         "--n-requests", str(args.n_requests),
         *(["--public-maker-assets"] if args.public_maker_assets else []),
         *(["--audit-gates"] if args.audit_gates else []),
+        *(["--persist-wires"] if args.persist_wires else []),
+        "--use-ref", str(args.use_ref),
+        "--reference", args.reference,
         "--out-program", str(src), "--out-input-dir", str(inputs),
         "--out-reference", str(ref_path),
     ], capture_output=True, text=True)

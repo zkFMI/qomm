@@ -28,6 +28,17 @@ fn main() {
     println!("cargo::rustc-check-cfg=cfg(have_spdz)");
     println!("cargo:rerun-if-env-changed=MP_SPDZ_ROOT");
     println!("cargo:rerun-if-changed=shim/qomm_spdz.cpp");
+    // And on the engine header the shim compiles against, because that is where
+    // `expose-machine-to-embedder.patch` lands. Without this, applying the patch
+    // and rebuilding `libSPDZ.so` leaves cargo reporting `Finished` in 0.05s and
+    // running the previous shim, which reports "the engine did not call the
+    // hook" about a build that now does.
+    println!(
+        "cargo:rerun-if-changed={}",
+        Path::new(&std::env::var("MP_SPDZ_ROOT").unwrap_or_default())
+            .join("Processor/OnlineMachine.hpp")
+            .display()
+    );
 
     let Some(root) = std::env::var_os("MP_SPDZ_ROOT").map(PathBuf::from) else {
         println!("cargo:warning=MP_SPDZ_ROOT is unset; building without the engine");
@@ -35,8 +46,10 @@ fn main() {
     };
     let root = root.canonicalize().unwrap_or(root);
     if !root.join("libSPDZ.so").exists() && !root.join("libSPDZ.a").exists() {
-        println!("cargo:warning=no libSPDZ in {}; run `make libSPDZ.so` there first",
-                 root.display());
+        println!(
+            "cargo:warning=no libSPDZ in {}; run `make libSPDZ.so` there first",
+            root.display()
+        );
         return;
     }
     println!("cargo:rerun-if-changed={}", root.join("CONFIG").display());
@@ -52,23 +65,54 @@ fn main() {
         .args(engine_flags(&root))
         .args(["-fPIC", "-c"])
         .arg(&source)
-        .arg("-o").arg(&object)
+        .arg("-o")
+        .arg(&object)
         .status()
         .expect("a C++ compiler");
-    assert!(status.success(), "the shim did not compile against {}", root.display());
+    assert!(
+        status.success(),
+        "the shim did not compile against {}",
+        root.display()
+    );
 
     let archive = out.join("libqomm_spdz.a");
-    let _ = std::fs::remove_file(&archive);          // `ar crs` appends to an existing one
-    let status = Command::new("ar").arg("crs").arg(&archive).arg(&object)
-        .status().expect("ar");
+    let _ = std::fs::remove_file(&archive); // `ar crs` appends to an existing one
+    let status = Command::new("ar")
+        .arg("crs")
+        .arg(&archive)
+        .arg(&object)
+        .status()
+        .expect("ar");
     assert!(status.success());
 
     println!("cargo:rustc-link-search=native={}", out.display());
     println!("cargo:rustc-link-lib=static=qomm_spdz");
     println!("cargo:rustc-link-search=native={}", root.display());
     println!("cargo:rustc-link-lib=dylib=SPDZ");
-    println!("cargo:rustc-link-lib=dylib=stdc++");
+    // The C++ runtime, whose name is not the same everywhere. Apple removed
+    // libstdc++ years ago and ships libc++; naming `stdc++` there fails with
+    // `library 'stdc++' not found`, which reads like a missing package and is
+    // not one.
+    let cxx = if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        "c++"
+    } else {
+        "stdc++"
+    };
+    println!("cargo:rustc-link-lib=dylib={cxx}");
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", root.display());
+    // The rpath is not enough on macOS. MP-SPDZ links `libSPDZ.so` without an
+    // `-install_name @rpath/...`, so the library records its own bare name and
+    // dyld never consults the rpath at all: the binary links, and then fails at
+    // start-up with a page of paths it tried. Saying so at build time is better
+    // than letting the reader meet that page.
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("macos") {
+        println!(
+            "cargo:warning=macOS: run with DYLD_LIBRARY_PATH={}, or give \
+                  the engine an @rpath install name once with `install_name_tool \
+                  -id @rpath/libSPDZ.so libSPDZ.so`",
+            root.display()
+        );
+    }
     // The shim's own object refers to OpenSSL and Boost directly --- it
     // instantiates the machine, and the machine's templates reach them --- so
     // naming libSPDZ is not enough. The linker does not follow a shared
@@ -98,14 +142,27 @@ fn main() {
 /// Nothing about the resulting error mentions either make or cargo.
 fn engine_flags(root: &Path) -> Vec<String> {
     let flags = config_variable(root, "CFLAGS");
-    assert!(flags.iter().any(|f| f.starts_with("-DGFP_MOD_SZ")),
-            "CONFIG gave no -DGFP_MOD_SZ; the shim would mis-read every field element");
+    // `-DGFP_MOD_SZ` is deliberately not required. An earlier version asserted
+    // it was present, on the reasoning that the shim would otherwise mis-read
+    // every field element --- but MP-SPDZ's own CONFIG only mentions it in a
+    // comment, `Math/gfp.h` defines it to 2 when nothing else does, and the
+    // engine's note says it "only needs to be set for primes of bit length more
+    // that 256". So a default checkout has no such flag, the assertion fired on
+    // the ordinary configuration, and `MP_SPDZ_ROOT=... cargo build -p qomm-mpc`
+    // could not succeed on any machine that had not hand-edited CONFIG.mine.
+    //
+    // What actually has to hold is that the shim and `libSPDZ` agree, and that
+    // is already guaranteed by taking the flags from the file the engine's own
+    // objects were built from. Adding the flag here when CONFIG does not carry
+    // it would *create* the disagreement rather than prevent it.
     // A CFLAGS entry that is not an option is a variable that expanded to
     // something unintended. Caught here it names itself; passed through, it
     // reaches the compiler as a filename and the message is about that.
     if let Some(stray) = flags.iter().find(|f| !f.starts_with('-')) {
-        panic!("CONFIG produced the non-option `{stray}` in CFLAGS; \
-                some variable it interpolates expanded to that");
+        panic!(
+            "CONFIG produced the non-option `{stray}` in CFLAGS; \
+                some variable it interpolates expanded to that"
+        );
     }
     flags.into_iter().filter(|f| f != "-Werror").collect()
 }
@@ -120,11 +177,20 @@ fn config_variable(root: &Path, name: &str) -> Vec<String> {
         .current_dir(root)
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
-        .arg("-s").arg("-f").arg(&path).arg("flags")
+        .arg("-s")
+        .arg("-f")
+        .arg(&path)
+        .arg("flags")
         .output()
         .expect("make, to read MP-SPDZ's own flags");
-    assert!(out.status.success(),
-            "could not read {name} from {}: {}",
-            root.join("CONFIG").display(), String::from_utf8_lossy(&out.stderr));
-    String::from_utf8_lossy(&out.stdout).split_whitespace().map(str::to_string).collect()
+    assert!(
+        out.status.success(),
+        "could not read {name} from {}: {}",
+        root.join("CONFIG").display(),
+        String::from_utf8_lossy(&out.stderr)
+    );
+    String::from_utf8_lossy(&out.stdout)
+        .split_whitespace()
+        .map(str::to_string)
+        .collect()
 }

@@ -36,11 +36,15 @@ fn main() {
 
     match qomm_mpc::run(protocol, &argv) {
         Ok(run) => {
-            println!("QOMM total {} {} {} {} {:.6}",
-                     run.rounds, run.raw_rounds, run.sent, run.payload, run.seconds);
+            println!(
+                "QOMM total {} {} {} {} {:.6}",
+                run.rounds, run.raw_rounds, run.sent, run.payload, run.seconds
+            );
             for channel in &run.channels {
-                println!("QOMM channel {} {} {}",
-                         channel.rounds, channel.bytes, channel.name);
+                println!(
+                    "QOMM channel {} {} {}",
+                    channel.rounds, channel.bytes, channel.name
+                );
             }
         }
         Err(why) => {
@@ -51,7 +55,9 @@ fn main() {
 }
 
 fn usage(me: &str) -> ! {
-    eprintln!("usage: {me} <malicious-shamir|semi-honest-shamir> \
-               <party> <program> -N <n> -T <t> -ip <hosts>");
+    eprintln!(
+        "usage: {me} <malicious-shamir|semi-honest-shamir> \
+               <party> <program> -N <n> -T <t> -ip <hosts>"
+    );
     std::process::exit(2);
 }

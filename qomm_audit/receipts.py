@@ -147,6 +147,9 @@ class AuditLedger:
         self.node_keys = dict(node_keys)
         self._by_slot: dict[int, dict[int, list[NodeReceipt]]] = {}
         self._specs: dict[int, SlotSpec] = {}
+        # when this ledger saw each node's first receipt for a slot; the field
+        # the node signs says when the node says it sent one
+        self._arrived: dict[tuple[int, int], int] = {}
         self._settled_state: dict[int, bytes] = {}
         self.evidence: list[Evidence] = []
 
@@ -154,8 +157,18 @@ class AuditLedger:
         self._specs[spec.slot] = spec
         self._by_slot.setdefault(spec.slot, {})
 
-    def record(self, receipt: NodeReceipt) -> list[Evidence]:
-        """Accept a receipt. Equivocation is detectable the moment it arrives."""
+    def record(self, receipt: NodeReceipt, arrived_at: int | None = None
+               ) -> list[Evidence]:
+        """Accept a receipt. Equivocation is detectable the moment it arrives.
+
+        `arrived_at` is when *this ledger* saw it, and it is what lateness is
+        judged by. `emitted_at` is a field the node chooses and signs, so
+        settling against that let a node miss a deadline, sign
+        `emitted_at = deadline - 1` afterwards, and be counted as on time --- a
+        deadline nobody but the node observes is not a deadline. Callers that
+        pass nothing keep the old behaviour, which is only safe where the
+        emitter and the ledger are the same process.
+        """
         found: list[Evidence] = []
         spec = self._specs.get(receipt.slot)
         if spec is None:
@@ -171,6 +184,26 @@ class AuditLedger:
                                   "signature does not verify"))
             self.evidence.extend(found)
             return found
+
+        # The slot fixes the market and the deadline, and both are signed --- and
+        # neither was compared, so a receipt for another market with an invented
+        # deadline still counted toward this slot's quorum.
+        if receipt.market_digest != spec.market_digest:
+            found.append(Evidence(
+                Fault.STALE_STATE, receipt.node, receipt.slot,
+                "signed a market other than the one fixed for this slot", (receipt,)))
+        if receipt.deadline != spec.deadline:
+            found.append(Evidence(
+                Fault.STALE_STATE, receipt.node, receipt.slot,
+                "signed a deadline other than the one fixed for this slot", (receipt,)))
+
+        if arrived_at is not None:
+            key_at = (receipt.slot, receipt.node)
+            previous = self._arrived.get(key_at)
+            # the first arrival is what counts: a node that answered on time and
+            # then answered again has not become late
+            self._arrived[key_at] = (arrived_at if previous is None
+                                     else min(previous, arrived_at))
 
         existing = self._by_slot[receipt.slot].setdefault(receipt.node, [])
         for other in existing:
@@ -201,7 +234,10 @@ class AuditLedger:
         receipts = self._by_slot.get(slot, {})
 
         for node in sorted(self.node_keys):
-            fresh = [r for r in receipts.get(node, []) if r.emitted_at <= spec.deadline]
+            seen_at = self._arrived.get((slot, node))
+            fresh = [r for r in receipts.get(node, [])
+                     if (seen_at if seen_at is not None else r.emitted_at)
+                     <= spec.deadline]
             if not fresh:
                 found.append(Evidence(
                     Fault.MISSING_RECEIPT, node, slot,
@@ -211,7 +247,12 @@ class AuditLedger:
         tally: dict[bytes, list[int]] = {}
         for node, node_receipts in receipts.items():
             for receipt in node_receipts:
-                if receipt.emitted_at <= spec.deadline and receipt.mm_set_digest == spec.mm_set_digest:
+                seen_at = self._arrived.get((slot, node))
+                when = seen_at if seen_at is not None else receipt.emitted_at
+                if (when <= spec.deadline
+                        and receipt.mm_set_digest == spec.mm_set_digest
+                        and receipt.market_digest == spec.market_digest
+                        and receipt.deadline == spec.deadline):
                     tally.setdefault(receipt.new_state_digest, []).append(node)
         settled = None
         if tally:

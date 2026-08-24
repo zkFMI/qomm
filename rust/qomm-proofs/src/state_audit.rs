@@ -98,11 +98,23 @@ pub enum ChainError {
     /// the commitment a step follows *is* the commitment the input dealer
     /// published for that maker's inventory, which the dealer already publishes
     /// and nobody was comparing.
-    NotTheDealtState { index: usize, step: u64 },
+    NotTheDealtState {
+        index: usize,
+        step: u64,
+    },
     /// A replayed or forked inventory: this step did not follow the one before.
-    Forked { index: usize, step: u64 },
-    Arithmetic { index: usize, step: u64 },
-    Containment { index: usize, step: u64 },
+    Forked {
+        index: usize,
+        step: u64,
+    },
+    Arithmetic {
+        index: usize,
+        step: u64,
+    },
+    Containment {
+        index: usize,
+        step: u64,
+    },
 }
 
 impl Default for StateAuditor {
@@ -127,7 +139,9 @@ impl StateAuditor {
 
     // --- the limit, committed once --------------------------------------
     pub fn commit_limit(
-        &self, limit: u64, blinding: &Scalar,
+        &self,
+        limit: u64,
+        blinding: &Scalar,
     ) -> Result<InventoryLimit, &'static str> {
         if limit > ceiling() {
             return Err("limit above the public ceiling");
@@ -146,7 +160,8 @@ impl StateAuditor {
             return false;
         }
         let mut t = Self::transcript(b"limit");
-        self.ranges.verify(&mut t, &limit.range, &[limit.compressed])
+        self.ranges
+            .verify(&mut t, &limit.range, &[limit.compressed])
     }
 
     // --- one step --------------------------------------------------------
@@ -157,11 +172,16 @@ impl StateAuditor {
     /// written to match.
     #[allow(clippy::too_many_arguments)]
     pub fn prove_update<R: RngCore + CryptoRng>(
-        &self, step: u64,
-        old_inventory: i64, old_blinding: &Scalar,
-        filled: i64, fill_blinding: &Scalar,
-        limit: u64, limit_blinding: &Scalar,
-        new_blinding: &Scalar, rng: &mut R,
+        &self,
+        step: u64,
+        old_inventory: i64,
+        old_blinding: &Scalar,
+        filled: i64,
+        fill_blinding: &Scalar,
+        limit: u64,
+        limit_blinding: &Scalar,
+        new_blinding: &Scalar,
+        rng: &mut R,
     ) -> Result<(StateStep, i64), &'static str> {
         let new_inventory = old_inventory - filled;
         if new_inventory.unsigned_abs() > limit {
@@ -176,11 +196,14 @@ impl StateAuditor {
         let tag = format!("step:{step}");
         let mut t = Self::transcript(tag.as_bytes());
         let arithmetic = prove_linear(
-            &self.key, &mut t,
+            &self.key,
+            &mut t,
             &[new_commitment, fill_commitment, old_commitment],
             &[Scalar::ONE, Scalar::ONE, -Scalar::ONE],
             &[*new_blinding, *fill_blinding, *old_blinding],
-            &Scalar::ZERO, rng);
+            &Scalar::ZERO,
+            rng,
+        );
 
         // |inventory| <= limit, as two one-sided proofs on committed
         // differences. The commitment each proof covers is the difference of two
@@ -192,42 +215,63 @@ impl StateAuditor {
             debug_assert!(value >= 0);
             let blind = limit_blinding - signed(sign) * new_blinding;
             let mut t = Self::transcript(format!("{tag}:{suffix}").as_bytes());
-            let (proof, compressed) =
-                self.ranges.prove(&mut t, &[value as u64], &[blind])?;
+            let (proof, compressed) = self.ranges.prove(&mut t, &[value as u64], &[blind])?;
             sided.push((proof, compressed[0]));
         }
         let (above_floor, above_commitment) = sided.pop().unwrap();
         let (below_cap, below_commitment) = sided.pop().unwrap();
 
-        Ok((StateStep {
-            step,
-            inventory: new_commitment,
-            fill: fill_commitment,
-            follows: old_commitment.compress().to_bytes(),
-            arithmetic,
-            below_cap, below_commitment,
-            above_floor, above_commitment,
-        }, new_inventory))
+        Ok((
+            StateStep {
+                step,
+                inventory: new_commitment,
+                fill: fill_commitment,
+                follows: old_commitment.compress().to_bytes(),
+                arithmetic,
+                below_cap,
+                below_commitment,
+                above_floor,
+                above_commitment,
+            },
+            new_inventory,
+        ))
     }
 
     /// The venue's side. Nothing here needs an opening.
     pub fn verify_update(
-        &self, step: &StateStep, old_commitment: &RistrettoPoint, limit: &InventoryLimit,
+        &self,
+        step: &StateStep,
+        old_commitment: &RistrettoPoint,
+        limit: &InventoryLimit,
     ) -> bool {
         if old_commitment.compress().to_bytes() != step.follows {
             return false;
         }
         let tag = format!("step:{}", step.step);
         let mut t = Self::transcript(tag.as_bytes());
-        if !verify_linear(&self.key, &mut t,
-                          &[step.inventory, step.fill, *old_commitment],
-                          &[Scalar::ONE, Scalar::ONE, -Scalar::ONE],
-                          &Scalar::ZERO, &step.arithmetic) {
+        if !verify_linear(
+            &self.key,
+            &mut t,
+            &[step.inventory, step.fill, *old_commitment],
+            &[Scalar::ONE, Scalar::ONE, -Scalar::ONE],
+            &Scalar::ZERO,
+            &step.arithmetic,
+        ) {
             return false;
         }
         for (proof, compressed, sign, suffix) in [
-            (&step.below_cap, &step.below_commitment, Scalar::ONE, "below"),
-            (&step.above_floor, &step.above_commitment, -Scalar::ONE, "above"),
+            (
+                &step.below_cap,
+                &step.below_commitment,
+                Scalar::ONE,
+                "below",
+            ),
+            (
+                &step.above_floor,
+                &step.above_commitment,
+                -Scalar::ONE,
+                "above",
+            ),
         ] {
             // The proof must be about limit - sign*inventory and nothing else.
             let expected = limit.commitment - step.inventory * sign;
@@ -235,7 +279,10 @@ impl StateAuditor {
                 return false;
             }
             let mut t = Self::transcript(format!("{tag}:{suffix}").as_bytes());
-            if !self.ranges.verify(&mut t, proof, std::slice::from_ref(compressed)) {
+            if !self
+                .ranges
+                .verify(&mut t, proof, std::slice::from_ref(compressed))
+            {
                 return false;
             }
         }
@@ -250,16 +297,21 @@ impl StateAuditor {
     /// *some* inventory moved correctly; with it, that the one the quote was
     /// priced from did.
     pub fn verify_update_bound(
-        &self, step: &StateStep, old_commitment: &RistrettoPoint,
-        limit: &InventoryLimit, dealt: &CompressedRistretto,
+        &self,
+        step: &StateStep,
+        old_commitment: &RistrettoPoint,
+        limit: &InventoryLimit,
+        dealt: &CompressedRistretto,
     ) -> bool {
-        old_commitment.compress() == *dealt
-            && self.verify_update(step, old_commitment, limit)
+        old_commitment.compress() == *dealt && self.verify_update(step, old_commitment, limit)
     }
 
     /// Walk the chain, requiring each step to start from the state that was dealt.
     pub fn verify_chain_bound(
-        &self, opening: &RistrettoPoint, steps: &[StateStep], limit: &InventoryLimit,
+        &self,
+        opening: &RistrettoPoint,
+        steps: &[StateStep],
+        limit: &InventoryLimit,
         dealt: &[CompressedRistretto],
     ) -> Result<(), ChainError> {
         if dealt.len() != steps.len() {
@@ -268,7 +320,10 @@ impl StateAuditor {
         let mut previous = *opening;
         for (index, step) in steps.iter().enumerate() {
             if previous.compress() != dealt[index] {
-                return Err(ChainError::NotTheDealtState { index, step: step.step });
+                return Err(ChainError::NotTheDealtState {
+                    index,
+                    step: step.step,
+                });
             }
             previous = step.inventory;
         }
@@ -277,7 +332,10 @@ impl StateAuditor {
 
     /// Walk the chain from a known opening state.
     pub fn verify_chain(
-        &self, opening: &RistrettoPoint, steps: &[StateStep], limit: &InventoryLimit,
+        &self,
+        opening: &RistrettoPoint,
+        steps: &[StateStep],
+        limit: &InventoryLimit,
     ) -> Result<(), ChainError> {
         if !self.check_limit(limit) {
             return Err(ChainError::LimitNotInRange);
@@ -285,7 +343,10 @@ impl StateAuditor {
         let mut current = *opening;
         for (index, step) in steps.iter().enumerate() {
             if current.compress().to_bytes() != step.follows {
-                return Err(ChainError::Forked { index, step: step.step });
+                return Err(ChainError::Forked {
+                    index,
+                    step: step.step,
+                });
             }
             if !self.verify_update(step, &current, limit) {
                 // The arithmetic proof is checked first inside verify_update, so
@@ -293,13 +354,23 @@ impl StateAuditor {
                 let tag = format!("step:{}", step.step);
                 let mut t = Self::transcript(tag.as_bytes());
                 let arithmetic_ok = verify_linear(
-                    &self.key, &mut t, &[step.inventory, step.fill, current],
+                    &self.key,
+                    &mut t,
+                    &[step.inventory, step.fill, current],
                     &[Scalar::ONE, Scalar::ONE, -Scalar::ONE],
-                    &Scalar::ZERO, &step.arithmetic);
+                    &Scalar::ZERO,
+                    &step.arithmetic,
+                );
                 return Err(if arithmetic_ok {
-                    ChainError::Containment { index, step: step.step }
+                    ChainError::Containment {
+                        index,
+                        step: step.step,
+                    }
                 } else {
-                    ChainError::Arithmetic { index, step: step.step }
+                    ChainError::Arithmetic {
+                        index,
+                        step: step.step,
+                    }
                 });
             }
             current = step.inventory;

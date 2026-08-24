@@ -88,3 +88,19 @@ def reconstruct(payloads: list[bytes], n_values: int) -> list[int]:
 def frame_mac(key: bytes, slot: int, node: int, payload: bytes) -> bytes:
     return hmac.new(key, HEADER.pack(MAGIC, VERSION, slot, node) + payload,
                     hashlib.sha256).digest()
+
+
+def frame_is_authentic(key: bytes, frame: "Frame") -> bool:
+    """Whether this frame was written by a holder of the key.
+
+    The client computed a MAC over every frame from the first version of this
+    module and nothing ever checked one. Thirty-two bytes of every frame were
+    carried, counted in every traffic measurement, and bought nothing: anyone
+    who could reach a relay's port could write a well-formed frame into a slot's
+    batch and corrupt that slot's reconstruction for every node downstream.
+
+    Compared in constant time, because a relay compares a great many of these
+    and the comparison is against a secret.
+    """
+    return hmac.compare_digest(
+        frame.mac, frame_mac(key, frame.slot, frame.node, frame.payload))

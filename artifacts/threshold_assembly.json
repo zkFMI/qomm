@@ -1,0 +1,389 @@
+{
+ "host": "host-a",
+ "group": "ed25519",
+ "quote_rows": [
+  {
+   "makers": 2,
+   "assemble": {
+    "median_ms": 244.44363918155432,
+    "n": 5,
+    "min_ms": 244.29539311677217,
+    "max_ms": 244.82273077592254,
+    "sd_ms": 0.2291268258458722
+   },
+   "prove_local": {
+    "median_ms": 77.00686622411013,
+    "n": 5,
+    "min_ms": 76.99302304536104,
+    "max_ms": 77.60836184024811,
+    "sd_ms": 0.2672067905757639
+   },
+   "verify_assembled": {
+    "median_ms": 102.84714121371508,
+    "n": 5,
+    "min_ms": 102.65974793583155,
+    "max_ms": 103.34281623363495,
+    "sd_ms": 0.2644073400033436
+   },
+   "verify_local": {
+    "median_ms": 87.28467300534248,
+    "n": 5,
+    "min_ms": 87.17479277402163,
+    "max_ms": 87.76074415072799,
+    "sd_ms": 0.22872127603099368
+   },
+   "assemble_per_node_ms": 81.4812130605181,
+   "per_node_over_local": 1.0581032193075675,
+   "verify_over_local": 1.1782955434503382
+  },
+  {
+   "makers": 4,
+   "assemble": {
+    "median_ms": 488.7118190526962,
+    "n": 5,
+    "min_ms": 488.4143858216703,
+    "max_ms": 489.1918976791203,
+    "sd_ms": 0.3358191472015198
+   },
+   "prove_local": {
+    "median_ms": 154.007023666054,
+    "n": 5,
+    "min_ms": 153.91109231859446,
+    "max_ms": 154.56984704360366,
+    "sd_ms": 0.3229941474931979
+   },
+   "verify_assembled": {
+    "median_ms": 205.43451514095068,
+    "n": 5,
+    "min_ms": 205.2615568973124,
+    "max_ms": 205.67615004256368,
+    "sd_ms": 0.18404824121448313
+   },
+   "verify_local": {
+    "median_ms": 174.55890821292996,
+    "n": 5,
+    "min_ms": 174.09580433741212,
+    "max_ms": 175.5509008653462,
+    "sd_ms": 0.5429370991800424
+   },
+   "assemble_per_node_ms": 162.90393968423209,
+   "per_node_over_local": 1.0577695471699393,
+   "verify_over_local": 1.1768778645794353
+  },
+  {
+   "makers": 8,
+   "assemble": {
+    "median_ms": 978.3113868907094,
+    "n": 5,
+    "min_ms": 976.9633240066469,
+    "max_ms": 978.6076582968235,
+    "sd_ms": 0.6526077481392826
+   },
+   "prove_local": {
+    "median_ms": 308.5406571626663,
+    "n": 5,
+    "min_ms": 308.2411694340408,
+    "max_ms": 308.96537797525525,
+    "sd_ms": 0.3105409326635009
+   },
+   "verify_assembled": {
+    "median_ms": 410.87637608870864,
+    "n": 5,
+    "min_ms": 410.3320278227329,
+    "max_ms": 410.90155905112624,
+    "sd_ms": 0.2530844772405549
+   },
+   "verify_local": {
+    "median_ms": 348.7531072460115,
+    "n": 5,
+    "min_ms": 348.18399976938963,
+    "max_ms": 348.9255700260401,
+    "sd_ms": 0.32874343929192634
+   },
+   "assemble_per_node_ms": 326.10379563023645,
+   "per_node_over_local": 1.0569232548769436,
+   "verify_over_local": 1.178129649749257
+  },
+  {
+   "makers": 16,
+   "assemble": {
+    "median_ms": 1958.9045541360974,
+    "n": 5,
+    "min_ms": 1958.1296271644533,
+    "max_ms": 1960.5212081223726,
+    "sd_ms": 0.9288872901408822
+   },
+   "prove_local": {
+    "median_ms": 617.4847721122205,
+    "n": 5,
+    "min_ms": 617.2867538407445,
+    "max_ms": 618.23963932693,
+    "sd_ms": 0.3685690130762869
+   },
+   "verify_assembled": {
+    "median_ms": 821.8017127364874,
+    "n": 5,
+    "min_ms": 821.0872919298708,
+    "max_ms": 826.0507890954614,
+    "sd_ms": 2.031973986482415
+   },
+   "verify_local": {
+    "median_ms": 697.6363216526806,
+    "n": 5,
+    "min_ms": 696.9873518683016,
+    "max_ms": 698.5294646583498,
+    "sd_ms": 0.5579858961456099
+   },
+   "assemble_per_node_ms": 652.9681847120324,
+   "per_node_over_local": 1.0574644334603336,
+   "verify_over_local": 1.177980112603172
+  }
+ ],
+ "assemble_is": "total CPU across the quorum, run serially in one process; a deployment runs the members at once, so assemble_per_node_ms is what a node waits for",
+ "parties": 7,
+ "threshold": 2,
+ "bit_proof_assembled": "square: b*b = b, linear in the witness",
+ "bit_proof_local": "disjunction: the branch is chosen from the bit",
+ "rows": [
+  {
+   "width": 8,
+   "quorum": 3,
+   "assemble": {
+    "median_ms": 11.623215861618519,
+    "n": 5,
+    "min_ms": 11.60784112289548,
+    "max_ms": 11.643155943602324,
+    "sd_ms": 0.013684187785476946
+   },
+   "verify_assembled": {
+    "median_ms": 4.946945235133171,
+    "n": 5,
+    "min_ms": 4.911020398139954,
+    "max_ms": 4.957913886755705,
+    "sd_ms": 0.018637628088619226
+   },
+   "prove_local": {
+    "median_ms": 3.49641777575016,
+    "n": 5,
+    "min_ms": 3.4665227867662907,
+    "max_ms": 3.502786159515381,
+    "sd_ms": 0.015425560120174658
+   },
+   "verify_local": {
+    "median_ms": 4.176077898591757,
+    "n": 5,
+    "min_ms": 4.1556591168046,
+    "max_ms": 4.359995014965534,
+    "sd_ms": 0.09069081005982994
+   },
+   "size_assembled": {
+    "points": 25,
+    "scalars": 26,
+    "bytes": 1632
+   },
+   "size_local": {
+    "points": 25,
+    "scalars": 34,
+    "bytes": 1888
+   },
+   "no_node_holds_the_value": true,
+   "verified_by_ordinary_verifier": true,
+   "assemble_over_local": 3.3243212359326098,
+   "assemble_per_node_ms": 3.874405287206173,
+   "per_node_over_local": 1.1081070786442033,
+   "bytes_over_local": 0.864406779661017
+  },
+  {
+   "width": 16,
+   "quorum": 3,
+   "assemble": {
+    "median_ms": 22.64935988932848,
+    "n": 5,
+    "min_ms": 22.599867079406977,
+    "max_ms": 22.746293805539608,
+    "sd_ms": 0.0543877876312548
+   },
+   "verify_assembled": {
+    "median_ms": 9.666579309850931,
+    "n": 5,
+    "min_ms": 9.638444986194372,
+    "max_ms": 9.694113861769438,
+    "sd_ms": 0.022713960960481925
+   },
+   "prove_local": {
+    "median_ms": 6.860456895083189,
+    "n": 5,
+    "min_ms": 6.842448841780424,
+    "max_ms": 6.879210937768221,
+    "sd_ms": 0.01631552539844929
+   },
+   "verify_local": {
+    "median_ms": 8.122599218040705,
+    "n": 5,
+    "min_ms": 8.089418057352304,
+    "max_ms": 8.146292064338923,
+    "sd_ms": 0.022426813799296737
+   },
+   "size_assembled": {
+    "points": 49,
+    "scalars": 50,
+    "bytes": 3168
+   },
+   "size_local": {
+    "points": 49,
+    "scalars": 66,
+    "bytes": 3680
+   },
+   "no_node_holds_the_value": true,
+   "verified_by_ordinary_verifier": true,
+   "assemble_over_local": 3.301436075716913,
+   "assemble_per_node_ms": 7.54978662977616,
+   "per_node_over_local": 1.1004786919056377,
+   "bytes_over_local": 0.8608695652173913
+  },
+  {
+   "width": 24,
+   "quorum": 3,
+   "assemble": {
+    "median_ms": 33.68285298347473,
+    "n": 5,
+    "min_ms": 33.59557501971722,
+    "max_ms": 33.89359684661031,
+    "sd_ms": 0.12380812525767187
+   },
+   "verify_assembled": {
+    "median_ms": 14.3685732036829,
+    "n": 5,
+    "min_ms": 14.346333220601082,
+    "max_ms": 14.420393388718367,
+    "sd_ms": 0.028435033670137617
+   },
+   "prove_local": {
+    "median_ms": 10.255683213472366,
+    "n": 5,
+    "min_ms": 10.233951266855001,
+    "max_ms": 10.292465332895517,
+    "sd_ms": 0.021874127236212466
+   },
+   "verify_local": {
+    "median_ms": 12.061289045959711,
+    "n": 5,
+    "min_ms": 12.030038051307201,
+    "max_ms": 12.091781944036484,
+    "sd_ms": 0.02526707882713909
+   },
+   "size_assembled": {
+    "points": 73,
+    "scalars": 74,
+    "bytes": 4704
+   },
+   "size_local": {
+    "points": 73,
+    "scalars": 98,
+    "bytes": 5472
+   },
+   "no_node_holds_the_value": true,
+   "verified_by_ordinary_verifier": true,
+   "assemble_over_local": 3.284310979811398,
+   "assemble_per_node_ms": 11.227617661158243,
+   "per_node_over_local": 1.0947703266037991,
+   "bytes_over_local": 0.8596491228070176
+  },
+  {
+   "width": 26,
+   "quorum": 3,
+   "assemble": {
+    "median_ms": 36.419962998479605,
+    "n": 5,
+    "min_ms": 36.37822903692722,
+    "max_ms": 36.47536272183061,
+    "sd_ms": 0.036285305570788864
+   },
+   "verify_assembled": {
+    "median_ms": 15.594735275954008,
+    "n": 5,
+    "min_ms": 15.526255127042532,
+    "max_ms": 15.885794069617987,
+    "sd_ms": 0.14709161690650194
+   },
+   "prove_local": {
+    "median_ms": 11.094409972429276,
+    "n": 5,
+    "min_ms": 11.086186859756708,
+    "max_ms": 11.105998884886503,
+    "sd_ms": 0.007890972679805647
+   },
+   "verify_local": {
+    "median_ms": 13.02199624478817,
+    "n": 5,
+    "min_ms": 12.999152764678001,
+    "max_ms": 13.051100075244904,
+    "sd_ms": 0.025289659094450585
+   },
+   "size_assembled": {
+    "points": 79,
+    "scalars": 80,
+    "bytes": 5088
+   },
+   "size_local": {
+    "points": 79,
+    "scalars": 106,
+    "bytes": 5920
+   },
+   "no_node_holds_the_value": true,
+   "verified_by_ordinary_verifier": true,
+   "assemble_over_local": 3.282730950901118,
+   "assemble_per_node_ms": 12.139987666159868,
+   "per_node_over_local": 1.0942436503003727,
+   "bytes_over_local": 0.8594594594594595
+  },
+  {
+   "width": 32,
+   "quorum": 3,
+   "assemble": {
+    "median_ms": 44.75625837221742,
+    "n": 5,
+    "min_ms": 44.664544984698296,
+    "max_ms": 44.85407518222928,
+    "sd_ms": 0.08225771747035045
+   },
+   "verify_assembled": {
+    "median_ms": 19.07099410891533,
+    "n": 5,
+    "min_ms": 19.050595350563526,
+    "max_ms": 19.4359109736979,
+    "sd_ms": 0.16240756678735566
+   },
+   "prove_local": {
+    "median_ms": 13.610670808702707,
+    "n": 5,
+    "min_ms": 13.592888135463,
+    "max_ms": 13.617483898997307,
+    "sd_ms": 0.009323938847685757
+   },
+   "verify_local": {
+    "median_ms": 15.966685954481363,
+    "n": 5,
+    "min_ms": 15.959026757627726,
+    "max_ms": 16.019945964217186,
+    "sd_ms": 0.02485589569982129
+   },
+   "size_assembled": {
+    "points": 97,
+    "scalars": 98,
+    "bytes": 6240
+   },
+   "size_local": {
+    "points": 97,
+    "scalars": 130,
+    "bytes": 7264
+   },
+   "no_node_holds_the_value": true,
+   "verified_by_ordinary_verifier": true,
+   "assemble_over_local": 3.288321273893431,
+   "assemble_per_node_ms": 14.91875279073914,
+   "per_node_over_local": 1.0961070912978104,
+   "bytes_over_local": 0.8590308370044053
+  }
+ ]
+}

@@ -114,6 +114,11 @@ def build_program(
     check_coefficients: list | None = None,
     check_repeats: int = 7,
     stop_after: str = "tournament",
+    persist_wires: bool = False,
+    reference: str = "anchored",
+    range_query: bool = False,
+    query_lo: int = 0,
+    query_hi: int = 0,
 ) -> str:
     """Emit the .mpc source. ``n_mm`` must be a power of two (padded by caller).
 
@@ -159,6 +164,10 @@ def build_program(
     w(f"N_PARTIES = {n_parties}")
     w(f"LARGE = {sentinel_for(bit_length, n_mm, 8 * max(ref_table))}")
     w(f"NOW_T = {now_t}")
+    if range_query:
+        w("# The asker's range. Public, because it is their own question.")
+        w(f"QUERY_LO = {query_lo}")
+        w(f"QUERY_HI = {query_hi}")
     w(f"N_ASSETS = {n_assets}")
     w("# Public reference price per asset. The table is public; which entry the")
     w("# request selects is not, so the selection has to be oblivious.")
@@ -200,21 +209,7 @@ def build_program(
         w("check_store = [Array(N_CHECKED, sint) for _ in range(N_PARTIES)]")
         w("check_pos = [0]")
         w("")
-        w("def secret_input():")
-        w("    total = None")
-        w("    _k = check_pos[0]")
-        w("    for _p in range(N_PARTIES):")
-        w("        _s = sint.get_input_from(_p)")
-        w("        check_store[_p][_k] = _s")
-        w("        total = _s if total is None else total + _s")
-        w("    check_pos[0] += 1")
-        w("    return total")
-    else:
-        w("def secret_input():")
-        w("    total = sint.get_input_from(0)")
-        w("    for _p in range(1, N_PARTIES):")
-        w("        total = total + sint.get_input_from(_p)")
-        w("    return total")
+        pass    # the one definition is emitted below, once both options are known
     if lagrange is not None:
         # Shamir inputs. A party holds f(p+1) of a degree-t polynomial whose
         # constant term is the value, so reconstruction is a public linear
@@ -234,11 +229,37 @@ def build_program(
         # could always reconstruct it. The additive layer was buying a stronger
         # guarantee than the protocol underneath it, which is not a guarantee.
         w("LAGRANGE = [" + ", ".join(str(c) for c in lagrange) + "]")
-        w("def secret_input():")
-        w("    total = LAGRANGE[0] * sint.get_input_from(0)")
-        w("    for _p in range(1, N_PARTIES):")
-        w("        total = total + LAGRANGE[_p] * sint.get_input_from(_p)")
-        w("    return total")
+
+    # One definition, not one per option.
+    #
+    # There used to be two: the input check emitted a `secret_input` that
+    # recorded each party's share into `check_store`, and Shamir inputs emitted
+    # another one straight after that applied the Lagrange coefficients. The
+    # second silently replaced the first, so asking for both --- which is what
+    # `BINDING.md` recommends and what the composed arm measured --- produced a
+    # circuit whose check ran over an array nothing had written to. The rounds
+    # and the bytes were real; the property was not.
+    #
+    # Emitting one definition that carries both options is the structural fix.
+    # Two definitions of the same name cannot silently displace each other if
+    # there is only ever one.
+    checking = input_check and check_mode == "per-party"
+    w("def secret_input():")
+    if checking:
+        w("    _k = check_pos[0]")
+    w("    total = None")
+    w("    for _p in range(N_PARTIES):")
+    w("        _s = sint.get_input_from(_p)")
+    if checking:
+        # what the node fed, before the public coefficient is applied: the
+        # check is about the share, and the coefficient is not the node's
+        w("        check_store[_p][_k] = _s")
+    if lagrange is not None:
+        w("        _s = LAGRANGE[_p] * _s")
+    w("        total = _s if total is None else total + _s")
+    if checking:
+        w("    check_pos[0] += 1")
+    w("    return total")
     w("")
     w("# ---- user request, shared by the trader across every node ----")
     w(f"N_REQ = {n_requests}")
@@ -353,7 +374,32 @@ def build_program(
     w("        wide_idx[r * M + i] = sint(i)")
     w("")
     w("")
-    w("# ---- oblivious reference-price lookup ----")
+    if reference == "none":
+        # No reference term in the price rule at all.
+        #
+        # A maker in this design does not hold a standing registration --- its
+        # policy is a secret input it re-deals whenever it likes, measured at
+        # 39.6 full changes a second and 352 single-field ones. So the reason an
+        # anchor exists elsewhere, that a committed price goes stale as the
+        # market moves, does not apply: a maker prices on its own account and
+        # withdraws by setting `active` to zero, which is one field.
+        #
+        # Removing it also removes a mismatch. The circuit computed
+        # `anchored = mid + use_ref * ref` while the quote proof's statement is
+        # `ask = mid + half + depth + skew`, so the two were about different
+        # rules and `shares_from_circuit` refuses the difference. With no
+        # reference they are the same rule.
+        #
+        # And `REF_TABLE` was a compile-time literal, so every quote was as old
+        # as the compilation. There is nothing left to be old.
+        w("# No reference price. The maker carries the whole level in `mid` and")
+        w("# re-deals it as often as it likes; nothing here is standing.")
+        w("ref_secret_per_request = None")
+        w("ref_secret = None")
+        w("asset_onehot = [req_asset[0] == sint(a) for a in range(N_ASSETS)]")
+        w("")
+    else:
+        w("# ---- oblivious reference-price lookup ----")
     w("# ref = sum_a (asset == a) * REF_TABLE[a]. Each term multiplies a secret")
     w("# bit by a public constant, which costs nothing, so the whole lookup is")
     w("# N_ASSETS equality tests in one layer. Selecting the row publicly would")
@@ -559,6 +605,28 @@ def build_program(
             w("    return winner, filled")
         w("")
         w("")
+    if persist_wires:
+        w("# Where the joint prover reads the wires from. The vectors inside")
+        w("# `quote_layer` are local to it, and the proof is about all of them,")
+        w("# so they are parked here rather than returned --- which would change")
+        w("# a signature three other modes share.")
+        for name in ("mid", "half", "slope", "invcoef", "inv", "maxqty",
+                     "expiry", "active", "depth", "skew", "ask", "bid",
+                     "fits", "ok",
+                     # the proof's gates want the signed margins, not the bits:
+                     # `fits` in the circuit is `qty <= maxqty`, and what a range
+                     # proof is about is `maxqty - qty`. Both are kept, because
+                     # they are different things and calling them one name is
+                     # how the two sides drifted apart in the first place.
+                     "fits_margin", "fresh_margin", "fresh_bit",
+                     # `holds * value` for each gate, which is a multiplication
+                     # the circuit can do and the prover cannot
+                     "fits_product", "fresh_product",
+                     "both", "gated", "cost"):
+            w(f"W_{name} = Array(WIDE, sint)")
+        w("W_key = Array(WIDE, sint)")
+        w("W_qty = Array(1, sint)")
+        w("")
     w("def quote_layer(inv_vec, ref_secret, now_t):")
     w('    """One evaluation of P_i(x, s_i, m_t) for every market maker at once."""')
     w("    mid = tile_makers(col_mid.get_vector())")
@@ -576,8 +644,12 @@ def build_program(
     w("    # unless the maker switched the reference off, in which case mid is")
     w("    # the level itself. One more multiplication in a layer that already")
     w("    # has two, so the depth --- and the round count --- does not move.")
-    w("    use_ref = tile_makers(col_use_ref.get_vector())")
-    w("    anchored = mid + use_ref * spread_request(ref_secret_per_request)")
+    if reference == "none":
+        w("    # the level is the maker's own; nothing is added to it")
+        w("    anchored = mid")
+    else:
+        w("    use_ref = tile_makers(col_use_ref.get_vector())")
+        w("    anchored = mid + use_ref * spread_request(ref_secret_per_request)")
     if price_conditionals:
         w(f"    # {price_conditionals} conditional(s) on secrets in the price rule.")
         w("    # A branch on a secret is a comparison, and comparisons are what")
@@ -591,6 +663,13 @@ def build_program(
                 w(f"    skew = (skew < sint({bound})).if_else(skew, sint({bound}))")
     w("    ask = anchored + half + depth + skew")
     w("    bid = anchored - half - depth + skew")
+    if persist_wires:
+        for name in ("mid", "half", "slope", "invcoef", "maxqty", "expiry",
+                     "active", "depth", "skew", "ask", "bid"):
+            w(f"    W_{name}.assign({name})")
+        w("    W_inv.assign(tile_makers(inv_vec))")
+        w("    W_fits_margin.assign(maxqty - qty_v)")
+        w("    W_fresh_margin.assign(expiry - sint(now_t) - 1)")
     if stop_after in ("price", "direction"):
         w("    # Cut before the eligibility layer. Nothing below this line is built,")
         w("    # so the rounds this circuit costs are the price layer's own.")
@@ -606,13 +685,34 @@ def build_program(
         else:
             w("    g_asset = asset_mm == asset_v")
         w("    g_qty = qty_v <= maxqty")
+        if persist_wires:
+            w("    W_fits.assign(g_qty)")
+            w("    _fresh_bit = expiry > sint(now_t)")
+            w("    W_fresh_bit.assign(_fresh_bit)")
+            w("    # holds * value for each gate: one multiplication each, and")
+            w("    # the wire a product proof is about")
+            w("    W_fits_product.assign(g_qty * (maxqty - qty_v))")
+            w("    W_fresh_product.assign(_fresh_bit * (expiry - sint(now_t) - 1))")
+            w("    W_both.assign(g_qty * _fresh_bit)")
         if audit_gates:
-            w("    # expiry and the active flag are proved at registration time by the")
-            w("    # policy audit, so re-checking them here would pay for the same fact twice")
-            w("    ok = g_asset * g_qty")
+            w("    # The expiry is proved at registration: the auditor refuses an audit")
+            w("    # unless `now < expiry <= now + horizon`, so re-checking it here pays")
+            w("    # for the same fact twice.")
+            w("    #")
+            w("    # The active flag is *not*. The audit proves it is a bit and never")
+            w("    # that it is set, and it could not usefully prove it is set --- a")
+            w("    # committed one is a public one, and whether a maker is quoting at")
+            w("    # all is what the commitment is hiding. So it stays in the circuit.")
+            w("    # This flag used to drop it too, and with it dropped a maker that had")
+            w("    # withdrawn still won tournaments.")
+            w("    ok = active * g_asset * g_qty")
+            if persist_wires:
+                w("    W_ok.assign(ok)")
         else:
             w("    g_exp = expiry > sint(now_t)")
             w("    ok = active * g_asset * g_qty * g_exp")
+            if persist_wires:
+                w("    W_ok.assign(ok)")
         w("    return ask, bid, ok, maxqty")
     w("")
     w("")
@@ -662,6 +762,10 @@ def build_program(
             w("stage_out.assign(cost)")
             w("stage_out.get_vector().reveal_to(0)")
             return "\n".join(lines) + "\n"
+        if persist_wires:
+            w("W_cost.assign(cost)")
+            w("W_gated.assign(ok * (cost - sint(LARGE)))")
+            w("W_qty[0] = qty_v.get_vector(0, 1)")
         w("cost = ok.if_else(cost, sint(LARGE))")
         if stop_after == "gates":
             w("# stage cut: everything but the tournament")
@@ -671,6 +775,8 @@ def build_program(
             return "\n".join(lines) + "\n"
         w("wide_keys = Array(WIDE, sint)")
         w("wide_keys.assign(pack_key(cost, wide_idx.get_vector()))")
+        if persist_wires:
+            w("W_key.assign(wide_keys.get_vector())")
         if binding_limit:
             w("# The comparison is against the packed key, not the price: a key")
             w("# is cost*WIDE + maker, so `cost <= L` is `key <= L*WIDE + WIDE-1`")
@@ -704,8 +810,58 @@ def build_program(
         w("# circuit computed on, so nothing said they were the same numbers.")
         w("# Writing them here and reading them there makes it one value")
         w("# crossing a named interface rather than two that agree.")
-        w("sint.write_to_file([best_key])")
+        if persist_wires:
+            # Every wire the joint prover needs, in a fixed order both sides
+            # agree on. Writing only the winner bound one number; the proof is
+            # about all of them, and a share that reaches the prover by another
+            # route is a share nothing says the circuit computed.
+            #
+            # `mp_spdz/persistence.py` reads this back and
+            # `zk/threshold_quote.shares_from_circuit` names the order. Adding
+            # a wire here without adding it there shifts every later index,
+            # which is why the count is written first and checked on the way in.
+            w("wires = [best_key, W_qty[0]]")
+            w("for _m in range(M):")
+            w("    wires += [W_mid[_m], W_half[_m], W_slope[_m], W_invcoef[_m],")
+            w("              W_inv[_m], W_maxqty[_m], W_expiry[_m], W_active[_m],")
+            w("              W_depth[_m], W_skew[_m], W_ask[_m], W_bid[_m],")
+            w("              W_fits[_m], W_ok[_m], W_key[_m],")
+            w("              W_fits_margin[_m], W_fresh_margin[_m], W_fresh_bit[_m],")
+            w("              W_fits_product[_m], W_fresh_product[_m],")
+            w("              W_both[_m], W_gated[_m], W_cost[_m]]")
+            w("sint.write_to_file(wires)")
+        else:
+            w("sint.write_to_file([best_key])")
 
+        if range_query:
+            w("")
+            w("# ---- one range query, named by whoever asked ----")
+            w("#")
+            w("# Nobody publishes a statistic here and nothing decides a")
+            w("# threshold in advance. An asker names a price range and gets")
+            w("# back how many eligible makers quoted inside it, with noise")
+            w("# added outside. A firm contributes 0 or 1 to that count, so the")
+            w("# sensitivity is 1 --- against 300 for the volume fields, which")
+            w("# is why those needed noise of 1200 against a signal of 428.")
+            w("#")
+            w("# The bounds are public: they are what the asker asked. What")
+            w("# they cost is measured --- about 9.6 rounds for the one range,")
+            w("# so 0.14 s on a metro committee and 0.60 s across regions. A")
+            w("# grid of them would be flat in depth only if comparisons")
+            w("# batched, and they do not: 128 ranges is 1,257 rounds. One")
+            w("# range per run is the shape that works, and it is also the")
+            w("# shape that charges the asker for exactly what they asked.")
+            w("Q_LO = sint(QUERY_LO)")
+            w("Q_HI = sint(QUERY_HI)")
+            w("inside = (ask >= Q_LO.expand_to_vector(M)) * \\")
+            w("         (ask <= Q_HI.expand_to_vector(M))")
+            w("counted = ok * inside")
+            w("count_a = Array(M, sint)")
+            w("count_a.assign(counted)")
+            w("firms = count_a[0]")
+            w("for i in range(1, M):")
+            w("    firms = firms + count_a[i]")
+            w("print_ln('QOMM_RANGE_COUNT=%s', firms.reveal())")
         if disclose == "threshold":
             w("pub = threshold_disclosure(ask, ok, maxqty, ref_secret)")
             w("print_ln('QOMM_DISCLOSE=%s', pub.reveal())")
@@ -722,6 +878,35 @@ def build_program(
         if public_check:
             w("print_ln('QOMM_ASK_KEY=%s', ask_key.reveal())")
             w("print_ln('QOMM_BID_KEY=%s', bid_key.reveal())")
+        if range_query:
+            w("")
+            w("# ---- one range query, named by whoever asked ----")
+            w("#")
+            w("# Nobody publishes a statistic here and nothing decides a")
+            w("# threshold in advance. An asker names a price range and gets")
+            w("# back how many eligible makers quoted inside it, with noise")
+            w("# added outside. A firm contributes 0 or 1 to that count, so the")
+            w("# sensitivity is 1 --- against 300 for the volume fields, which")
+            w("# is why those needed noise of 1200 against a signal of 428.")
+            w("#")
+            w("# The bounds are public: they are what the asker asked. What")
+            w("# they cost is measured --- about 9.6 rounds for the one range,")
+            w("# so 0.14 s on a metro committee and 0.60 s across regions. A")
+            w("# grid of them would be flat in depth only if comparisons")
+            w("# batched, and they do not: 128 ranges is 1,257 rounds. One")
+            w("# range per run is the shape that works, and it is also the")
+            w("# shape that charges the asker for exactly what they asked.")
+            w("Q_LO = sint(QUERY_LO)")
+            w("Q_HI = sint(QUERY_HI)")
+            w("inside = (ask >= Q_LO.expand_to_vector(M)) * \\")
+            w("         (ask <= Q_HI.expand_to_vector(M))")
+            w("counted = ok * inside")
+            w("count_a = Array(M, sint)")
+            w("count_a.assign(counted)")
+            w("firms = count_a[0]")
+            w("for i in range(1, M):")
+            w("    firms = firms + count_a[i]")
+            w("print_ln('QOMM_RANGE_COUNT=%s', firms.reveal())")
         if disclose == "threshold":
             w("pub = threshold_disclosure(ask, ok, maxqty, ref_secret)")
             w("print_ln('QOMM_DISCLOSE=%s', pub.reveal())")
@@ -746,6 +931,35 @@ def build_program(
         w("    inv_state.assign(inv_state.get_vector() + won * signed_qty * real_v, 0)")
         if public_check:
             w("    print_ln('QOMM_RFS_STEP_%s_KEY=%s', step, best_key.reveal())")
+        if range_query:
+            w("")
+            w("# ---- one range query, named by whoever asked ----")
+            w("#")
+            w("# Nobody publishes a statistic here and nothing decides a")
+            w("# threshold in advance. An asker names a price range and gets")
+            w("# back how many eligible makers quoted inside it, with noise")
+            w("# added outside. A firm contributes 0 or 1 to that count, so the")
+            w("# sensitivity is 1 --- against 300 for the volume fields, which")
+            w("# is why those needed noise of 1200 against a signal of 428.")
+            w("#")
+            w("# The bounds are public: they are what the asker asked. What")
+            w("# they cost is measured --- about 9.6 rounds for the one range,")
+            w("# so 0.14 s on a metro committee and 0.60 s across regions. A")
+            w("# grid of them would be flat in depth only if comparisons")
+            w("# batched, and they do not: 128 ranges is 1,257 rounds. One")
+            w("# range per run is the shape that works, and it is also the")
+            w("# shape that charges the asker for exactly what they asked.")
+            w("Q_LO = sint(QUERY_LO)")
+            w("Q_HI = sint(QUERY_HI)")
+            w("inside = (ask >= Q_LO.expand_to_vector(M)) * \\")
+            w("         (ask <= Q_HI.expand_to_vector(M))")
+            w("counted = ok * inside")
+            w("count_a = Array(M, sint)")
+            w("count_a.assign(counted)")
+            w("firms = count_a[0]")
+            w("for i in range(1, M):")
+            w("    firms = firms + count_a[i]")
+            w("print_ln('QOMM_RANGE_COUNT=%s', firms.reveal())")
         if disclose == "threshold":
             w("pub = threshold_disclosure(ask, ok, maxqty, ref_secret)")
             w("print_ln('QOMM_DISCLOSE=%s', pub.reveal())")
@@ -804,6 +1018,7 @@ def build_inputs(
     value_bits: int = 32,
     field_bits: int = 128,
     use_ref: int = 1,
+    reference: str = "anchored",
     input_check: bool = False,
     check_mode: str = "aggregate",
     binding_limit: bool = False,
@@ -967,12 +1182,17 @@ def build_inputs(
     for i, pol in enumerate(policies):
         skew = pol["invcoef"] * pol["inv"]
         depth = pol["slope"] * user_qty
-        anchor = pol.get("use_ref", 1) * ref_table[user_asset] + pol["mid"]
+        # The cleartext model has to be the same rule the circuit runs, or the
+        # run's own verification compares two different computations and reports
+        # the difference as a failure of the circuit.
+        anchor = pol["mid"] if reference == "none" else (
+            pol.get("use_ref", 1) * ref_table[user_asset] + pol["mid"])
         ask = anchor + pol["half"] + depth + skew
         bid = anchor - pol["half"] - depth + skew
-        ok = pol["asset"] == user_asset and user_qty <= pol["maxqty"]
+        ok = (pol["asset"] == user_asset and user_qty <= pol["maxqty"]
+              and pol["active"] == 1)
         if not audit_gates:
-            ok = ok and pol["active"] == 1 and pol["expiry"] > now_t
+            ok = ok and pol["expiry"] > now_t
         quotes.append({"mm": i, "ask": ask, "bid": bid, "eligible": ok})
         if not ok:
             continue
@@ -1060,9 +1280,29 @@ def main() -> int:
     ap.add_argument("--public-maker-assets", action="store_true",
                     help="treat which market a maker serves as public, so the asset "
                          "gate becomes a free lookup instead of an equality test")
+    ap.add_argument("--reference", choices=("anchored", "none"),
+                    default="anchored",
+                    help="whether the price rule adds a reference price at all. "
+                         "`none` removes it, which is what the quote proof's "
+                         "statement covers and what a maker that re-deals its "
+                         "own level needs")
+    ap.add_argument("--use-ref", type=int, default=1,
+                    help="whether makers anchor on the public reference price. "
+                         "The quote proof's statement has no reference term, so "
+                         "0 is the configuration its `ask` matches; see "
+                         "`shares_from_circuit`, which refuses the mismatch "
+                         "rather than proving the wrong rule")
+    ap.add_argument("--persist-wires", action="store_true",
+                    help="write each node's share of every wire the joint "
+                         "prover needs, not only the winner. The prover reads "
+                         "them from the same files, so the shares it proves "
+                         "about are the shares the circuit computed on")
     ap.add_argument("--audit-gates", action="store_true",
-                    help="drop expiry and the active flag from the circuit; the "
-                         "registration-time policy audit already proves them")
+                    help="drop the expiry gate from the circuit; the "
+                         "registration-time policy audit refuses an audit whose "
+                         "expiry is outside the horizon, so the circuit would be "
+                         "paying for the same fact twice. The active flag stays: "
+                         "the audit proves it is a bit and not that it is set")
     ap.add_argument("--n-assets", type=int, default=1,
                     help="assets the one circuit serves; the requested one stays secret")
     ap.add_argument("--band-bps", type=int, default=20)
@@ -1220,6 +1460,8 @@ def main() -> int:
         maker_assets=[i % args.n_assets for i in range(padded)],
         public_maker_assets=args.public_maker_assets,
         audit_gates=args.audit_gates,
+        persist_wires=args.persist_wires,
+        reference=args.reference,
         bit_length=args.bit_length,
         argmin_arity=(padded if args.argmin_arity <= 0 else args.argmin_arity),
         lagrange=lagrange,
@@ -1274,6 +1516,8 @@ def main() -> int:
         policies_in=policies,
         shamir_prime=shamir_prime,
         shamir_threshold=(args.n_parties - 1) // 2,
+        use_ref=args.use_ref,
+        reference=args.reference,
     )
     args.out_input_dir.mkdir(parents=True, exist_ok=True)
     for party, values in per_party.items():

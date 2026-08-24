@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
 """What a slow quote costs, measured against what the price was worth anyway.
 
-A cross-region committee answers in 26 s (`placement_intercontinental.json`),
+A cross-region committee answers in about 24 s (`placement_intercontinental.json`),
 and the question that decides whether that matters is not the number of seconds
 but whether the price moved in them. UniswapX fills carry a rate that really was
 executable at a block, so the drift over a gap can be compared against the
 dispersion the same market already shows *within* one block --- spread, size
-impact, fee tier. If the drift sits inside that, a quote that took 26 s is not
+impact, fee tier. If the drift sits inside that, a quote that took 24 s is not
 distinguishable from one that took none.
 
-Ethereum blocks are about 12 s, so 26 s is two of them. Crypto is the harshest
-case available: an instrument that moves less makes a slow quote cheaper, never
-dearer.
+Ethereum blocks are 12 s, so 24 s is two of them. This said 26 s throughout,
+including in the artifact key, which was two blocks priced at 13 s each; the
+number measured was always the two-block one.
+
+**What the sample conditions on, and which way it leans.** Every observation
+here is a *fill*: an order that settled. An order that did not settle leaves no
+`Fill` log on Ethereum, so it cannot be in this file, and a quote that went stale
+is exactly the kind of order that does not settle. The sample is therefore
+selected on an outcome downstream of the thing being measured, and the direction
+is not neutral --- drift that was large enough to stop a trade is missing from
+the drift estimate. The figures below are a **lower bound** on what a stale quote
+faces, and the bound leans the way the design would prefer. Nothing available in
+this dataset removes that; only a feed of unfilled orders would.
+
+Crypto on Ethereum L1 is the harshest case available in the other direction: an
+instrument that moves less makes a slow quote cheaper, never dearer.
 
 The fills are not shipped --- they are a few hundred megabytes recovered from an
 archive node --- so this fails rather than substituting anything.
@@ -85,7 +98,10 @@ def measure(rows: list[tuple[int, float]], gaps: list[int]) -> dict:
               "within_block": basis_points(within), "across_blocks": across}
     floor = result["within_block"]
     for gap, moved in across.items():
-        if floor and moved:
+        # A thin pair can have a zero within-block floor --- every trade in a
+        # block at the same rate. There is no ratio to a zero floor, and
+        # reporting one would be reporting an infinity as a measurement.
+        if floor and moved and floor["median_bp"] > 0:
             result.setdefault("ratio_to_within_block", {})[gap] = (
                 moved["median_bp"] / floor["median_bp"])
     return result
@@ -128,9 +144,33 @@ def main() -> int:
 
     ratios = [row["ratio_to_within_block"][2] for row in result["rows"]
               if row.get("ratio_to_within_block", {}).get(2)]
-    result["median_ratio_at_26s"] = statistics.median(ratios) if ratios else None
-    print(f"26 s of drift is {result['median_ratio_at_26s']:.2f}x the dispersion "
+    result["median_ratio_at_24s"] = statistics.median(ratios) if ratios else None
+    result["conditioned_on"] = (
+        "orders that settled; an order that went stale and did not settle leaves "
+        "no Fill log, so the drift estimate is a lower bound")
+    print(f"24 s of drift is {result['median_ratio_at_24s']:.2f}x the dispersion "
           f"the market already has inside one block")
+
+    # The four busiest pairs were a post-hoc choice. Whether the answer depends
+    # on it is a question the same data answers, so it is answered rather than
+    # left to the reader.
+    sensitivity = {}
+    for k in (2, 4, 8, 16, 32):
+        subset = sorted(by_pair.items(), key=lambda kv: -len(kv[1]))[:k]
+        rs = []
+        for _, rows in subset:
+            m = measure(rows, [2])
+            r = m.get("ratio_to_within_block", {}).get(2)
+            if r:
+                rs.append(r)
+        sensitivity[k] = {"pairs": len(rs),
+                          "median_ratio": statistics.median(rs) if rs else None}
+    result["pair_count_sensitivity"] = sensitivity
+    print("\nhow much the choice of four pairs mattered:")
+    for k, v in sensitivity.items():
+        got = v["median_ratio"]
+        print(f"  busiest {k:2d} pairs: median ratio "
+              f"{got:.2f}" if got else f"  busiest {k:2d} pairs: none")
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2) + "\n")

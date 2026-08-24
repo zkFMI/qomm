@@ -3,7 +3,9 @@
 
 use qomm_sim::audit::{betainc_public, clopper_pearson};
 
-fn close(a: f64, b: f64, tol: f64) -> bool { (a - b).abs() < tol }
+fn close(a: f64, b: f64, tol: f64) -> bool {
+    (a - b).abs() < tol
+}
 
 #[test]
 fn the_interval_matches_the_python_to_twelve_decimals() {
@@ -33,11 +35,23 @@ fn the_endpoints_are_exact_rather_than_nearly_exact() {
 #[test]
 fn the_incomplete_beta_agrees_with_the_python() {
     assert!(close(betainc_public(2.0, 3.0, 0.4), 0.524_8, 1e-13));
-    assert!(close(betainc_public(0.5, 0.5, 0.25), 0.333_333_333_333_32, 1e-13));
-    assert!(close(betainc_public(10.0, 20.0, 0.3), 0.364_004_081_071_94, 1e-13));
+    assert!(close(
+        betainc_public(0.5, 0.5, 0.25),
+        0.333_333_333_333_32,
+        1e-13
+    ));
+    assert!(close(
+        betainc_public(10.0, 20.0, 0.3),
+        0.364_004_081_071_94,
+        1e-13
+    ));
     // Large second argument is where the gamma approximation shows, and it shows
     // in the twelfth decimal.
-    assert!(close(betainc_public(1.0, 4_000.0, 0.001), 0.981_720_980_172_44, 1e-11));
+    assert!(close(
+        betainc_public(1.0, 4_000.0, 0.001),
+        0.981_720_980_172_44,
+        1e-11
+    ));
 }
 
 #[test]

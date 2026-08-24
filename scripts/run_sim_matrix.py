@@ -28,6 +28,7 @@ from qomm_sim.market import (                                # noqa: E402
 from qomm_sim.tapes import (                                 # noqa: E402
     TapeMarket, load_bybit, load_uniswapx, requests_from_tape,
 )
+from scripts.smallsample import mean_ci                      # noqa: E402
 
 
 def _tape_from(spec: dict, cfg: SimConfig):
@@ -141,13 +142,19 @@ def aggregate(rows: list[dict]) -> list[dict]:
 
 
 def _mean_ci(values: list[float]) -> dict | None:
+    """Per-symbol cells run five seeds. 1.96 is not the multiplier for five.
+
+    At n = 5 the multiplier is 2.776 --- 42% wider than the normal one this
+    used, which is the difference between a starred cell and an unstarred one
+    for two of the three the run reports.
+    """
     if not values:
         return None
-    mean = statistics.fmean(values)
-    if len(values) < 2:
-        return {"mean": mean, "ci95": 0.0, "n": 1}
-    sd = statistics.stdev(values)
-    return {"mean": mean, "ci95": 1.96 * sd / math.sqrt(len(values)), "n": len(values)}
+    ci = mean_ci(values)
+    out = {"mean": ci["mean"], "ci95": ci["half_width"] or 0.0, "n": ci["n"]}
+    if ci.get("multiplier") is not None:
+        out["multiplier"] = ci["multiplier"]
+    return out
 
 
 def main() -> int:

@@ -14,8 +14,16 @@ const REF_MID: i64 = 100_000;
 const NOW: i64 = 1_000;
 
 fn legal() -> Policy {
-    Policy { mid: REF_MID + 10, half: 12, slope: 3, invcoef: 2, inv: -250,
-             maxqty: 400, expiry: NOW + 600, active: true }
+    Policy {
+        mid: REF_MID + 10,
+        half: 12,
+        slope: 3,
+        invcoef: 2,
+        inv: -250,
+        maxqty: 400,
+        expiry: NOW + 600,
+        active: true,
+    }
 }
 
 fn nullifier() -> RistrettoPoint {
@@ -30,9 +38,21 @@ fn a_legal_policy_is_accepted() {
     let committer = PolicyCommitter::default();
     let auditor = PolicyAuditor::default();
     let (audit, _) = committer
-        .audit(&legal(), REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &legal(),
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
-    assert_eq!(auditor.verify(&audit, NOW, REF_MID, 3_600, None::<NoVerifier>), Ok(()));
+    assert_eq!(
+        auditor.verify(&audit, NOW, REF_MID, 3_600, None::<NoVerifier>),
+        Ok(())
+    );
 }
 
 #[test]
@@ -40,16 +60,63 @@ fn every_field_is_actually_checked_against_its_band() {
     let committer = PolicyCommitter::default();
     let bounds = PolicyBounds::default();
     for (name, bad) in [
-        ("half", Policy { half: bounds.half.1 + 1, ..legal() }),
-        ("slope", Policy { slope: bounds.slope.1 + 1, ..legal() }),
-        ("invcoef", Policy { invcoef: -1, ..legal() }),
-        ("inv", Policy { inv: bounds.inv.0 - 1, ..legal() }),
-        ("maxqty", Policy { maxqty: 0, ..legal() }),
-        ("mid", Policy { mid: REF_MID + bounds.mid_band + 1, ..legal() }),
+        (
+            "half",
+            Policy {
+                half: bounds.half.1 + 1,
+                ..legal()
+            },
+        ),
+        (
+            "slope",
+            Policy {
+                slope: bounds.slope.1 + 1,
+                ..legal()
+            },
+        ),
+        (
+            "invcoef",
+            Policy {
+                invcoef: -1,
+                ..legal()
+            },
+        ),
+        (
+            "inv",
+            Policy {
+                inv: bounds.inv.0 - 1,
+                ..legal()
+            },
+        ),
+        (
+            "maxqty",
+            Policy {
+                maxqty: 0,
+                ..legal()
+            },
+        ),
+        (
+            "mid",
+            Policy {
+                mid: REF_MID + bounds.mid_band + 1,
+                ..legal()
+            },
+        ),
     ] {
-        let out = committer.audit(&bad, REF_MID, NOW, 7, 2, &nullifier(),
-                                  None::<NoSigner>, &mut OsRng);
-        assert!(out.is_err(), "{name} outside its band still produced an audit");
+        let out = committer.audit(
+            &bad,
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        );
+        assert!(
+            out.is_err(),
+            "{name} outside its band still produced an audit"
+        );
     }
 }
 
@@ -58,35 +125,79 @@ fn an_audit_does_not_carry_to_a_different_reference_state() {
     let committer = PolicyCommitter::default();
     let auditor = PolicyAuditor::default();
     let (audit, _) = committer
-        .audit(&legal(), REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &legal(),
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
-    assert_eq!(auditor.verify(&audit, NOW, REF_MID + 1, 3_600, None::<NoVerifier>),
-               Err(Invalid::NotBoundToCurrentState));
-    assert_eq!(auditor.verify(&audit, NOW + 1, REF_MID, 3_600, None::<NoVerifier>),
-               Err(Invalid::NotBoundToCurrentState));
+    assert_eq!(
+        auditor.verify(&audit, NOW, REF_MID + 1, 3_600, None::<NoVerifier>),
+        Err(Invalid::NotBoundToCurrentState)
+    );
+    assert_eq!(
+        auditor.verify(&audit, NOW + 1, REF_MID, 3_600, None::<NoVerifier>),
+        Err(Invalid::NotBoundToCurrentState)
+    );
 }
 
 #[test]
 fn an_expiry_past_the_horizon_is_refused() {
     let committer = PolicyCommitter::default();
     let auditor = PolicyAuditor::default();
-    let far = Policy { expiry: NOW + 100_000, ..legal() };
+    let far = Policy {
+        expiry: NOW + 100_000,
+        ..legal()
+    };
     let (audit, _) = committer
-        .audit(&far, REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &far,
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
-    assert_eq!(auditor.verify(&audit, NOW, REF_MID, 3_600, None::<NoVerifier>),
-               Err(Invalid::ExpiryOutsideHorizon));
+    assert_eq!(
+        auditor.verify(&audit, NOW, REF_MID, 3_600, None::<NoVerifier>),
+        Err(Invalid::ExpiryOutsideHorizon)
+    );
 }
 
 #[test]
 fn every_node_can_check_its_own_share_without_the_dealer() {
     let committer = PolicyCommitter::default();
-    let auditor = PolicyAuditor::default();
     let (_, shares) = committer
-        .audit(&legal(), REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &legal(),
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
     let (audit, _) = committer
-        .audit(&legal(), REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &legal(),
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
     let _ = audit;
     for (name, field_shares) in &shares {
@@ -100,12 +211,24 @@ fn shares_reconstruct_the_committed_value_and_a_forged_share_does_not_verify() {
     let auditor = PolicyAuditor::default();
     let policy = legal();
     let (audit, shares) = committer
-        .audit(&policy, REF_MID, NOW, 7, 2, &nullifier(), None::<NoSigner>, &mut OsRng)
+        .audit(
+            &policy,
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            None::<NoSigner>,
+            &mut OsRng,
+        )
         .unwrap();
 
     let (name, half_shares) = shares.iter().find(|(n, _)| n == "half").unwrap();
     assert_eq!(name, "half");
-    assert_eq!(reconstruct(half_shares, 2), Scalar::from(policy.half as u64));
+    assert_eq!(
+        reconstruct(half_shares, 2),
+        Scalar::from(policy.half as u64)
+    );
 
     let field = &audit.fields.iter().find(|(n, _)| n == "half").unwrap().1;
     assert!(auditor.verify_node_share(&half_shares[0], field));
@@ -121,13 +244,27 @@ fn the_signature_covers_the_commitments() {
     let auditor = PolicyAuditor::default();
     let sign = |digest: &[u8]| digest.to_vec();
     let (audit, _) = committer
-        .audit(&legal(), REF_MID, NOW, 7, 2, &nullifier(), Some(sign), &mut OsRng)
+        .audit(
+            &legal(),
+            REF_MID,
+            NOW,
+            7,
+            2,
+            &nullifier(),
+            Some(sign),
+            &mut OsRng,
+        )
         .unwrap();
     let check = |digest: &[u8], signature: &[u8]| digest == signature;
-    assert_eq!(auditor.verify(&audit, NOW, REF_MID, 3_600, Some(check)), Ok(()));
+    assert_eq!(
+        auditor.verify(&audit, NOW, REF_MID, 3_600, Some(check)),
+        Ok(())
+    );
 
     let mut tampered = audit;
     tampered.entity_signature[0] ^= 0xff;
-    assert_eq!(auditor.verify(&tampered, NOW, REF_MID, 3_600, Some(check)),
-               Err(Invalid::NotSignedByCredential));
+    assert_eq!(
+        auditor.verify(&tampered, NOW, REF_MID, 3_600, Some(check)),
+        Err(Invalid::NotSignedByCredential)
+    );
 }

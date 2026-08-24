@@ -1,0 +1,123 @@
+{
+  "what": "how many probes recover a maker's net inventory from its own two-sided quotes",
+  "why": "DEPLOYMENT.md tells an operator to set the per-entity cap from this number and the number was not measured anywhere",
+  "attack": "correlate the midpoint of a firm two-sided quote with the maker's net inventory; the half spread cancels",
+  "verdict": "a correlation distinguishable from zero at 95% for most seeds",
+  "first_usable_budget": 8,
+  "seeds": 24,
+  "probes_per_window": 4,
+  "rows": [
+    {
+      "probes": 4,
+      "median_abs_corr": 0.8827,
+      "p25": 0.7066,
+      "p75": 0.9768,
+      "share_significant": 0.3,
+      "seeds": 20
+    },
+    {
+      "probes": 6,
+      "median_abs_corr": 0.7026,
+      "p25": 0.513,
+      "p75": 0.9512,
+      "share_significant": 0.435,
+      "seeds": 23
+    },
+    {
+      "probes": 8,
+      "median_abs_corr": 0.7195,
+      "p25": 0.4084,
+      "p75": 0.9357,
+      "share_significant": 0.5,
+      "seeds": 22
+    },
+    {
+      "probes": 10,
+      "median_abs_corr": 0.4778,
+      "p25": 0.2202,
+      "p75": 0.591,
+      "share_significant": 0.227,
+      "seeds": 22
+    },
+    {
+      "probes": 12,
+      "median_abs_corr": 0.5241,
+      "p25": 0.3127,
+      "p75": 0.6617,
+      "share_significant": 0.391,
+      "seeds": 23
+    },
+    {
+      "probes": 16,
+      "median_abs_corr": 0.4871,
+      "p25": 0.3352,
+      "p75": 0.73,
+      "share_significant": 0.435,
+      "seeds": 23
+    },
+    {
+      "probes": 24,
+      "median_abs_corr": 0.5547,
+      "p25": 0.3736,
+      "p75": 0.7563,
+      "share_significant": 0.696,
+      "seeds": 23
+    },
+    {
+      "probes": 32,
+      "median_abs_corr": 0.494,
+      "p25": 0.2893,
+      "p75": 0.6533,
+      "share_significant": 0.652,
+      "seeds": 23
+    },
+    {
+      "probes": 48,
+      "median_abs_corr": 0.5195,
+      "p25": 0.3833,
+      "p75": 0.707,
+      "share_significant": 0.826,
+      "seeds": 23
+    },
+    {
+      "probes": 64,
+      "median_abs_corr": 0.5387,
+      "p25": 0.3216,
+      "p75": 0.7001,
+      "share_significant": 0.826,
+      "seeds": 23
+    },
+    {
+      "probes": 96,
+      "median_abs_corr": 0.5463,
+      "p25": 0.3829,
+      "p75": 0.7064,
+      "share_significant": 0.957,
+      "seeds": 23
+    },
+    {
+      "probes": 128,
+      "median_abs_corr": 0.5637,
+      "p25": 0.3755,
+      "p75": 0.6645,
+      "share_significant": 0.957,
+      "seeds": 23
+    },
+    {
+      "probes": 192,
+      "median_abs_corr": 0.5285,
+      "p25": 0.3966,
+      "p75": 0.6459,
+      "share_significant": 1.0,
+      "seeds": 23
+    },
+    {
+      "probes": 240,
+      "median_abs_corr": 0.5285,
+      "p25": 0.3966,
+      "p75": 0.6459,
+      "share_significant": 1.0,
+      "seeds": 23
+    }
+  ]
+}

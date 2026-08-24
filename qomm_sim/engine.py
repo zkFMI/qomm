@@ -252,6 +252,7 @@ class WindowAccumulator:
         self.requests: dict[int, int] = {}
         self.volume: dict[int, int] = {}
         self.signed: dict[int, int] = {}
+        self.fills_by_entity: dict[int, int] = {}
         self.fills = 0
         self.total = 0
         self.no_quote = 0
@@ -268,6 +269,7 @@ class WindowAccumulator:
 
     def saw_fill(self, req: Request, bucket: int, signed: int) -> None:
         self.fills += 1
+        self.fills_by_entity[req.entity] = self.fills_by_entity.get(req.entity, 0) + 1
         self.fills_by_bucket[bucket] += 1
         self.volume[req.entity] = self.volume.get(req.entity, 0) + req.size
         self.signed[req.entity] = self.signed.get(req.entity, 0) + signed
@@ -279,6 +281,7 @@ class WindowAccumulator:
             requests_by_entity=dict(self.requests),
             volume_by_entity=dict(self.volume),
             signed_volume_by_entity=dict(self.signed),
+            fills_by_entity=dict(self.fills_by_entity),
             fills=self.fills, requests=self.total, no_quote=self.no_quote,
             liquidity_lots_in_band=lots_in_band, makers_in_band=makers_in_band,
             fills_by_bucket=tuple(self.fills_by_bucket),
@@ -361,6 +364,21 @@ class _Arm:
             return None, float("inf")
         return self.disclosure.public_signal(self.last_release)
 
+    def public_for(self, mm_id: int) -> tuple[float | None, float]:
+        """What one maker gets, which need not be what every maker gets.
+
+        A release that reaches everybody and a release that reaches one
+        subscriber are different experiments and give different answers: the
+        first lets every maker narrow together, so the surplus is competed away
+        whatever the information was worth privately. Separating them is the
+        only way to tell an information effect from a competition effect, and
+        the two were being measured as one.
+        """
+        only = getattr(self.disclosure, "reaches", None)
+        if only is not None and mm_id not in only:
+            return None, float("inf")
+        return self.public
+
     def _record(self, req: Request, step: int, executed: bool) -> None:
         self.truth.append({"step": step, "entity": req.entity, "wallet": req.wallet,
                            "size": req.size, "direction": req.direction,
@@ -379,7 +397,7 @@ class _Arm:
         for mm in self.mms:
             if not mm.eligible(req.size):
                 continue
-            phi_hat = self.beliefs[mm.mm_id].combined(self.public)
+            phi_hat = self.beliefs[mm.mm_id].combined(self.public_for(mm.mm_id))
             ask, bid = mm.quote(ref_mid, req.size, phi_hat)
             price = ask if req.direction == 0 else bid
             cost = price if req.direction == 0 else -price
@@ -474,7 +492,7 @@ class _Arm:
         for mm in self.mms:
             if not mm.eligible(probe.size):
                 continue
-            phi_hat = self.beliefs[mm.mm_id].combined(self.public)
+            phi_hat = self.beliefs[mm.mm_id].combined(self.public_for(mm.mm_id))
             ask, bid = mm.quote(ref_mid, probe.size, phi_hat)
             per_mm[mm.mm_id] = (ask, bid)
             if best_ask is None or ask < best_ask:

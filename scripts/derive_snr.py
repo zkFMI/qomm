@@ -52,15 +52,36 @@ def main() -> None:
     def ceiling(n: int) -> float:
         return MEDIAN_OVER_SIGMA * eps_field * math.sqrt(n)
 
-    counts = {"generated market": cfg.n_entities,
-              "maker firms on a real venue": 45,
-              "requesting addresses on the replayed tape": 2_526}
+    # N is firms **in one window**, not firms on the venue.
+    #
+    # The noise is drawn per window, so the sum it hides is the sum over the
+    # firms that contributed to that window. This used to pass in 2,526 --- every
+    # distinct address in the whole UniswapX tape --- and report a ceiling of
+    # 8.47, which read as "a real venue has more than enough firms". Those 2,526
+    # addresses are spread over 2,400 windows. The run's own figures put 4,485
+    # requests in those windows, so the average window has 1.87 of them, and no
+    # window can have more contributing firms than it has requests.
+    #
+    # The corrected reading reverses the conclusion: on the busiest basis the
+    # tape supports, the ceiling is still below one.
+    counts = {
+        "generated market, entities configured": cfg.n_entities,
+        "UniswapX: requests per window in the run (4485/2400)": 4485 / 2400,
+        "UniswapX: distinct swappers per 150-block window, raw tape median": 11,
+    }
 
     print(f"noise scale        = cap/eps_field = {cap}/{eps_field} = {noise:.0f}")
-    print(f"clip saturates at  T* = {t_star:.0f} s ({t_star / 60:.1f} min)")
-    print("signal-to-noise ceiling (median basis) = 0.6745 * eps_field * sqrt(N):")
+    print(f"clip saturates at  T* = {t_star:.0f} s ({t_star / 60:.1f} min), where"
+          f" the standard deviation reaches the cap --- about 32% of firms clip"
+          f" there, not all of them")
+    print("signal-to-noise ceiling (median basis) = 0.6745 * eps_field * sqrt(N),")
+    print("  where N is the firms contributing to ONE window:")
     for label, n in counts.items():
-        print(f"  N = {n:5d}  {label:44s}  {ceiling(n):5.2f}")
+        print(f"  N = {n:8.2f}  {label:60s}  {ceiling(n):6.3f}")
+    need = (1.0 / (MEDIAN_OVER_SIGMA * eps_field)) ** 2
+    print(f"  SNR = 1 needs N = {need:.1f} firms in the same window")
+    print(f"  the whole-tape count 2526 would give {ceiling(2526):.2f}, which is"
+          f" what this reported before; it aggregates 2,400 windows into one.")
 
     # Two cross-checks, because a closed form is only worth quoting if it
     # reproduces something that was not derived from it.
@@ -128,6 +149,8 @@ def main() -> None:
         "mean_size_lots": mean_size, "trades_per_firm_per_s": per_firm_per_s,
         "clip_saturation_s": t_star,
         "ceiling": {label: ceiling(n) for label, n in counts.items()},
+        "firms_per_window_for_snr_1": (1.0 / (MEDIAN_OVER_SIGMA * eps_field)) ** 2,
+        "ceiling_if_whole_tape_pooled": ceiling(2526),
         "firm_counts": counts,
         "mean_field_noise": mean_noise,
     }, indent=1) + "\n")

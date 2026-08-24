@@ -7,9 +7,7 @@
 use crate::attackers::{self as atk, AttackReport};
 use crate::disclosure::{Disclosure, DpDisclosure};
 use crate::engine::{run_arm, ArmOptions, ArmResult, Probe};
-use crate::market::{
-    build_market_makers, build_requests, ReferenceMarket, SimConfig,
-};
+use crate::market::{build_market_makers, build_requests, ReferenceMarket, SimConfig};
 
 #[derive(Clone, Copy, Debug)]
 pub struct DpParams {
@@ -25,18 +23,31 @@ pub struct DpParams {
 
 impl Default for DpParams {
     fn default() -> Self {
-        DpParams { epsilon_per_window: 1.0, epsilon_total: 20.0,
-                   request_cap: 3, volume_cap: 300, debias: true }
+        DpParams {
+            epsilon_per_window: 1.0,
+            epsilon_total: 20.0,
+            request_cap: 3,
+            volume_cap: 300,
+            debias: true,
+        }
     }
 }
 
 pub fn make_disclosure(name: &str, cfg: &SimConfig, dp: &DpParams) -> Disclosure {
     match name {
         "A_none" => Disclosure::None,
-        "B_threshold" => Disclosure::Threshold { min_makers: 5, min_lots: 800 },
+        "B_threshold" => Disclosure::Threshold {
+            min_makers: 5,
+            min_lots: 800,
+        },
         "C_dp" => Disclosure::Dp(Box::new(DpDisclosure::new(
-            dp.epsilon_per_window, dp.request_cap, dp.volume_cap,
-            cfg.n_entities, dp.epsilon_total, dp.debias))),
+            dp.epsilon_per_window,
+            dp.request_cap,
+            dp.volume_cap,
+            cfg.n_entities,
+            dp.epsilon_total,
+            dp.debias,
+        ))),
         other => panic!("no such disclosure regime: {other}"),
     }
 }
@@ -45,12 +56,11 @@ pub fn make_disclosure(name: &str, cfg: &SimConfig, dp: &DpParams) -> Disclosure
 /// confound the budget with the period observed.
 pub fn build_probes(cfg: &SimConfig, per_window: usize, probe_size: i64) -> Vec<Probe> {
     let n_windows = cfg.steps / cfg.window_steps;
-    let attacker_entity = cfg.n_entities;      // outside the honest population
+    let attacker_entity = cfg.n_entities; // outside the honest population
     let mut probes = Vec::with_capacity(n_windows * per_window);
     for window in 0..n_windows {
         for k in 0..per_window {
-            let offset = ((k as f64 + 0.5) * cfg.window_steps as f64
-                          / per_window as f64) as usize;
+            let offset = ((k as f64 + 0.5) * cfg.window_steps as f64 / per_window as f64) as usize;
             probes.push(Probe {
                 step: (window * cfg.window_steps + offset).min(cfg.steps - 1),
                 size: probe_size,
@@ -77,17 +87,28 @@ pub struct ArmRow {
 /// arm reshapes its own flow --- closer to a desk, and the only layer in which a
 /// disclosure regime can help or hurt.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Layer { Replay, Reactive }
+pub enum Layer {
+    Replay,
+    Reactive,
+}
 
 impl Layer {
     pub fn as_str(&self) -> &'static str {
-        match self { Layer::Replay => "replay", Layer::Reactive => "reactive" }
+        match self {
+            Layer::Replay => "replay",
+            Layer::Reactive => "reactive",
+        }
     }
 }
 
-pub fn run_matrix(cfg: &SimConfig, dp: &DpParams, protocols: &[&str],
-                  disclosures: &[&str], layer: Layer, probe_per_window: usize)
-    -> Vec<ArmRow> {
+pub fn run_matrix(
+    cfg: &SimConfig,
+    dp: &DpParams,
+    protocols: &[&str],
+    disclosures: &[&str],
+    layer: Layer,
+    probe_per_window: usize,
+) -> Vec<ArmRow> {
     let market = ReferenceMarket::new(cfg, cfg.seed);
     let makers = build_market_makers(cfg, cfg.seed + 1);
     let probes = build_probes(cfg, probe_per_window, 50);
@@ -110,8 +131,11 @@ pub fn run_matrix(cfg: &SimConfig, dp: &DpParams, protocols: &[&str],
                 atk::external_info_observer(&result, cfg, &market),
             ];
             rows.push(ArmRow {
-                protocol: protocol.to_string(), disclosure: name.to_string(),
-                layer: layer.as_str().to_string(), result, attacks,
+                protocol: protocol.to_string(),
+                disclosure: name.to_string(),
+                layer: layer.as_str().to_string(),
+                result,
+                attacks,
             });
         }
     }

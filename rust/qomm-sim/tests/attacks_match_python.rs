@@ -7,12 +7,23 @@ use qomm_sim::engine::{run_arm, ArmOptions, ArmResult, Probe};
 use qomm_sim::market::*;
 
 fn arm(protocol: &str) -> (SimConfig, ReferenceMarket, ArmResult) {
-    let cfg = SimConfig { steps: 4_000, window_steps: 200, ..Default::default() };
+    let cfg = SimConfig {
+        steps: 4_000,
+        window_steps: 200,
+        ..Default::default()
+    };
     let market = ReferenceMarket::new(&cfg, cfg.seed);
     let makers = build_market_makers(&cfg, cfg.seed + 1);
     let requests = build_requests(&cfg, &market, cfg.seed + 2);
-    let probes: Vec<Probe> = (0..4_000).step_by(8)
-        .map(|step| Probe { step, size: 100, wallet: 0, entity: 0 }).collect();
+    let probes: Vec<Probe> = (0..4_000)
+        .step_by(8)
+        .map(|step| Probe {
+            step,
+            size: 100,
+            wallet: 0,
+            entity: 0,
+        })
+        .collect();
     let mut disclosure = Disclosure::None;
     let mut options = ArmOptions::new(protocol, 99);
     options.probes = probes;
@@ -20,15 +31,21 @@ fn arm(protocol: &str) -> (SimConfig, ReferenceMarket, ArmResult) {
     (cfg, market, result)
 }
 
-fn close(a: Option<f64>, b: f64) -> bool { a.is_some_and(|v| (v - b).abs() < 1e-12) }
+fn close(a: Option<f64>, b: f64) -> bool {
+    a.is_some_and(|v| (v - b).abs() < 1e-12)
+}
 
 /// The plain arm's detection rises with how much of the wallet-to-entity map the
 /// adversary already holds. That is a statement about the adversary.
 #[test]
 fn the_plain_arm_tracks_the_adversarys_prior_attribution() {
     let (cfg, _, result) = arm("plain_rfq");
-    for (rho, expected) in [(0.0, 0.5), (0.25, 0.712_121_212_121_212_1),
-                            (0.5, 0.803_030_303_030_303), (1.0, 1.0)] {
+    for (rho, expected) in [
+        (0.0, 0.5),
+        (0.25, 0.712_121_212_121_212_1),
+        (0.5, 0.803_030_303_030_303),
+        (1.0, 1.0),
+    ] {
         let report = a::passive_observer(&result, &cfg, rho, 7);
         assert!(close(report.auc, expected), "rho {rho}: {:?}", report.auc);
     }
@@ -74,10 +91,16 @@ fn probing_recovers_aggregate_inventory_in_both_arms() {
     let (_, _, oblivious) = arm("qomm_rfq");
     let p = a::probing_entity(&plain, 64);
     let o = a::probing_entity(&oblivious, 64);
-    assert!(close(p.extra["net_inventory_corr_from_best_quote"], 0.908_689_438_746_2)
-            || (p.extra["net_inventory_corr_from_best_quote"].unwrap() - 0.9086894387).abs() < 1e-9);
-    assert_eq!(p.extra["net_inventory_corr_from_best_quote"],
-               o.extra["net_inventory_corr_from_best_quote"]);
+    assert!(
+        close(
+            p.extra["net_inventory_corr_from_best_quote"],
+            0.908_689_438_746_2
+        ) || (p.extra["net_inventory_corr_from_best_quote"].unwrap() - 0.9086894387).abs() < 1e-9
+    );
+    assert_eq!(
+        p.extra["net_inventory_corr_from_best_quote"],
+        o.extra["net_inventory_corr_from_best_quote"]
+    );
     assert!(p.extra["own_inventory_corr_from_per_mm_quotes"].unwrap() > 0.99);
     assert_eq!(o.extra["own_inventory_corr_from_per_mm_quotes"], None);
 }
@@ -90,8 +113,7 @@ fn informed_flow_detection_is_the_same_in_both_arms() {
     let (_, _, oblivious) = arm("qomm_rfq");
     let p = a::external_info_observer(&plain, &cfg, &market);
     let o = a::external_info_observer(&oblivious, &cfg, &market);
-    assert!(close(p.auc, 0.791_115_134_865_134_9)
-            || (p.auc.unwrap() - 0.7911151349).abs() < 1e-9);
+    assert!(close(p.auc, 0.791_115_134_865_134_9) || (p.auc.unwrap() - 0.7911151349).abs() < 1e-9);
     assert_eq!(p.auc, o.auc);
     assert_eq!(p.n_examples, 466);
 }

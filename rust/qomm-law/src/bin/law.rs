@@ -25,17 +25,37 @@ fn main() -> ExitCode {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--in" => { jurisdiction = args.get(i + 1).cloned(); i += 2; }
-            "--for" => { instrument = args.get(i + 1).cloned(); i += 2; }
-            "--as-of" => { as_of = args.get(i + 1).cloned(); i += 2; }
-            "--due-before" => { due = args.get(i + 1).cloned(); i += 2; }
-            "--lint" => { lint_only = true; i += 1; }
-            other => { files.push(other.to_string()); i += 1; }
+            "--in" => {
+                jurisdiction = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--for" => {
+                instrument = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--as-of" => {
+                as_of = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--due-before" => {
+                due = args.get(i + 1).cloned();
+                i += 2;
+            }
+            "--lint" => {
+                lint_only = true;
+                i += 1;
+            }
+            other => {
+                files.push(other.to_string());
+                i += 1;
+            }
         }
     }
     if files.is_empty() {
-        eprintln!("usage: qomm-law <rules...> [--lint] [--due-before <date>] \
-                   [--in <j> --for <i> --as-of <date>]");
+        eprintln!(
+            "usage: qomm-law <rules...> [--lint] [--due-before <date>] \
+                   [--in <j> --for <i> --as-of <date>]"
+        );
         return ExitCode::from(2);
     }
 
@@ -51,7 +71,10 @@ fn main() -> ExitCode {
                 source.push_str(&text);
                 source.push('\n');
             }
-            Err(why) => { eprintln!("{path}: {why}"); return ExitCode::from(2); }
+            Err(why) => {
+                eprintln!("{path}: {why}");
+                return ExitCode::from(2);
+            }
         }
     }
     let locate = |line: usize| -> String {
@@ -71,7 +94,10 @@ fn main() -> ExitCode {
     if let Some(when) = due {
         let when = match Date::parse(&when) {
             Ok(d) => d,
-            Err(why) => { eprintln!("{why}"); return ExitCode::from(2); }
+            Err(why) => {
+                eprintln!("{why}");
+                return ExitCode::from(2);
+            }
         };
         let rows = due_before(&base, when);
         if rows.is_empty() {
@@ -92,10 +118,13 @@ fn main() -> ExitCode {
             eprintln!("refused: {}: {refusal}", locate(refusal.line()));
         }
         if refusals.is_empty() {
-            println!("{} jurisdiction(s), {} article(s), {} deployment(s): \
+            println!(
+                "{} jurisdiction(s), {} article(s), {} deployment(s): \
                       every obligation is answered",
-                     base.jurisdictions.len(), base.articles.len(),
-                     base.deployments.len());
+                base.jurisdictions.len(),
+                base.articles.len(),
+                base.deployments.len()
+            );
             return ExitCode::SUCCESS;
         }
         return ExitCode::from(1);
@@ -103,16 +132,27 @@ fn main() -> ExitCode {
 
     let as_of = match as_of.as_deref().map(Date::parse) {
         Some(Ok(d)) => d,
-        Some(Err(why)) => { eprintln!("{why}"); return ExitCode::from(2); }
-        None => { eprintln!("--as-of <date> is required: a rule base has no \
-                             opinion without a date"); return ExitCode::from(2); }
+        Some(Err(why)) => {
+            eprintln!("{why}");
+            return ExitCode::from(2);
+        }
+        None => {
+            eprintln!(
+                "--as-of <date> is required: a rule base has no \
+                             opinion without a date"
+            );
+            return ExitCode::from(2);
+        }
     };
     let (Some(j), Some(k)) = (jurisdiction, instrument) else {
         eprintln!("--in and --for go together");
         return ExitCode::from(2);
     };
     match compile(&base, &j, &k, as_of) {
-        Ok(compiled) => { print!("{}", emit::markdown(&compiled)); ExitCode::SUCCESS }
+        Ok(compiled) => {
+            print!("{}", emit::markdown(&compiled));
+            ExitCode::SUCCESS
+        }
         Err(refusals) => {
             for refusal in refusals {
                 eprintln!("refused: {}: {refusal}", locate(refusal.line()));

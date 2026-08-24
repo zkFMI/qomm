@@ -101,3 +101,67 @@ def test_the_rule_digest_ignores_secret_values(registry):
 def test_nothing_is_approved_by_default():
     ok, reason = CircuitRegistry().check(PROGRAM, SHAPE)
     assert not ok and "no circuit is approved" in reason
+
+
+# --- the same claim, against circuits the generator actually emits ----------
+#
+# The tests above use a two-line string standing in for a program, which checks
+# the registry and not the thing the registry is for. What a venue publishes is
+# a compiled circuit, and the claim is that substituting a secret parameter
+# passes and substituting the rule is refused. That is checkable against the
+# real generator, and it is the mechanism that stops a venue running something
+# other than what it published.
+
+import json as _json
+import subprocess as _subprocess
+import sys as _sys
+import tempfile as _tempfile
+
+
+def _emit(policies=None, flags=(), **overrides) -> str:
+    out = Path(_tempfile.mkdtemp(prefix="qomm-registry-"))
+    args = ["--n-mm", "4",
+            "--out-program", str(out / "q.mpc"),
+            "--out-input-dir", str(out / "in"),
+            "--out-reference", str(out / "r.json")]
+    if policies is not None:
+        (out / "p.json").write_text(_json.dumps(policies))
+        args += ["--policies", str(out / "p.json")]
+    for key, value in overrides.items():
+        args += [f"--{key.replace('_', '-')}", str(value)]
+    args += list(flags)
+    _subprocess.run([_sys.executable, str(ROOT / "mp_spdz" / "gen_qomm.py"), *args],
+                    check=True, capture_output=True)
+    return (out / "q.mpc").read_text()
+
+
+_REAL_SHAPE = ("rfq", 4, 63)
+
+
+@pytest.fixture(scope="module")
+def real_registry():
+    reg = CircuitRegistry()
+    reg.approve(RULE_NAME, RULE, _emit(), _REAL_SHAPE)
+    return reg
+
+
+def test_a_secret_parameter_may_be_substituted(real_registry):
+    """Which is the point: the venue publishes the circuit, not the policies."""
+    policies = [{"asset": 0, "mid": 10, "half": 5, "slope": 1, "invcoef": 1,
+                 "inv": 3, "maxqty": 900, "expiry": 10 ** 9, "active": 1,
+                 "use_ref": 1} for _ in range(4)]
+    ok, reason = real_registry.check(_emit(policies=policies), _REAL_SHAPE)
+    assert ok, reason
+
+
+@pytest.mark.parametrize("what,change", [
+    ("the tournament's arity", dict(argmin_arity=4)),
+    ("the field width", dict(bit_length=47)),
+    ("the number of markets", dict(n_assets=4)),
+    ("adding a binding limit", dict(flags=("--binding-limit",))),
+    ("adding the input check", dict(flags=("--input-check",))),
+])
+def test_substituting_the_rule_is_refused(real_registry, what, change):
+    ok, reason = real_registry.check(_emit(**change), _REAL_SHAPE)
+    assert not ok, f"changing {what} was accepted as the approved circuit"
+    assert "does not match" in reason

@@ -17,15 +17,26 @@ fn fixture() -> String {
         let side = if rng.random() < 0.5 { "Buy" } else { "Sell" };
         let size = rng.paretovariate(1.3) * 10.0;
         let price = 40_000.0 + rng.gauss(0.0, 50.0);
-        rows.push(format!("{t:.4},TESTUSD,{side},{size:.4},{price:.2},PlusTick,x{i}"));
+        rows.push(format!(
+            "{t:.4},TESTUSD,{side},{size:.4},{price:.2},PlusTick,x{i}"
+        ));
     }
     let header = rows.remove(0);
-    rows.reverse();                       // the archive is written newest-first
-    std::iter::once(header).chain(rows).collect::<Vec<_>>().join("\n") + "\n"
+    rows.reverse(); // the archive is written newest-first
+    std::iter::once(header)
+        .chain(rows)
+        .collect::<Vec<_>>()
+        .join("\n")
+        + "\n"
 }
 
 fn cfg() -> SimConfig {
-    SimConfig { steps: 4_000, step_ms: 50, window_steps: 200, ..Default::default() }
+    SimConfig {
+        steps: 4_000,
+        step_ms: 50,
+        window_steps: 200,
+        ..Default::default()
+    }
 }
 
 #[test]
@@ -44,7 +55,10 @@ fn a_tape_that_is_not_in_time_order_is_refused() {
     // Corrupt one timestamp so the sort cannot repair the ordering.
     let header = lines.remove(0);
     lines[0] = lines[0].replacen(char::is_numeric, "9", 1);
-    let broken = std::iter::once(header).chain(lines).collect::<Vec<_>>().join("\n");
+    let broken = std::iter::once(header)
+        .chain(lines)
+        .collect::<Vec<_>>()
+        .join("\n");
     // Either it refuses, or the sort put it in order --- both are safe; what is
     // not safe is loading an out-of-order tape.
     if let Ok(tape) = load_bybit(&broken, &cfg(), "t.csv", Some(4_000), Some(50), None) {
@@ -59,12 +73,16 @@ fn informedness_is_latent_rather_than_a_threshold_on_the_move() {
     // Some requests agreed with the subsequent move without being labelled
     // informed. If the label were a threshold on that move, this would be empty
     // and attacker 5 would score a perfect AUC on the labelling rule.
-    let agreed_but_not_labelled = tape.rows.iter().zip(&market.informed_flags)
+    let agreed_but_not_labelled = tape
+        .rows
+        .iter()
+        .zip(&market.informed_flags)
         .filter(|(row, flag)| {
             let m = market.move_over(row.step, 20);
             let agreed = if row.direction == 0 { m > 0 } else { m < 0 };
             agreed && !**flag
-        }).count();
+        })
+        .count();
     assert!(agreed_but_not_labelled > 0);
     assert!(market.informed_share < market.agreement_rate);
 }
@@ -100,5 +118,8 @@ fn round_robin_assignment_reproduces_the_python() {
     let out = requests_from_tape(&cfg(), &market, &tape, Entities::RoundRobin(24), 1, 7);
     assert_eq!(out.cfg.n_entities, 24);
     let first = out.requests[0];
-    assert_eq!((first.step, first.entity, first.size, first.direction), (0, 7, 36, 1));
+    assert_eq!(
+        (first.step, first.entity, first.size, first.direction),
+        (0, 7, 36, 1)
+    );
 }

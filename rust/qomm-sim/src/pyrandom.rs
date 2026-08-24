@@ -28,7 +28,11 @@ pub struct PyRandom {
 
 impl PyRandom {
     pub fn new(seed: u64) -> Self {
-        let mut rng = PyRandom { state: [0; N], index: N + 1, gauss_next: None };
+        let mut rng = PyRandom {
+            state: [0; N],
+            index: N + 1,
+            gauss_next: None,
+        };
         // CPython seeds from the absolute value of the integer, as 32-bit words.
         let mut key: Vec<u32> = Vec::new();
         let mut value = seed;
@@ -61,14 +65,18 @@ impl PyRandom {
         let mut k = N.max(key.len());
         while k > 0 {
             let previous = self.state[i - 1];
-            self.state[i] = (self.state[i]
-                ^ (previous ^ (previous >> 30)).wrapping_mul(1_664_525))
+            self.state[i] = (self.state[i] ^ (previous ^ (previous >> 30)).wrapping_mul(1_664_525))
                 .wrapping_add(key[j])
                 .wrapping_add(j as u32);
             i += 1;
             j += 1;
-            if i >= N { self.state[0] = self.state[N - 1]; i = 1; }
-            if j >= key.len() { j = 0; }
+            if i >= N {
+                self.state[0] = self.state[N - 1];
+                i = 1;
+            }
+            if j >= key.len() {
+                j = 0;
+            }
             k -= 1;
         }
         let mut k = N - 1;
@@ -76,9 +84,12 @@ impl PyRandom {
             let previous = self.state[i - 1];
             self.state[i] = (self.state[i]
                 ^ (previous ^ (previous >> 30)).wrapping_mul(1_566_083_941))
-                .wrapping_sub(i as u32);
+            .wrapping_sub(i as u32);
             i += 1;
-            if i >= N { self.state[0] = self.state[N - 1]; i = 1; }
+            if i >= N {
+                self.state[0] = self.state[N - 1];
+                i = 1;
+            }
             k -= 1;
         }
         self.state[0] = 0x8000_0000;
@@ -89,7 +100,9 @@ impl PyRandom {
             for i in 0..N {
                 let y = (self.state[i] & UPPER_MASK) | (self.state[(i + 1) % N] & LOWER_MASK);
                 let mut next = self.state[(i + M) % N] ^ (y >> 1);
-                if y & 1 != 0 { next ^= MATRIX_A; }
+                if y & 1 != 0 {
+                    next ^= MATRIX_A;
+                }
                 self.state[i] = next;
             }
             self.index = 0;
@@ -112,15 +125,23 @@ impl PyRandom {
     }
 
     pub fn getrandbits(&mut self, k: u32) -> u64 {
-        if k == 0 { return 0; }
-        if k <= 32 { return (self.genrand_u32() >> (32 - k)) as u64; }
+        if k == 0 {
+            return 0;
+        }
+        if k <= 32 {
+            return (self.genrand_u32() >> (32 - k)) as u64;
+        }
         // CPython fills words low-to-high, trimming the last one.
         let mut out = 0u64;
         let mut shift = 0u32;
         let mut left = k;
         while left > 0 {
             let take = left.min(32);
-            let word = if take < 32 { self.genrand_u32() >> (32 - take) } else { self.genrand_u32() };
+            let word = if take < 32 {
+                self.genrand_u32() >> (32 - take)
+            } else {
+                self.genrand_u32()
+            };
             out |= (word as u64) << shift;
             shift += take;
             left -= take;
@@ -131,11 +152,15 @@ impl PyRandom {
     /// Rejection sampling on the bit length, as CPython does: a modulo would be
     /// biased and would also desynchronise the stream.
     fn below(&mut self, n: u64) -> u64 {
-        if n == 0 { return 0; }
+        if n == 0 {
+            return 0;
+        }
         let k = 64 - n.leading_zeros();
         loop {
             let r = self.getrandbits(k);
-            if r < n { return r; }
+            if r < n {
+                return r;
+            }
         }
     }
 
@@ -143,7 +168,9 @@ impl PyRandom {
         start + self.below((stop - start) as u64) as i64
     }
 
-    pub fn randint(&mut self, a: i64, b: i64) -> i64 { self.randrange(a, b + 1) }
+    pub fn randint(&mut self, a: i64, b: i64) -> i64 {
+        self.randrange(a, b + 1)
+    }
 
     pub fn choice<'a, T>(&mut self, items: &'a [T]) -> &'a T {
         &items[self.below(items.len() as u64) as usize]
@@ -154,14 +181,21 @@ impl PyRandom {
     pub fn choices(&mut self, weights: &[f64]) -> usize {
         let mut cumulative = Vec::with_capacity(weights.len());
         let mut total = 0.0;
-        for w in weights { total += w; cumulative.push(total); }
+        for w in weights {
+            total += w;
+            cumulative.push(total);
+        }
         let target = self.random() * total;
         // bisect_right over [0, len-1)
         let hi = cumulative.len() - 1;
         let (mut lo, mut hi) = (0usize, hi);
         while lo < hi {
             let mid = (lo + hi) / 2;
-            if target < cumulative[mid] { hi = mid; } else { lo = mid + 1; }
+            if target < cumulative[mid] {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
         }
         lo
     }
@@ -174,7 +208,11 @@ impl PyRandom {
         let mut out = Vec::with_capacity(k);
         // CPython switches to a pool copy when k is a large fraction of n; both
         // branches are implemented because the seed stream differs between them.
-        let setsize = if k <= 5 { 21 } else { 21 + 4usize.pow((k as f64).ln().ceil() as u32) };
+        let setsize = if k <= 5 {
+            21
+        } else {
+            21 + 4usize.pow((k as f64).ln().ceil() as u32)
+        };
         if n <= setsize {
             let mut pool: Vec<usize> = (0..n).collect();
             for i in 0..k {
@@ -185,7 +223,9 @@ impl PyRandom {
         } else {
             for _ in 0..k {
                 let mut j = self.below(n as u64);
-                while selected.contains(&j) { j = self.below(n as u64); }
+                while selected.contains(&j) {
+                    j = self.below(n as u64);
+                }
                 selected.insert(j);
                 out.push(j as usize);
             }
@@ -213,7 +253,9 @@ impl PyRandom {
         u.powf(-1.0 / alpha)
     }
 
-    pub fn uniform(&mut self, a: f64, b: f64) -> f64 { a + (b - a) * self.random() }
+    pub fn uniform(&mut self, a: f64, b: f64) -> f64 {
+        a + (b - a) * self.random()
+    }
 }
 
 impl PyRandom {

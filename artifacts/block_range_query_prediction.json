@@ -1,0 +1,99 @@
+{
+ "what": "A block-range query counting distinct requesting entities, replacing the price-band query. Predicted before it was built.",
+ "written": "2026-08-24",
+ "the_problem": "A maker in this design never receives the request, so it observes its own fills and nothing else: it knows the numerator of its hit rate and can never know the denominator. Section 14's disclosure was aimed at venue-wide price statistics, which the measurement found carry no signal (|corr| 0.094 and 0.069 against the window's true informed fraction). The quantity the maker actually lacks is how much flow there was.",
+ "why_the_fill_count_is_not_the_query": {
+  "claim": "Counting settled trades over a block range needs no mechanism, because it is already exact and public.",
+  "evidence": [
+   "The stated adversary 'sees what a settlement layer publishes' (main.tex:550).",
+   "Settlement is one on-chain instruction per trade: 18.2M-65.7M gas, 0.3-1.1 blocks each (artifacts/evm_settlement.json). Counting them requires no wallet-to-entity map.",
+   "The AUC 0.500 result protects ATTRIBUTION of a settlement to an entity, which needs a map of coverage rho. It has never been a claim about the count."
+  ],
+  "consequence": "A DP fill count would sell noise on a figure the asker can read off the chain exactly. It protects nothing and hands the honest asker a worse answer than the free one. Not built, by decision.",
+  "what_is_secret_instead": "The REQUEST count. An unsettled request leaves no on-chain trace --- that is what the unsettled-request attack falling to 0.500 means --- so the denominator is held only by the venue."
+ },
+ "P1_sensitivity_is_flat_in_range_length": {
+  "prediction": "Counting DISTINCT ENTITIES over a block range has sensitivity 1 for any range, because an entity contributes 0 or 1 however many windows the range covers. Counting REQUEST EVENTS has sensitivity cap x (windows covered), growing linearly.",
+  "consequence_if_true": "The entity count is the only one of the two whose noise does not grow as the asker widens the question, so widening trades resolution for accuracy monotonically.",
+  "falsified_by": "any range length at which the measured empirical sensitivity of the entity count exceeds 1"
+ },
+ "P2_noise_at_epsilon_1": {
+  "prediction_std_entities": 1.357,
+  "derivation": "discrete Laplace at p = exp(-epsilon/sensitivity) = exp(-1) = 0.36788; var = 2p/(1-p)^2 = 1.8414; sd = 1.3570",
+  "falsified_by": "a measured sd outside 1.357 +/- 3 standard errors over the sample drawn"
+ },
+ "P3_usefulness_is_non_monotonic_in_range_length": {
+  "prediction": "With N enrolled entities each appearing in a window with probability lambda, the expected distinct count over W windows is N(1 - exp(-lambda*W)). Short ranges are dominated by noise; long ranges saturate at N, which is public, so the answer carries nothing. The informative regime is lambda*W <~ 1.",
+  "consequence_if_true": "There is a best range length, it is a function of the venue's activity rather than of the mechanism, and the asker has to be told it. A query mechanism that does not say so ships a footgun.",
+  "falsified_by": "a monotonic relationship between range length and information about the flow"
+ },
+ "P4_saturation_on_the_generated_market": {
+  "prediction": "The generated market draws requests from a small fixed entity pool that is active every window, so the true distinct count reaches 95% of enrolment within 5 windows and the query is uninformative past that.",
+  "prediction_windows_to_95_percent": 5,
+  "note": "If this holds, the generated market cannot evaluate the query and the real tape (24 entities over 411 requests) is the only source that can. That would make the generated market the wrong instrument here for the same reason section 14 found the band count was.",
+  "falsified_by": "saturation taking more than 5 windows, or not arriving inside the run at all"
+ },
+ "P5_added_after_seeing_the_synthetic_saturation": {
+  "written": "2026-08-24, after P1-P4 ran and before this measurement",
+  "why_a_second_prediction": "P4 held --- the generated market saturates in ONE window --- but the simulator assigns entities round robin (artifacts/dp_effect.json: 'assigned round-robin (the tape has no identities)'), which is the least skewed assignment possible and therefore the one that saturates fastest. The result is a property of the assignment, not of a venue. The UniswapX data has real swapper addresses, so it can settle it.",
+  "measured_first": {
+   "fills": 150000,
+   "distinct_swappers": 48000,
+   "fills_per_swapper": 3.12,
+   "swappers_appearing_once": 0.596,
+   "top_1pct_share_of_fills": 0.227,
+   "block_span": 1426489
+  },
+  "prediction_no_saturation": "With 48,000 swappers over 1.43M blocks and 60% of them appearing exactly once, the pool is effectively unbounded against any range an asker would name. The distinct count will be close to linear in range width and will not saturate. The synthetic saturation was an artifact.",
+  "prediction_that_decides_it": "Because 60% of swappers appear once and reuse is only 3.12, the distinct-swapper count over a range is nearly a fixed multiple of the FILL count over the same range --- and the fill count is public from the chain. I predict the public fill count explains R^2 > 0.98 of the variance in the distinct-entity count across ranges.",
+  "consequence_if_true": "The query answers a question the asker can already answer for free by counting settlements, to within the residual. It would then be redundant rather than merely noisy, and redundant is worse: it costs epsilon for something the chain gives exactly.",
+  "consequence_if_false": "R^2 well below 0.98 means the entity count carries something the settlement count does not, and the query is worth its epsilon.",
+  "what_this_data_cannot_say": "UniswapX records fills, so these are settled requests only. QOMM's denominator includes requests that settled nothing, and those are exactly the ones no chain records. If unfilled requests come from a different population than filled ones, the relationship measured here does not carry over, and nothing available can measure that.",
+  "falsified_by": "a measured R^2 outside the stated side of 0.98"
+ },
+ "outcome": {
+  "recorded": "2026-08-24, after artifacts/block_range_query.json",
+  "P1": {
+   "verdict": "held",
+   "measured": "the entity count moves by exactly 1 at widths 1, 5, 10 and 40 windows, every seed, both markets. An event count would have moved by up to 120 at width 40."
+  },
+  "P2": {
+   "verdict": "held",
+   "predicted_sd": 1.357,
+   "measured_sd": 1.37,
+   "note": "within 1%, over 2,000 draws"
+  },
+  "P3": {
+   "verdict": "held in form, wrong about which end binds",
+   "what_was_predicted": "noise below, saturation above",
+   "what_happened": "on real identities there is no saturation at any width an asker would name, so only the lower end binds --- and it is not the raw noise but the noise against the RESIDUAL, since the fill count is free. The crossover sits near 100 blocks (SNR 1.2) and the question is comfortable by 600 (SNR 4.7)."
+  },
+  "P4": {
+   "verdict": "held, for a reason that makes it uninformative",
+   "predicted_windows_to_95pct": 5,
+   "measured": 1,
+   "note": "and 2 on the Bybit tape. But the simulator assigns entities round robin, the least skewed assignment there is, so every entity appears in every window by construction. The saturation is a property of the assignment. This is the same failure the band count had in section 14: the instrument, not the venue."
+  },
+  "P5": {
+   "verdict": "FALSIFIED",
+   "predicted": "R^2 > 0.98 of the distinct-entity count explained by the public fill count",
+   "measured_r2": [
+    0.9528,
+    0.9579,
+    0.9733,
+    0.9739,
+    0.9617
+   ],
+   "at_widths_blocks": [
+    100,
+    600,
+    3000,
+    7200,
+    50000
+   ],
+   "and_it_was_the_wrong_test": "R^2 near 1 was going to be read as 'redundant', but both quantities rise with activity so a high R^2 was never in doubt. What the epsilon buys is the RESIDUAL --- the part the free chain count does not give --- and that is what should have been predicted. Measured residual sd 1.69 to 148.98 entities against a noise sd of 1.36, so the query carries 1.2x to 110x the noise beyond free information.",
+   "what_the_residual_is": "flow concentration. The same 500 fills from 500 takers and from 20 takers are different venues, and the chain cannot tell them apart while this can. It is also the quantity a maker pricing adverse selection wants, which is why it is worth buying rather than merely measurable."
+  },
+  "conclusion": "The query is worth its epsilon on real identities at widths from about 600 blocks (2 hours at 12 s) upward, and what it sells is flow concentration rather than activity. Activity is free."
+ }
+}

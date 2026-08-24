@@ -1,0 +1,460 @@
+{
+ "host": "host-c",
+ "question": "what the best possible disclosure of the informed fraction is worth to a market maker",
+ "arm": "the true phi, exact and free, which no mechanism beats",
+ "seeds": 12,
+ "steps": 48000,
+ "true_phi_mean": 0.43564449997630295,
+ "everyone_informed_minus_none": {
+  "fill_rate": {
+   "mean": 0.06602006546624821,
+   "half_width": 0.018707294429386866,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm_pnl_per_fill": {
+   "mean": -333.9294718326873,
+   "half_width": 114.58277232243205,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm_pnl_total": {
+   "mean": -2068126.75,
+   "half_width": 767716.0804554741,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "user_cost_ticks": {
+   "mean": -7.277833765102983,
+   "half_width": 2.4373064557879904,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm0_pnl": {
+   "mean": -154522.41666666666,
+   "half_width": 196353.31178525358,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "others_pnl": {
+   "mean": -1913604.3333333333,
+   "half_width": 748098.7265658445,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  }
+ },
+ "one_maker_informed_minus_none": {
+  "fill_rate": {
+   "mean": 0.015049159998836418,
+   "half_width": 0.015592084248977185,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm_pnl_per_fill": {
+   "mean": -82.9220398900748,
+   "half_width": 88.17299073934116,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm_pnl_total": {
+   "mean": -475004.4166666667,
+   "half_width": 516304.23319781397,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "user_cost_ticks": {
+   "mean": -1.8305185650218128,
+   "half_width": 1.667567577651837,
+   "excludes_zero": true,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "mm0_pnl": {
+   "mean": -155170.75,
+   "half_width": 243587.715978687,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  },
+  "others_pnl": {
+   "mean": -319833.6666666667,
+   "half_width": 448184.0823455902,
+   "excludes_zero": false,
+   "n": 12,
+   "multiplier": 2.20098516009159
+  }
+ },
+ "what_this_measures": "naive substitution of the market-wide figure for the maker's own conditional estimate, which is what BeliefState.combined prescribes; not the value of the information to a maker free to use it as it likes",
+ "reading": "a maker's own estimate is formed on the flow it won, which is more informed than the market's average; the market-wide figure makes it quote for average flow and win worse flow",
+ "rows": [
+  {
+   "seed": 11,
+   "none": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 942474.0,
+    "fill_rate": 0.8346819196428571,
+    "mm_pnl_per_fill": 157.525321744944,
+    "mm_pnl_total": 942474.0,
+    "user_cost_ticks": 8.56627110145412,
+    "true_phi": 0.4571318962523877
+   },
+   "oracle": {
+    "mm0_pnl": 0.0,
+    "others_pnl": -2137496.0,
+    "fill_rate": 0.9178292410714286,
+    "mm_pnl_per_fill": -324.89679282565737,
+    "mm_pnl_total": -2137496.0,
+    "user_cost_ticks": -2.035263717890257,
+    "true_phi": 0.4571318962523877
+   },
+   "oracle_one": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 942474.0,
+    "fill_rate": 0.8346819196428571,
+    "mm_pnl_per_fill": 157.525321744944,
+    "mm_pnl_total": 942474.0,
+    "user_cost_ticks": 8.56627110145412,
+    "true_phi": 0.4571318962523877
+   }
+  },
+  {
+   "seed": 18,
+   "none": {
+    "mm0_pnl": 679859.0,
+    "others_pnl": -1069963.0,
+    "fill_rate": 0.8657865786578658,
+    "mm_pnl_per_fill": -61.96060991105464,
+    "mm_pnl_total": -390104.0,
+    "user_cost_ticks": 1.0047649301143584,
+    "true_phi": 0.4087817612273169
+   },
+   "oracle": {
+    "mm0_pnl": 111336.0,
+    "others_pnl": -3338435.0,
+    "fill_rate": 0.9224422442244224,
+    "mm_pnl_per_fill": -481.08214072748956,
+    "mm_pnl_total": -3227099.0,
+    "user_cost_ticks": -6.916815742397138,
+    "true_phi": 0.4087817612273169
+   },
+   "oracle_one": {
+    "mm0_pnl": 429189.0,
+    "others_pnl": -755262.0,
+    "fill_rate": 0.8688118811881188,
+    "mm_pnl_per_fill": -51.610161443494775,
+    "mm_pnl_total": -326073.0,
+    "user_cost_ticks": 0.42624248179803736,
+    "true_phi": 0.4087817612273169
+   }
+  },
+  {
+   "seed": 25,
+   "none": {
+    "mm0_pnl": 108660.0,
+    "others_pnl": 3246874.0,
+    "fill_rate": 0.8330080847504878,
+    "mm_pnl_per_fill": 561.5016733601071,
+    "mm_pnl_total": 3355534.0,
+    "user_cost_ticks": 12.762048192771084,
+    "true_phi": 0.42397439812736665
+   },
+   "oracle": {
+    "mm0_pnl": 48573.0,
+    "others_pnl": 890964.0,
+    "fill_rate": 0.8916922219124617,
+    "mm_pnl_per_fill": 146.87150226668751,
+    "mm_pnl_total": 939537.0,
+    "user_cost_ticks": 5.250742535563545,
+    "true_phi": 0.42397439812736665
+   },
+   "oracle_one": {
+    "mm0_pnl": 236795.0,
+    "others_pnl": 953143.0,
+    "fill_rate": 0.8461109562308335,
+    "mm_pnl_per_fill": 196.0359143327842,
+    "mm_pnl_total": 1189938.0,
+    "user_cost_ticks": 7.233443163097199,
+    "true_phi": 0.42397439812736665
+   }
+  },
+  {
+   "seed": 32,
+   "none": {
+    "mm0_pnl": -279.0,
+    "others_pnl": 1337250.0,
+    "fill_rate": 0.7721116639027087,
+    "mm_pnl_per_fill": 239.30034007517452,
+    "mm_pnl_total": 1336971.0,
+    "user_cost_ticks": 12.802935385716843,
+    "true_phi": 0.43774612185731626
+   },
+   "oracle": {
+    "mm0_pnl": 14976.0,
+    "others_pnl": -1162340.0,
+    "fill_rate": 0.8916528468767275,
+    "mm_pnl_per_fill": -177.8307501549907,
+    "mm_pnl_total": -1147364.0,
+    "user_cost_ticks": 0.20133292002479852,
+    "true_phi": 0.43774612185731626
+   },
+   "oracle_one": {
+    "mm0_pnl": 7668.0,
+    "others_pnl": 945826.0,
+    "fill_rate": 0.8349917081260365,
+    "mm_pnl_per_fill": 157.8109897384972,
+    "mm_pnl_total": 953494.0,
+    "user_cost_ticks": 8.528963919232043,
+    "true_phi": 0.43774612185731626
+   }
+  },
+  {
+   "seed": 39,
+   "none": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 1486337.0,
+    "fill_rate": 0.7984377179522946,
+    "mm_pnl_per_fill": 259.66754018169115,
+    "mm_pnl_total": 1486337.0,
+    "user_cost_ticks": 11.005415793151641,
+    "true_phi": 0.43424111151142303
+   },
+   "oracle": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 334483.0,
+    "fill_rate": 0.8567443158041568,
+    "mm_pnl_per_fill": 54.45831976554868,
+    "mm_pnl_total": 334483.0,
+    "user_cost_ticks": 6.5089547378704005,
+    "true_phi": 0.43424111151142303
+   },
+   "oracle_one": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 1486337.0,
+    "fill_rate": 0.7984377179522946,
+    "mm_pnl_per_fill": 259.66754018169115,
+    "mm_pnl_total": 1486337.0,
+    "user_cost_ticks": 11.005415793151641,
+    "true_phi": 0.43424111151142303
+   }
+  },
+  {
+   "seed": 46,
+   "none": {
+    "mm0_pnl": -2202.0,
+    "others_pnl": 453912.0,
+    "fill_rate": 0.8237273874631889,
+    "mm_pnl_per_fill": 76.89989785495403,
+    "mm_pnl_total": 451710.0,
+    "user_cost_ticks": 7.383384405856316,
+    "true_phi": 0.463865684721475
+   },
+   "oracle": {
+    "mm0_pnl": -969261.0,
+    "others_pnl": -1078156.0,
+    "fill_rate": 0.8920207544523909,
+    "mm_pnl_per_fill": -321.8703034114133,
+    "mm_pnl_total": -2047417.0,
+    "user_cost_ticks": -0.5279044175444113,
+    "true_phi": 0.463865684721475
+   },
+   "oracle_one": {
+    "mm0_pnl": -1262756.0,
+    "others_pnl": -3377.0,
+    "fill_rate": 0.8778572430234188,
+    "mm_pnl_per_fill": -202.2576677316294,
+    "mm_pnl_total": -1266133.0,
+    "user_cost_ticks": 1.054632587859425,
+    "true_phi": 0.463865684721475
+   }
+  },
+  {
+   "seed": 53,
+   "none": {
+    "mm0_pnl": 1.0,
+    "others_pnl": 1037704.0,
+    "fill_rate": 0.7780863768920984,
+    "mm_pnl_per_fill": 185.2052471890059,
+    "mm_pnl_total": 1037705.0,
+    "user_cost_ticks": 11.809744779582367,
+    "true_phi": 0.44864822665065063
+   },
+   "oracle": {
+    "mm0_pnl": 80.0,
+    "others_pnl": -182087.0,
+    "fill_rate": 0.8508540480488821,
+    "mm_pnl_per_fill": -29.705728741635383,
+    "mm_pnl_total": -182007.0,
+    "user_cost_ticks": 5.123061857352702,
+    "true_phi": 0.44864822665065063
+   },
+   "oracle_one": {
+    "mm0_pnl": 189.0,
+    "others_pnl": 1038142.0,
+    "fill_rate": 0.7780863768920984,
+    "mm_pnl_per_fill": 185.31697305015172,
+    "mm_pnl_total": 1038331.0,
+    "user_cost_ticks": 11.813314295912903,
+    "true_phi": 0.44864822665065063
+   }
+  },
+  {
+   "seed": 60,
+   "none": {
+    "mm0_pnl": -8878.0,
+    "others_pnl": 3463911.0,
+    "fill_rate": 0.8116617252576592,
+    "mm_pnl_per_fill": 600.9798225778396,
+    "mm_pnl_total": 3455033.0,
+    "user_cost_ticks": 13.430161767263872,
+    "true_phi": 0.4261083733368679
+   },
+   "oracle": {
+    "mm0_pnl": -282392.0,
+    "others_pnl": 1440696.0,
+    "fill_rate": 0.8672878723704645,
+    "mm_pnl_per_fill": 188.5567312388084,
+    "mm_pnl_total": 1158304.0,
+    "user_cost_ticks": 6.8401432524825,
+    "true_phi": 0.4261083733368679
+   },
+   "oracle_one": {
+    "mm0_pnl": -496115.0,
+    "others_pnl": 2475155.0,
+    "fill_rate": 0.8593816179584922,
+    "mm_pnl_per_fill": 325.1256776737309,
+    "mm_pnl_total": 1979040.0,
+    "user_cost_ticks": 8.257762444553968,
+    "true_phi": 0.4261083733368679
+   }
+  },
+  {
+   "seed": 67,
+   "none": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 3634289.0,
+    "fill_rate": 0.8192586399108138,
+    "mm_pnl_per_fill": 618.1814934512672,
+    "mm_pnl_total": 3634289.0,
+    "user_cost_ticks": 14.37982650110563,
+    "true_phi": 0.43001518150217954
+   },
+   "oracle": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 3145762.0,
+    "fill_rate": 0.8442028985507246,
+    "mm_pnl_per_fill": 519.274017827666,
+    "mm_pnl_total": 3145762.0,
+    "user_cost_ticks": 12.436282601518654,
+    "true_phi": 0.43001518150217954
+   },
+   "oracle_one": {
+    "mm0_pnl": 0.0,
+    "others_pnl": 3634289.0,
+    "fill_rate": 0.8192586399108138,
+    "mm_pnl_per_fill": 618.1814934512672,
+    "mm_pnl_total": 3634289.0,
+    "user_cost_ticks": 14.37982650110563,
+    "true_phi": 0.43001518150217954
+   }
+  },
+  {
+   "seed": 74,
+   "none": {
+    "mm0_pnl": 0.0,
+    "others_pnl": -240038.0,
+    "fill_rate": 0.8033420798232288,
+    "mm_pnl_per_fill": -41.264913185490805,
+    "mm_pnl_total": -240038.0,
+    "user_cost_ticks": 4.944645006016847,
+    "true_phi": 0.4302772873724871
+   },
+   "oracle": {
+    "mm0_pnl": 0.0,
+    "others_pnl": -4883918.0,
+    "fill_rate": 0.9212815909404778,
+    "mm_pnl_per_fill": -732.111827312247,
+    "mm_pnl_total": -4883918.0,
+    "user_cost_ticks": -9.44311197721481,
+    "true_phi": 0.4302772873724871
+   },
+   "oracle_one": {
+    "mm0_pnl": 0.0,
+    "others_pnl": -240038.0,
+    "fill_rate": 0.8033420798232288,
+    "mm_pnl_per_fill": -41.264913185490805,
+    "mm_pnl_total": -240038.0,
+    "user_cost_ticks": 4.944645006016847,
+    "true_phi": 0.4302772873724871
+   }
+  },
+  {
+   "seed": 81,
+   "none": {
+    "mm0_pnl": 416.0,
+    "others_pnl": -24016.0,
+    "fill_rate": 0.8539816964895506,
+    "mm_pnl_per_fill": -3.7747920665387076,
+    "mm_pnl_total": -23600.0,
+    "user_cost_ticks": 6.314779270633397,
+    "true_phi": 0.45681469558221
+   },
+   "oracle": {
+    "mm0_pnl": -4.0,
+    "others_pnl": -515411.0,
+    "fill_rate": 0.8856713563720803,
+    "mm_pnl_per_fill": -79.49028377544725,
+    "mm_pnl_total": -515415.0,
+    "user_cost_ticks": 4.20820481184454,
+    "true_phi": 0.45681469558221
+   },
+   "oracle_one": {
+    "mm0_pnl": 86.0,
+    "others_pnl": -20486.0,
+    "fill_rate": 0.8541182898511133,
+    "mm_pnl_per_fill": -3.262434031664801,
+    "mm_pnl_total": -20400.0,
+    "user_cost_ticks": 6.313129697745082,
+    "true_phi": 0.45681469558221
+   }
+  },
+  {
+   "seed": 88,
+   "none": {
+    "mm0_pnl": -5.0,
+    "others_pnl": -843499.0,
+    "fill_rate": 0.841920690585379,
+    "mm_pnl_per_fill": -135.1336110221083,
+    "mm_pnl_total": -843504.0,
+    "user_cost_ticks": 4.038609420057674,
+    "true_phi": 0.4101292615739551
+   },
+   "oracle": {
+    "mm0_pnl": -5.0,
+    "others_pnl": -2052079.0,
+    "fill_rate": 0.886565956298894,
+    "mm_pnl_per_fill": -312.19899589228663,
+    "mm_pnl_total": -2052084.0,
+    "user_cost_ticks": -0.5370454891221664,
+    "true_phi": 0.4101292615739551
+   },
+   "oracle_one": {
+    "mm0_pnl": 467.0,
+    "others_pnl": -868972.0,
+    "fill_rate": 0.8415160507148638,
+    "mm_pnl_per_fill": -139.20580221189294,
+    "mm_pnl_total": -868505.0,
+    "user_cost_ticks": 3.9527167815355027,
+    "true_phi": 0.4101292615739551
+   }
+  }
+ ]
+}

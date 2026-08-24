@@ -9,8 +9,9 @@
 //! job is refusing, and a refusal that cannot say where is a refusal nobody
 //! can act on.
 
-use crate::{Article, Date, Deployment, Duty, Evidence, Finding, Instrument,
-            Requirement, RuleBase, Verdict};
+use crate::{
+    Article, Date, Deployment, Duty, Evidence, Finding, Instrument, Requirement, RuleBase, Verdict,
+};
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct LawError {
@@ -25,7 +26,10 @@ impl std::fmt::Display for LawError {
 }
 
 fn err<T>(line: usize, message: impl Into<String>) -> Result<T, LawError> {
-    Err(LawError { line, message: message.into() })
+    Err(LawError {
+        line,
+        message: message.into(),
+    })
 }
 
 /// Split a line into words, keeping "quoted phrases" whole.
@@ -73,8 +77,10 @@ fn strip(line: &str) -> &str {
 
 fn duration(text: &str, line: usize) -> Result<i64, LawError> {
     let (number, unit) = text.split_at(text.len().saturating_sub(1));
-    let n: i64 = number.parse()
-        .map_err(|_| LawError { line, message: format!("{text} is not a duration") })?;
+    let n: i64 = number.parse().map_err(|_| LawError {
+        line,
+        message: format!("{text} is not a duration"),
+    })?;
     match unit {
         "d" => Ok(n),
         "w" => Ok(n * 7),
@@ -92,10 +98,13 @@ fn date(text: &str, line: usize) -> Result<Date, LawError> {
 /// order the files were given. Declarations first, then the blocks that refer
 /// to them --- a single pass meant `rules/*.law` worked or did not depending on
 /// how the shell sorted it, which is the worst kind of intermittent.
+type ParsedLine = (usize, Vec<String>);
+type DeferredBlock = (Deployment, Vec<ParsedLine>);
+
 pub fn parse(source: &str) -> Result<RuleBase, LawError> {
     let mut base = RuleBase::default();
-    let mut deferred: Vec<(Deployment, Vec<(usize, Vec<String>)>)> = Vec::new();
-    let mut block: Option<(Deployment, Vec<(usize, Vec<String>)>)> = None;
+    let mut deferred: Vec<DeferredBlock> = Vec::new();
+    let mut block: Option<DeferredBlock> = None;
     let mut statute: Option<(String, usize)> = None;
     let mut evidence: Option<Evidence> = None;
 
@@ -141,14 +150,19 @@ pub fn parse(source: &str) -> Result<RuleBase, LawError> {
         if let Some((name, _)) = statute.clone() {
             if head == "article" {
                 if parts.len() < 8 {
-                    return err(line, "article <n> in-force <date> reviewed <date> \
-                                      every <duration>");
+                    return err(
+                        line,
+                        "article <n> in-force <date> reviewed <date> \
+                                      every <duration>",
+                    );
                 }
                 let article = Article {
-                    statute: name.clone(), article: parts[1].clone(),
+                    statute: name.clone(),
+                    article: parts[1].clone(),
                     in_force: date(&parts[3], line)?,
                     reviewed: date(&parts[5], line)?,
-                    review_every_days: duration(&parts[7], line)?, line,
+                    review_every_days: duration(&parts[7], line)?,
+                    line,
                 };
                 let key = format!("{name}:{}", article.article);
                 if base.articles.insert(key.clone(), article).is_some() {
@@ -170,7 +184,8 @@ pub fn parse(source: &str) -> Result<RuleBase, LawError> {
                 if parts.len() < 3 {
                     return err(line, "jurisdiction <id> \"name\"");
                 }
-                base.jurisdictions.insert(parts[1].clone(), parts[2].clone());
+                base.jurisdictions
+                    .insert(parts[1].clone(), parts[2].clone());
             }
             "statute" => {
                 if parts.len() < 2 {
@@ -182,31 +197,54 @@ pub fn parse(source: &str) -> Result<RuleBase, LawError> {
                 if parts.len() < 3 {
                     return err(line, "requirement <id> \"what it asks for\"");
                 }
-                base.requirements.insert(parts[1].clone(), Requirement {
-                    id: parts[1].clone(), says: parts[2].clone(), line });
+                base.requirements.insert(
+                    parts[1].clone(),
+                    Requirement {
+                        id: parts[1].clone(),
+                        says: parts[2].clone(),
+                        line,
+                    },
+                );
             }
             "instrument" => {
                 if parts.len() < 4 || parts[2] != "register" {
                     return err(line, "instrument <id> register <register>");
                 }
-                base.instruments.insert(parts[1].clone(), Instrument {
-                    id: parts[1].clone(), register: parts[3].clone(), line });
+                base.instruments.insert(
+                    parts[1].clone(),
+                    Instrument {
+                        id: parts[1].clone(),
+                        register: parts[3].clone(),
+                        line,
+                    },
+                );
             }
             "evidence" => {
                 if parts.len() < 4 || parts[2] != "from" {
                     return err(line, "evidence <id> from \"where it is emitted\"");
                 }
                 evidence = Some(Evidence {
-                    id: parts[1].clone(), emitted_by: parts[3].clone(),
-                    covers: Vec::new(), does_not_cover: Vec::new(), line });
+                    id: parts[1].clone(),
+                    emitted_by: parts[3].clone(),
+                    covers: Vec::new(),
+                    does_not_cover: Vec::new(),
+                    line,
+                });
             }
             "in" => {
                 if parts.len() < 4 || parts[2] != "for" {
                     return err(line, "in <jurisdiction> for <instrument> {");
                 }
-                block = Some((Deployment {
-                    jurisdiction: parts[1].clone(), instrument: parts[3].clone(),
-                    findings: Vec::new(), duties: Vec::new(), line }, Vec::new()));
+                block = Some((
+                    Deployment {
+                        jurisdiction: parts[1].clone(),
+                        instrument: parts[3].clone(),
+                        findings: Vec::new(),
+                        duties: Vec::new(),
+                        line,
+                    },
+                    Vec::new(),
+                ));
             }
             other => return err(line, format!("{other} is not a statement here")),
         }
@@ -225,69 +263,104 @@ pub fn parse(source: &str) -> Result<RuleBase, LawError> {
     // --- second pass: the blocks, now that every name they use exists -----
     for (mut deployment, body) in deferred {
         if !base.jurisdictions.contains_key(&deployment.jurisdiction) {
-            return err(deployment.line, format!("{} is not a declared jurisdiction",
-                                                deployment.jurisdiction));
+            return err(
+                deployment.line,
+                format!("{} is not a declared jurisdiction", deployment.jurisdiction),
+            );
         }
         if !base.instruments.contains_key(&deployment.instrument) {
-            return err(deployment.line, format!("{} is not a declared instrument",
-                                                deployment.instrument));
+            return err(
+                deployment.line,
+                format!("{} is not a declared instrument", deployment.instrument),
+            );
         }
         for (line, parts) in body {
             let head = parts[0].as_str();
             if head == "obligation" {
-                let says = parts.get(1).cloned()
-                    .ok_or(LawError { line, message: "obligation \"what\"".into() })?;
-                let mut duty = Duty { says, discharged_by: Vec::new(),
-                                      undischarged: None, line };
+                let says = parts.get(1).cloned().ok_or(LawError {
+                    line,
+                    message: "obligation \"what\"".into(),
+                })?;
+                let mut duty = Duty {
+                    says,
+                    discharged_by: Vec::new(),
+                    undischarged: None,
+                    line,
+                };
                 match parts.get(2).map(String::as_str) {
                     Some("discharged-by") => {
                         if parts.len() < 4 {
-                            return err(line, "discharged-by needs at least one \
-                                              evidence name");
+                            return err(
+                                line,
+                                "discharged-by needs at least one \
+                                              evidence name",
+                            );
                         }
                         duty.discharged_by = parts[3..].to_vec();
                     }
                     Some("undischarged") => {
-                        duty.undischarged = Some(rest(&parts, 3, line,
-                                                      "undischarged \"why\"")?);
+                        duty.undischarged = Some(rest(&parts, 3, line, "undischarged \"why\"")?);
                     }
-                    _ => return err(line, "an obligation is either discharged-by \
+                    _ => {
+                        return err(
+                            line,
+                            "an obligation is either discharged-by \
                                            something or undischarged \"why\" --- \
                                            and one with neither is one nobody has \
-                                           thought about"),
+                                           thought about",
+                        )
+                    }
                 }
                 deployment.duties.push(duty);
                 continue;
             }
             if !base.requirements.contains_key(head) {
-                return err(line, format!(
-                    "{head} is not an obligation and not a declared requirement"));
+                return err(
+                    line,
+                    format!("{head} is not an obligation and not a declared requirement"),
+                );
             }
             if parts.len() < 5 || parts[2] != "by" {
-                return err(line, format!("{head} <verdict> by <statute> <article> \
-                                          \"note\""));
+                return err(
+                    line,
+                    format!(
+                        "{head} <verdict> by <statute> <article> \
+                                          \"note\""
+                    ),
+                );
             }
             let verdict = match parts[1].as_str() {
                 "permitted" => Verdict::Permitted,
                 "conditional" => Verdict::Conditional,
                 "refused" => Verdict::Refused,
-                other => return err(line, format!(
-                    "{other} is not a verdict; permitted, conditional or refused")),
+                other => {
+                    return err(
+                        line,
+                        format!("{other} is not a verdict; permitted, conditional or refused"),
+                    )
+                }
             };
             let key = format!("{}:{}", parts[3], parts[4]);
             let article = base.articles.get(&key).cloned().ok_or(LawError {
-                line, message: format!("{key} is not a declared article") })?;
+                line,
+                message: format!("{key} is not a declared article"),
+            })?;
             deployment.findings.push(Finding {
-                requirement: head.to_string(), verdict, article,
-                note: parts.get(5).cloned().unwrap_or_default(), line });
+                requirement: head.to_string(),
+                verdict,
+                article,
+                note: parts.get(5).cloned().unwrap_or_default(),
+                line,
+            });
         }
         base.deployments.push(deployment);
     }
     Ok(base)
 }
 
-fn rest(parts: &[String], from: usize, line: usize, what: &str)
-    -> Result<String, LawError>
-{
-    parts.get(from).cloned().ok_or(LawError { line, message: what.into() })
+fn rest(parts: &[String], from: usize, line: usize, what: &str) -> Result<String, LawError> {
+    parts.get(from).cloned().ok_or(LawError {
+        line,
+        message: what.into(),
+    })
 }

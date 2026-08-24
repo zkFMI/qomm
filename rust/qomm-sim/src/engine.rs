@@ -25,8 +25,11 @@ use crate::pyrandom::PyRandom;
 
 pub const PLAIN_PROTOCOLS: [&str; 3] = ["plain_rfq", "plain_rfm", "plain_rfs"];
 pub const QOMM_PROTOCOLS: [&str; 3] = ["qomm_rfq", "qomm_rfm", "qomm_rfs"];
-pub const MARKOUT_HORIZONS: [(&str, usize); 3] =
-    [("markout_50ms", 1), ("markout_1s", 20), ("markout_10s", 200)];
+pub const MARKOUT_HORIZONS: [(&str, usize); 3] = [
+    ("markout_50ms", 1),
+    ("markout_1s", 20),
+    ("markout_10s", 200),
+];
 
 const PRIOR_HALF_TICKS: f64 = 26.0;
 const USER_SLACK_TICKS: i64 = 6;
@@ -115,28 +118,47 @@ pub struct ArmResult {
 
 impl ArmResult {
     pub fn fill_rate(&self) -> f64 {
-        if self.requests == 0 { 0.0 } else { self.fills as f64 / self.requests as f64 }
+        if self.requests == 0 {
+            0.0
+        } else {
+            self.fills as f64 / self.requests as f64
+        }
     }
-    pub fn mm_pnl_total(&self) -> f64 { self.mm_pnl.values().sum() }
+    pub fn mm_pnl_total(&self) -> f64 {
+        self.mm_pnl.values().sum()
+    }
     pub fn mm_pnl_per_fill(&self) -> Option<f64> {
-        if self.fills == 0 { None } else { Some(self.mm_pnl_total() / self.fills as f64) }
+        if self.fills == 0 {
+            None
+        } else {
+            Some(self.mm_pnl_total() / self.fills as f64)
+        }
     }
-    pub fn user_cost_median(&self) -> Option<f64> { median(&self.user_cost_ticks) }
+    pub fn user_cost_median(&self) -> Option<f64> {
+        median(&self.user_cost_ticks)
+    }
     pub fn markout_mean(&self, key: &str) -> Option<f64> {
         let values = self.mm_markouts.get(key)?;
-        if values.is_empty() { None } else {
+        if values.is_empty() {
+            None
+        } else {
             Some(values.iter().sum::<f64>() / values.len() as f64)
         }
     }
 }
 
 fn median(values: &[f64]) -> Option<f64> {
-    if values.is_empty() { return None; }
+    if values.is_empty() {
+        return None;
+    }
     let mut ordered = values.to_vec();
     ordered.sort_by(|a, b| a.partial_cmp(b).unwrap());
     let mid = ordered.len() / 2;
-    Some(if ordered.len() % 2 == 1 { ordered[mid] }
-         else { 0.5 * (ordered[mid - 1] + ordered[mid]) })
+    Some(if ordered.len() % 2 == 1 {
+        ordered[mid]
+    } else {
+        0.5 * (ordered[mid - 1] + ordered[mid])
+    })
 }
 
 /// A maker's estimate of the informed fraction, from its own flow plus whatever
@@ -151,7 +173,12 @@ pub struct BeliefState {
 
 impl Default for BeliefState {
     fn default() -> Self {
-        BeliefState { prior: 0.30, prior_var: 0.05, adverse: 0.0, count: 0.0 }
+        BeliefState {
+            prior: 0.30,
+            prior_var: 0.05,
+            adverse: 0.0,
+            count: 0.0,
+        }
     }
 }
 
@@ -164,7 +191,9 @@ impl BeliefState {
     }
 
     fn own_estimate(&self) -> (f64, f64) {
-        if self.count < 1.0 { return (self.prior, self.prior_var); }
+        if self.count < 1.0 {
+            return (self.prior, self.prior_var);
+        }
         let phi = self.adverse / self.count;
         (phi, (phi * (1.0 - phi) / self.count).max(1e-3))
     }
@@ -198,51 +227,78 @@ pub trait LeakagePolicy {
     fn observe(&self, step: usize, req: &Request) -> Option<RequestObservation>;
     /// Whether a probe's per-maker answers are visible, which only the plain
     /// protocols make so.
-    fn leaks_per_maker_quotes(&self) -> bool { false }
+    fn leaks_per_maker_quotes(&self) -> bool {
+        false
+    }
 }
 
-fn observation(step: usize, req: &Request, size: Option<i64>,
-               direction: Option<u8>) -> Option<RequestObservation> {
+fn observation(
+    step: usize,
+    req: &Request,
+    size: Option<i64>,
+    direction: Option<u8>,
+) -> Option<RequestObservation> {
     Some(RequestObservation {
-        step, wallet: req.wallet, entity: req.entity, size, direction, executed: false,
+        step,
+        wallet: req.wallet,
+        entity: req.entity,
+        size,
+        direction,
+        executed: false,
     })
 }
 
 /// RFQ: every queried maker sees the asset, the size and the direction.
 pub struct FullRequestVisible;
 impl LeakagePolicy for FullRequestVisible {
-    fn name(&self) -> &'static str { "plain_rfq" }
+    fn name(&self) -> &'static str {
+        "plain_rfq"
+    }
     fn observe(&self, step: usize, req: &Request) -> Option<RequestObservation> {
         observation(step, req, Some(req.size), Some(req.direction))
     }
-    fn leaks_per_maker_quotes(&self) -> bool { true }
+    fn leaks_per_maker_quotes(&self) -> bool {
+        true
+    }
 }
 
 /// RFM: the maker quotes both sides, so it learns size but not direction.
 pub struct DirectionWithheld;
 impl LeakagePolicy for DirectionWithheld {
-    fn name(&self) -> &'static str { "plain_rfm" }
+    fn name(&self) -> &'static str {
+        "plain_rfm"
+    }
     fn observe(&self, step: usize, req: &Request) -> Option<RequestObservation> {
         observation(step, req, Some(req.size), None)
     }
-    fn leaks_per_maker_quotes(&self) -> bool { true }
+    fn leaks_per_maker_quotes(&self) -> bool {
+        true
+    }
 }
 
 /// RFS: a stream, so the maker learns that this wallet is active and no more.
 pub struct SizeWithheld;
 impl LeakagePolicy for SizeWithheld {
-    fn name(&self) -> &'static str { "plain_rfs" }
+    fn name(&self) -> &'static str {
+        "plain_rfs"
+    }
     fn observe(&self, step: usize, req: &Request) -> Option<RequestObservation> {
         observation(step, req, None, None)
     }
-    fn leaks_per_maker_quotes(&self) -> bool { true }
+    fn leaks_per_maker_quotes(&self) -> bool {
+        true
+    }
 }
 
 /// The query-oblivious arms: the request never reaches a maker at all.
 pub struct NothingReaches;
 impl LeakagePolicy for NothingReaches {
-    fn name(&self) -> &'static str { "qomm" }
-    fn observe(&self, _step: usize, _req: &Request) -> Option<RequestObservation> { None }
+    fn name(&self) -> &'static str {
+        "qomm"
+    }
+    fn observe(&self, _step: usize, _req: &Request) -> Option<RequestObservation> {
+        None
+    }
 }
 
 pub fn leakage_policy(protocol: &str) -> Box<dyn LeakagePolicy> {
@@ -256,10 +312,17 @@ pub fn leakage_policy(protocol: &str) -> Box<dyn LeakagePolicy> {
 
 /// What the user believes the best achievable half spread is.
 fn user_half_estimate(name: &str, release: Option<&Release>) -> f64 {
-    let Some(release) = release else { return PRIOR_HALF_TICKS };
+    let Some(release) = release else {
+        return PRIOR_HALF_TICKS;
+    };
     match name {
-        "B_threshold" => if release.published { PRIOR_HALF_TICKS * 0.75 }
-                         else { PRIOR_HALF_TICKS * 1.15 },
+        "B_threshold" => {
+            if release.published {
+                PRIOR_HALF_TICKS * 0.75
+            } else {
+                PRIOR_HALF_TICKS * 1.15
+            }
+        }
         "C_dp" if release.published => match release.fields.fill_rate {
             None => PRIOR_HALF_TICKS,
             // a high observed fill rate implies quotes are close to the mid
@@ -281,8 +344,12 @@ pub struct ArmOptions {
 impl ArmOptions {
     pub fn new(protocol: &str, seed: u64) -> Self {
         ArmOptions {
-            protocol: protocol.to_string(), seed, probes: Vec::new(),
-            reactive: false, max_retries: 2, retry_delay: 40,
+            protocol: protocol.to_string(),
+            seed,
+            probes: Vec::new(),
+            reactive: false,
+            max_retries: 2,
+            retry_delay: 40,
         }
     }
 }
@@ -312,7 +379,9 @@ impl WindowState {
         *self.requests.entry(req.entity).or_insert(0) += 1;
     }
 
-    fn saw_no_quote(&mut self) { self.no_quote += 1; }
+    fn saw_no_quote(&mut self) {
+        self.no_quote += 1;
+    }
 
     fn saw_fill(&mut self, req: &Request, bucket: usize, signed: i64) {
         self.fills += 1;
@@ -321,15 +390,25 @@ impl WindowState {
         *self.signed.entry(req.entity).or_insert(0) += signed;
     }
 
-    fn observation(&self, window: usize, end_step: usize,
-                   makers_in_band: i64, lots_in_band: i64) -> WindowObservation {
+    fn observation(
+        &self,
+        window: usize,
+        end_step: usize,
+        makers_in_band: i64,
+        lots_in_band: i64,
+    ) -> WindowObservation {
         WindowObservation {
-            window, start_step: self.start, end_step,
+            window,
+            start_step: self.start,
+            end_step,
             requests_by_entity: self.requests.clone(),
             volume_by_entity: self.volume.clone(),
             signed_volume_by_entity: self.signed.clone(),
-            fills: self.fills, requests: self.total, no_quote: self.no_quote,
-            liquidity_lots_in_band: lots_in_band, makers_in_band,
+            fills: self.fills,
+            requests: self.total,
+            no_quote: self.no_quote,
+            liquidity_lots_in_band: lots_in_band,
+            makers_in_band,
             fills_by_bucket: self.fills_by_bucket,
             requests_by_bucket: self.requests_by_bucket,
         }
@@ -363,9 +442,14 @@ struct Arm<'a> {
 }
 
 impl<'a> Arm<'a> {
-    fn new(cfg: &'a SimConfig, market: &'a ReferenceMarket, requests: &'a [Request],
-           makers: &[MarketMaker], disclosure: &'a mut Disclosure,
-           options: &'a ArmOptions) -> Self {
+    fn new(
+        cfg: &'a SimConfig,
+        market: &'a ReferenceMarket,
+        requests: &'a [Request],
+        makers: &[MarketMaker],
+        disclosure: &'a mut Disclosure,
+        options: &'a ArmOptions,
+    ) -> Self {
         // Requests are indices into the shared stream, so a retry is scheduled
         // without copying and every arm still replays exactly one stream.
         let mut by_step: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
@@ -382,22 +466,44 @@ impl<'a> Arm<'a> {
             rng: PyRandom::new(options.seed),
             mms: makers.to_vec(),
             beliefs: vec![BeliefState::default(); makers.len()],
-            by_step, retries: BTreeMap::new(), probes_by_step,
+            by_step,
+            retries: BTreeMap::new(),
+            probes_by_step,
             out: ArmResult {
-                protocol: options.protocol.clone(), disclosure: name,
-                requests: requests.len(), fills: 0, no_quote: 0, rejected: 0,
-                user_cost_ticks: Vec::new(), mm_pnl: BTreeMap::new(),
-                mm_markouts: MARKOUT_HORIZONS.iter().map(|(k, _)| (*k, Vec::new())).collect(),
-                quote_continuation: 0.0, releases: Vec::new(),
+                protocol: options.protocol.clone(),
+                disclosure: name,
+                requests: requests.len(),
+                fills: 0,
+                no_quote: 0,
+                rejected: 0,
+                user_cost_ticks: Vec::new(),
+                mm_pnl: BTreeMap::new(),
+                mm_markouts: MARKOUT_HORIZONS
+                    .iter()
+                    .map(|(k, _)| (*k, Vec::new()))
+                    .collect(),
+                quote_continuation: 0.0,
+                releases: Vec::new(),
                 release_errors: [("requests", Vec::new()), ("signed_volume", Vec::new())]
-                    .into_iter().collect(),
-                suppression_rate: 0.0, observations: Vec::new(), settlements: Vec::new(),
-                truth: Vec::new(), windows: Vec::new(), epsilon_spent_max: 0.0,
+                    .into_iter()
+                    .collect(),
+                suppression_rate: 0.0,
+                observations: Vec::new(),
+                settlements: Vec::new(),
+                truth: Vec::new(),
+                windows: Vec::new(),
+                epsilon_spent_max: 0.0,
                 probe_results: Vec::new(),
             },
-            quoting_samples: 0, quoting_active: 0,
-            last_release: None, window: WindowState::default(),
-            cfg, market, requests, disclosure, options,
+            quoting_samples: 0,
+            quoting_active: 0,
+            last_release: None,
+            window: WindowState::default(),
+            cfg,
+            market,
+            requests,
+            disclosure,
+            options,
         }
     }
 
@@ -411,8 +517,13 @@ impl<'a> Arm<'a> {
 
     fn record(&mut self, req: &Request, step: usize, executed: bool) {
         self.out.truth.push(Truth {
-            step, entity: req.entity, wallet: req.wallet, size: req.size,
-            direction: req.direction, executed, informed: req.informed,
+            step,
+            entity: req.entity,
+            wallet: req.wallet,
+            size: req.size,
+            direction: req.direction,
+            executed,
+            informed: req.informed,
         });
     }
 
@@ -429,7 +540,9 @@ impl<'a> Arm<'a> {
             let (ask, bid) = mm.quote(ref_mid, req.size, phi_hat);
             let price = if req.direction == 0 { ask } else { bid };
             let cost = if req.direction == 0 { price } else { -price };
-            if best.is_none_or(|(c, _)| cost < c) { best = Some((cost, mm.mm_id)); }
+            if best.is_none_or(|(c, _)| cost < c) {
+                best = Some((cost, mm.mm_id));
+            }
         }
         best.map(|(cost, id)| (if req.direction == 0 { cost } else { -cost }, id))
     }
@@ -443,13 +556,24 @@ impl<'a> Arm<'a> {
     fn accepts(&self, req: &Request, quote: i64, ref_mid: i64) -> bool {
         let limit: f64 = if req.informed {
             let edge = req.signal.abs();
-            (if req.direction == 0 { ref_mid + edge } else { ref_mid - edge }) as f64
+            (if req.direction == 0 {
+                ref_mid + edge
+            } else {
+                ref_mid - edge
+            }) as f64
         } else {
             let half = user_half_estimate(self.disclosure.name(), self.last_release.as_ref());
-            if req.direction == 0 { ref_mid as f64 + half + USER_SLACK_TICKS as f64 }
-            else { ref_mid as f64 - half - USER_SLACK_TICKS as f64 }
+            if req.direction == 0 {
+                ref_mid as f64 + half + USER_SLACK_TICKS as f64
+            } else {
+                ref_mid as f64 - half - USER_SLACK_TICKS as f64
+            }
         };
-        if req.direction == 0 { (quote as f64) <= limit } else { (quote as f64) >= limit }
+        if req.direction == 0 {
+            (quote as f64) <= limit
+        } else {
+            (quote as f64) >= limit
+        }
     }
 
     /// A real desk does not abandon the trade; it comes back.
@@ -462,21 +586,42 @@ impl<'a> Arm<'a> {
         }
     }
 
-    fn execute(&mut self, req: &Request, quote: i64, ref_mid: i64, mm_id: usize,
-               step: usize, bucket: usize) {
+    fn execute(
+        &mut self,
+        req: &Request,
+        quote: i64,
+        ref_mid: i64,
+        mm_id: usize,
+        step: usize,
+        bucket: usize,
+    ) {
         self.out.fills += 1;
-        let signed = if req.direction == 0 { req.size } else { -req.size };
+        let signed = if req.direction == 0 {
+            req.size
+        } else {
+            -req.size
+        };
         self.window.saw_fill(req, bucket, signed);
-        let cost_ticks = if req.direction == 0 { quote - ref_mid } else { ref_mid - quote };
+        let cost_ticks = if req.direction == 0 {
+            quote - ref_mid
+        } else {
+            ref_mid - quote
+        };
         self.out.user_cost_ticks.push(cost_ticks as f64);
 
         self.mms[mm_id].inventory -= signed;
         self.mms[mm_id].fills += 1;
         for (name, horizon) in MARKOUT_HORIZONS {
             let future = self.market.mid[(step + horizon).min(self.cfg.steps)];
-            let pnl = if req.direction == 0 { (quote - future) * req.size }
-                      else { (future - quote) * req.size };
-            self.out.mm_markouts.get_mut(name).unwrap()
+            let pnl = if req.direction == 0 {
+                (quote - future) * req.size
+            } else {
+                (future - quote) * req.size
+            };
+            self.out
+                .mm_markouts
+                .get_mut(name)
+                .unwrap()
                 .push(pnl as f64 / req.size as f64);
             if name == "markout_1s" {
                 self.mms[mm_id].realized_pnl += pnl as f64;
@@ -487,8 +632,13 @@ impl<'a> Arm<'a> {
             self.mms[mm_id].quoting = false;
         }
         self.out.settlements.push(Settlement {
-            step, wallet: req.wallet, entity: req.entity, size: req.size,
-            direction: req.direction, price: quote, mm_id,
+            step,
+            wallet: req.wallet,
+            entity: req.entity,
+            size: req.size,
+            direction: req.direction,
+            price: quote,
+            mm_id,
         });
     }
 
@@ -502,21 +652,30 @@ impl<'a> Arm<'a> {
             self.out.no_quote += 1;
             self.window.saw_no_quote();
             self.record(&req, step, false);
-            if let Some(s) = seen { self.out.observations.push(s); }
+            if let Some(s) = seen {
+                self.out.observations.push(s);
+            }
             return;
         };
 
         if !self.accepts(&req, quote, ref_mid) {
             self.out.rejected += 1;
             self.record(&req, step, false);
-            if let Some(s) = seen { self.out.observations.push(s); }
-            if self.options.reactive { self.retry_later(index, step); }
+            if let Some(s) = seen {
+                self.out.observations.push(s);
+            }
+            if self.options.reactive {
+                self.retry_later(index, step);
+            }
             return;
         }
 
         self.execute(&req, quote, ref_mid, mm_id, step, bucket);
         self.record(&req, step, true);
-        if let Some(s) = seen.as_mut() { s.executed = true; self.out.observations.push(*s); }
+        if let Some(s) = seen.as_mut() {
+            s.executed = true;
+            self.out.observations.push(*s);
+        }
     }
 
     /// A firm price comes back in every arm by design, which is why probing
@@ -529,11 +688,18 @@ impl<'a> Arm<'a> {
             let phi_hat = self.beliefs[mm.mm_id].combined(public);
             let (ask, bid) = mm.quote(ref_mid, probe.size, phi_hat);
             per_mm.insert(mm.mm_id, (ask, bid));
-            if best_ask.is_none_or(|a| ask < a) { best_ask = Some(ask); }
-            if best_bid.is_none_or(|b| bid > b) { best_bid = Some(bid); }
+            if best_ask.is_none_or(|a| ask < a) {
+                best_ask = Some(ask);
+            }
+            if best_bid.is_none_or(|b| bid > b) {
+                best_bid = Some(bid);
+            }
         }
         self.out.probe_results.push(ProbeResult {
-            step, size: probe.size, best_ask, best_bid,
+            step,
+            size: probe.size,
+            best_ask,
+            best_bid,
             per_mm_quotes: self.leakage.leaks_per_maker_quotes().then_some(per_mm),
             per_mm_inventory: self.mms.iter().map(|m| (m.mm_id, m.inventory)).collect(),
             true_net_inventory: self.mms.iter().map(|m| m.inventory).sum(),
@@ -544,8 +710,11 @@ impl<'a> Arm<'a> {
     fn adapt_spreads(&mut self) {
         for mm in self.mms.iter_mut() {
             let realized = mm.realized_pnl / (mm.fills.max(1) as f64);
-            if realized < 0.0 { mm.base_half = (mm.base_half + 1).min(60); }
-            else if realized > 400.0 && mm.base_half > 4 { mm.base_half -= 1; }
+            if realized < 0.0 {
+                mm.base_half = (mm.base_half + 1).min(60);
+            } else if realized > 400.0 && mm.base_half > 4 {
+                mm.base_half -= 1;
+            }
         }
     }
 
@@ -564,20 +733,35 @@ impl<'a> Arm<'a> {
         let public = self.public();
         let (makers_in_band, lots_in_band) =
             depth_snapshot(&self.mms, &self.beliefs, self.market.mid[step], public);
-        let obs = self.window.observation(step / self.cfg.window_steps, step,
-                                          makers_in_band, lots_in_band);
+        let obs = self.window.observation(
+            step / self.cfg.window_steps,
+            step,
+            makers_in_band,
+            lots_in_band,
+        );
         let release = self.disclosure.release(&obs, &mut self.rng);
         if release.published && release.mode == "C_dp" {
-            self.out.release_errors.get_mut("requests").unwrap().push(
-                (release.fields.noisy_requests - release.fields.exact_requests).abs() as f64);
-            self.out.release_errors.get_mut("signed_volume").unwrap().push(
-                (release.fields.noisy_signed_volume
-                 - release.fields.exact_signed_volume).abs() as f64);
+            self.out
+                .release_errors
+                .get_mut("requests")
+                .unwrap()
+                .push((release.fields.noisy_requests - release.fields.exact_requests).abs() as f64);
+            self.out
+                .release_errors
+                .get_mut("signed_volume")
+                .unwrap()
+                .push(
+                    (release.fields.noisy_signed_volume - release.fields.exact_signed_volume).abs()
+                        as f64,
+                );
         }
         self.out.windows.push(obs);
         self.last_release = Some(release.clone());
         self.out.releases.push(release);
-        self.window = WindowState { start: step + 1, ..Default::default() };
+        self.window = WindowState {
+            start: step + 1,
+            ..Default::default()
+        };
     }
 
     /// The loop itself, now short enough to read.
@@ -590,19 +774,28 @@ impl<'a> Arm<'a> {
             for probe in self.probes_by_step.get(&step).cloned().unwrap_or_default() {
                 self.answer_probe(probe, step, ref_mid);
             }
-            if self.options.reactive && step % 400 == 399 { self.adapt_spreads(); }
+            if self.options.reactive && step % 400 == 399 {
+                self.adapt_spreads();
+            }
             self.unwind();
             self.quoting_samples += self.mms.len() as u64;
             self.quoting_active += self.mms.iter().filter(|m| m.quoting).count() as u64;
-            if (step + 1) % self.cfg.window_steps == 0 { self.close_window(step); }
+            if (step + 1) % self.cfg.window_steps == 0 {
+                self.close_window(step);
+            }
         }
         self.finish()
     }
 
     fn finish(mut self) -> ArmResult {
-        self.out.quote_continuation = if self.quoting_samples == 0 { 0.0 }
-            else { self.quoting_active as f64 / self.quoting_samples as f64 };
-        self.out.suppression_rate = if self.out.releases.is_empty() { 0.0 } else {
+        self.out.quote_continuation = if self.quoting_samples == 0 {
+            0.0
+        } else {
+            self.quoting_active as f64 / self.quoting_samples as f64
+        };
+        self.out.suppression_rate = if self.out.releases.is_empty() {
+            0.0
+        } else {
             self.out.releases.iter().filter(|r| !r.published).count() as f64
                 / self.out.releases.len() as f64
         };
@@ -614,14 +807,22 @@ impl<'a> Arm<'a> {
 
 /// Run one arm. The work is in `Arm`; this is the name callers know.
 pub fn run_arm(
-    cfg: &SimConfig, market: &ReferenceMarket, requests: &[Request],
-    makers: &[MarketMaker], disclosure: &mut Disclosure, options: &ArmOptions,
+    cfg: &SimConfig,
+    market: &ReferenceMarket,
+    requests: &[Request],
+    makers: &[MarketMaker],
+    disclosure: &mut Disclosure,
+    options: &ArmOptions,
 ) -> ArmResult {
     Arm::new(cfg, market, requests, makers, disclosure, options).run()
 }
 
-fn depth_snapshot(mms: &[MarketMaker], beliefs: &[BeliefState], ref_mid: i64,
-                  public: PublicSignal) -> (i64, i64) {
+fn depth_snapshot(
+    mms: &[MarketMaker],
+    beliefs: &[BeliefState],
+    ref_mid: i64,
+    public: PublicSignal,
+) -> (i64, i64) {
     const BAND_BPS: i64 = 5;
     const PROBE_SIZE: i64 = 100;
     let band = BAND_BPS * ref_mid / 10_000;

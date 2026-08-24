@@ -1,0 +1,53 @@
+{
+  "contract_id": "QOMM-PRODUCT-2026-08-24",
+  "objective": "Evaluate whether query-oblivious market making remains usable across market thickness and order size, and whether behavioral evidence can safely prioritize suspected multi-credential probing for human review.",
+  "immutable_scope": {
+    "market_protocols": [
+      "plain_rfq",
+      "qomm_rfq"
+    ],
+    "market_disclosure": "A_none",
+    "identity_role": "behavioral evidence may prioritize review but may never replace KYC or automatically merge legal entities",
+    "evm_in_scope": false
+  },
+  "stage_order": [
+    "smoke",
+    "confirmation",
+    "external_validation"
+  ],
+  "current_stage": "smoke",
+  "truth_providers": {
+    "smoke": "seeded synthetic market and labeled synthetic credential pairs",
+    "confirmation": "held-out seeded simulation with paired seeds and predeclared statistical gates",
+    "external_validation": "venue-approved historical RF data and independently labeled KYC investigations"
+  },
+  "primary_metrics": {
+    "market": [
+      "unsettled_request_auc",
+      "active_probe_inventory_correlation",
+      "fill_rate",
+      "user_cost_mean_ticks",
+      "mm_pnl_per_fill"
+    ],
+    "identity": [
+      "pair_auc",
+      "tpr_at_1pct_fpr",
+      "review_precision",
+      "false_positive_rate"
+    ]
+  },
+  "hard_gates": [
+    "same random market and request stream within each paired protocol comparison",
+    "KYC remains authoritative for entity identity",
+    "behavior-only output is review_required and cannot deny service",
+    "no synthetic result may be labeled external validation or production promotion",
+    "non-finite, missing, unhashed, or stale evidence fails closed"
+  ],
+  "promotion_rule": "No production promotion is possible before external_validation. Smoke and confirmation runs may only be recorded as smoke_only, diagnostic_only, inconclusive, rejected, blocked, or confirmation_pending.",
+  "statistical_rule": {
+    "alpha": 0.05,
+    "minimum_power": 0.8,
+    "paired_comparison": true,
+    "multiple_testing": "Holm correction for confirmatory cell-wise comparisons"
+  }
+}

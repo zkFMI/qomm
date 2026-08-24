@@ -237,3 +237,60 @@ def test_slashing_ignores_venue_level_findings():
 
     assert bonds.apply([Evidence(Fault.MISSING_RECEIPT, -1, 0, "quorum short")]) == []
     assert bonds.bonds[0] == 100_000
+
+
+# --- what a node signs about itself is not evidence --------------------------
+
+def test_a_late_node_cannot_backdate_its_own_receipt():
+    """`emitted_at` is a field the node chooses and signs.
+
+    Settling against it let a node miss a deadline, sign
+    `emitted_at = deadline - 1` afterwards, and be counted as on time. A
+    deadline nobody but the node observes is not a deadline, so the ledger
+    judges by when it saw the receipt.
+    """
+    keys = {node: Ed25519PrivateKey.generate() for node in range(3)}
+    ledger = AuditLedger({n: k.public_key() for n, k in keys.items()})
+    spec = SlotSpec(slot=1, market_digest=b"m" * 32, deadline=100,
+                    mm_set_digest=b"s" * 32, required_receipts=3)
+    ledger.open_slot(spec)
+
+    for node in (0, 1):
+        ledger.record(sign_receipt(keys[node], node, spec,
+                                   prev_state_digest=GENESIS,
+                                   new_state_digest=b"n" * 32,
+                                   result_digest=b"r" * 32, emitted_at=50),
+                      arrived_at=50)
+    # node 2 answers late and says it did not
+    ledger.record(sign_receipt(keys[2], 2, spec, prev_state_digest=GENESIS,
+                               new_state_digest=b"n" * 32,
+                               result_digest=b"r" * 32, emitted_at=99),
+                  arrived_at=150)
+
+    _, evidence = ledger.settle(1, now=150)
+    named = {e.node for e in evidence if e.fault is Fault.MISSING_RECEIPT}
+    assert 2 in named, "the backdated receipt was accepted as on time"
+    assert 0 not in named and 1 not in named, "an on-time node was named"
+    # and the slot fails its quorum, which is the consequence of the above
+    assert -1 in named, "two of three receipts should not settle a slot of three"
+
+
+def test_a_receipt_for_another_market_does_not_count():
+    """The slot fixes the market and the deadline, both are signed, and
+    neither was compared --- so a receipt for another market with an invented
+    deadline still counted toward this slot's quorum."""
+    keys = {node: Ed25519PrivateKey.generate() for node in range(3)}
+    ledger = AuditLedger({n: k.public_key() for n, k in keys.items()})
+    spec = SlotSpec(slot=1, market_digest=b"m" * 32, deadline=100,
+                    mm_set_digest=b"s" * 32, required_receipts=3)
+    ledger.open_slot(spec)
+    elsewhere = SlotSpec(slot=1, market_digest=b"OTHER MARKET".ljust(32, b"."),
+                         deadline=100, mm_set_digest=b"s" * 32,
+                         required_receipts=3)
+
+    evidence = ledger.record(
+        sign_receipt(keys[0], 0, elsewhere, prev_state_digest=GENESIS,
+                     new_state_digest=b"n" * 32, result_digest=b"r" * 32,
+                     emitted_at=50), arrived_at=50)
+    assert any("market other than" in e.detail for e in evidence), \
+        "a receipt for another market was accepted without comment"

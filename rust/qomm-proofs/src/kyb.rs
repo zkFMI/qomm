@@ -80,15 +80,22 @@ pub struct SignedCohortRegistry {
 }
 
 impl SignedCohortRegistry {
-    fn body(cohort: &str, epoch: u64, expires_at: u64,
-            points: &[RistrettoPoint], issuer: &VerifyingKey) -> Vec<u8> {
+    fn body(
+        cohort: &str,
+        epoch: u64,
+        expires_at: u64,
+        points: &[RistrettoPoint],
+        issuer: &VerifyingKey,
+    ) -> Vec<u8> {
         let mut h = Sha256::new();
         h.update(b"qomm:kyb-registry:");
         h.update(cohort.as_bytes());
         h.update(epoch.to_be_bytes());
         h.update(expires_at.to_be_bytes());
         h.update((points.len() as u64).to_be_bytes());
-        for point in points { h.update(point.compress().as_bytes()); }
+        for point in points {
+            h.update(point.compress().as_bytes());
+        }
         h.update(issuer.as_bytes());
         h.finalize().to_vec()
     }
@@ -131,10 +138,15 @@ impl KybIssuer {
         }
     }
 
-    pub fn public_key(&self) -> VerifyingKey { self.signing.verifying_key() }
+    pub fn public_key(&self) -> VerifyingKey {
+        self.signing.verifying_key()
+    }
 
     pub fn enroll<R: RngCore + CryptoRng>(
-        &mut self, control_group_id: &str, attributes: BusinessAttributes, rng: &mut R,
+        &mut self,
+        control_group_id: &str,
+        attributes: BusinessAttributes,
+        rng: &mut R,
     ) -> Result<KybCredential, &'static str> {
         if self.enrolled.contains_key(control_group_id) {
             return Err("control group already enrolled");
@@ -147,13 +159,20 @@ impl KybIssuer {
             cohorts: attributes.cohorts(self.max_tier),
             attributes,
         };
-        self.enrolled.insert(control_group_id.to_string(), credential.clone());
+        self.enrolled
+            .insert(control_group_id.to_string(), credential.clone());
         Ok(credential)
     }
 
-    pub fn publish(&self, cohort: &str, registry_epoch: u64, expires_at: u64)
-                   -> Result<SignedCohortRegistry, &'static str> {
-        let mut points: Vec<RistrettoPoint> = self.enrolled.values()
+    pub fn publish(
+        &self,
+        cohort: &str,
+        registry_epoch: u64,
+        expires_at: u64,
+    ) -> Result<SignedCohortRegistry, &'static str> {
+        let mut points: Vec<RistrettoPoint> = self
+            .enrolled
+            .values()
             .filter(|c| c.cohorts.iter().any(|k| k == cohort))
             .map(|c| c.public_point)
             .collect();
@@ -165,14 +184,18 @@ impl KybIssuer {
         points.sort_by_key(|p| p.compress().to_bytes());
 
         let issuer = self.public_key();
-        let body = SignedCohortRegistry::body(cohort, registry_epoch, expires_at,
-                                              &points, &issuer);
+        let body = SignedCohortRegistry::body(cohort, registry_epoch, expires_at, &points, &issuer);
         let mut registry_id = [0u8; 32];
         registry_id.copy_from_slice(&body);
         let signature = self.signing.sign(&registry_id);
         Ok(SignedCohortRegistry {
-            cohort: cohort.to_string(), registry_epoch, expires_at, points,
-            issuer, registry_id, signature,
+            cohort: cohort.to_string(),
+            registry_epoch,
+            expires_at,
+            points,
+            issuer,
+            registry_id,
+            signature,
         })
     }
 
@@ -183,7 +206,9 @@ impl KybIssuer {
 }
 
 pub fn verify_registry(
-    registry: &SignedCohortRegistry, trusted: &VerifyingKey, now: u64,
+    registry: &SignedCohortRegistry,
+    trusted: &VerifyingKey,
+    now: u64,
 ) -> Result<(), Invalid> {
     if registry.issuer != *trusted {
         return Err(Invalid::NotFromTrustedIssuer);
@@ -191,21 +216,29 @@ pub fn verify_registry(
     if registry.expires_at <= now {
         return Err(Invalid::Expired);
     }
-    let mut seen: Vec<[u8; 32]> =
-        registry.points.iter().map(|p| p.compress().to_bytes()).collect();
+    let mut seen: Vec<[u8; 32]> = registry
+        .points
+        .iter()
+        .map(|p| p.compress().to_bytes())
+        .collect();
     let before = seen.len();
     seen.sort_unstable();
     seen.dedup();
     if seen.len() != before {
         return Err(Invalid::DuplicateEntries);
     }
-    let body = SignedCohortRegistry::body(&registry.cohort, registry.registry_epoch,
-                                          registry.expires_at, &registry.points,
-                                          &registry.issuer);
+    let body = SignedCohortRegistry::body(
+        &registry.cohort,
+        registry.registry_epoch,
+        registry.expires_at,
+        &registry.points,
+        &registry.issuer,
+    );
     if body != registry.registry_id {
         return Err(Invalid::RegistryIdMismatch);
     }
-    trusted.verify(&registry.registry_id, &registry.signature)
+    trusted
+        .verify(&registry.registry_id, &registry.signature)
         .map_err(|_| Invalid::BadIssuerSignature)
 }
 
@@ -217,31 +250,45 @@ pub fn context_hash(context: &[u8]) -> [u8; 32] {
 }
 
 pub fn present<R: RngCore + CryptoRng>(
-    credential: &KybCredential, registry: &SignedCohortRegistry,
-    scope: &[u8], context: &[u8], rng: &mut R,
+    credential: &KybCredential,
+    registry: &SignedCohortRegistry,
+    scope: &[u8],
+    context: &[u8],
+    rng: &mut R,
 ) -> Result<KybPresentation, &'static str> {
-    if !credential.cohorts.iter().any(|c| *c == registry.cohort) {
+    if !credential.cohorts.contains(&registry.cohort) {
         return Err("credential does not qualify for this cohort");
     }
-    let index = registry.points.iter()
+    let index = registry
+        .points
+        .iter()
         .position(|p| *p == credential.public_point)
         .ok_or("credential is not in this registry")?;
     let hash = context_hash(context);
     let statement = Statement {
-        registry_id: &registry.registry_id, points: &registry.points,
-        scope, context_hash: &hash,
+        registry_id: &registry.registry_id,
+        points: &registry.points,
+        scope,
+        context_hash: &hash,
     };
     let proof = or_dleq::prove(&statement, &credential.secret, index, rng)?;
     Ok(KybPresentation {
-        cohort: registry.cohort.clone(), registry_id: registry.registry_id,
-        scope: scope.to_vec(), context_hash: hash, proof,
+        cohort: registry.cohort.clone(),
+        registry_id: registry.registry_id,
+        scope: scope.to_vec(),
+        context_hash: hash,
+        proof,
     })
 }
 
 #[allow(clippy::too_many_arguments)]
 pub fn verify_presentation(
-    presentation: &KybPresentation, registry: &SignedCohortRegistry,
-    trusted: &VerifyingKey, scope: &[u8], context: &[u8], now: u64,
+    presentation: &KybPresentation,
+    registry: &SignedCohortRegistry,
+    trusted: &VerifyingKey,
+    scope: &[u8],
+    context: &[u8],
+    now: u64,
     required_cohort: &str,
 ) -> Result<(), Invalid> {
     verify_registry(registry, trusted, now)?;
@@ -256,8 +303,10 @@ pub fn verify_presentation(
         return Err(Invalid::WrongScopeOrContext);
     }
     let statement = Statement {
-        registry_id: &registry.registry_id, points: &registry.points,
-        scope, context_hash: &hash,
+        registry_id: &registry.registry_id,
+        points: &registry.points,
+        scope,
+        context_hash: &hash,
     };
     if !or_dleq::verify(&statement, &presentation.proof) {
         return Err(Invalid::MembershipProofFailed);
@@ -275,7 +324,11 @@ pub struct EntityLimits {
 
 impl Default for EntityLimits {
     fn default() -> Self {
-        EntityLimits { max_requests: 60, max_probe_lots: 2_000, max_epsilon: 1.0 }
+        EntityLimits {
+            max_requests: 60,
+            max_probe_lots: 2_000,
+            max_epsilon: 1.0,
+        }
     }
 }
 
@@ -307,15 +360,22 @@ pub struct Usage {
 
 impl EntityRateLimiter {
     pub fn new(limits: EntityLimits) -> Self {
-        EntityRateLimiter { limits, ..Default::default() }
+        EntityRateLimiter {
+            limits,
+            ..Default::default()
+        }
     }
 
     fn key(nullifier: &RistrettoPoint, epoch: u64) -> ([u8; 32], u64) {
         (nullifier.compress().to_bytes(), epoch)
     }
 
-    pub fn allow_request(&mut self, nullifier: &RistrettoPoint, epoch: u64, lots: u64)
-                         -> Result<(), Refused> {
+    pub fn allow_request(
+        &mut self,
+        nullifier: &RistrettoPoint,
+        epoch: u64,
+        lots: u64,
+    ) -> Result<(), Refused> {
         let key = Self::key(nullifier, epoch);
         if self.requests.get(&key).copied().unwrap_or(0) + 1 > self.limits.max_requests {
             return Err(Refused::RequestCap);
@@ -328,8 +388,12 @@ impl EntityRateLimiter {
         Ok(())
     }
 
-    pub fn spend_epsilon(&mut self, nullifier: &RistrettoPoint, epoch: u64, epsilon: f64)
-                         -> Result<(), Refused> {
+    pub fn spend_epsilon(
+        &mut self,
+        nullifier: &RistrettoPoint,
+        epoch: u64,
+        epsilon: f64,
+    ) -> Result<(), Refused> {
         let key = Self::key(nullifier, epoch);
         let spent = self.epsilon.get(&key).copied().unwrap_or(0.0);
         if spent + epsilon > self.limits.max_epsilon + 1e-12 {

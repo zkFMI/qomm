@@ -209,6 +209,11 @@ class WindowObservation:
     requests_by_entity: dict[int, int]
     volume_by_entity: dict[int, int]
     signed_volume_by_entity: dict[int, int]
+    #: Fills per entity. The released fill count is clipped from this, not from
+    #: the total: a total clipped against the *request* sum moves by more than
+    #: one entity's cap when one entity takes the window's flow, and the noise
+    #: is calibrated to that cap.
+    fills_by_entity: dict[int, int]
     fills: int
     requests: int
     no_quote: int
@@ -314,12 +319,21 @@ class DPDisclosure(DisclosureMechanism):
         self.signed_sensitivity_factor = signed_sensitivity_factor
 
     def release(self, obs: WindowObservation, rng: random.Random) -> Release:
-        active = [e for e, c in obs.requests_by_entity.items() if c > 0]
-        if any(not self.accountants[e].can_spend(self.epsilon_per_window) for e in active):
+        # Every enrolled entity is charged for every window, active or not.
+        #
+        # Charging only the active ones is cheaper and it is what the mechanism
+        # used to do, but it made the published/withheld bit a function of the
+        # private data: an entity that spent its budget in an earlier window
+        # suppresses this one exactly when it trades, so the bit reports its
+        # presence with certainty and no finite epsilon covers it. The schedule
+        # has to be decided by the enrolment and the window count, which are
+        # both public, and the price is that enrolment buys a fixed number of
+        # windows and sitting one out does not save it.
+        if not all(a.can_spend(self.epsilon_per_window) for a in self.accountants.values()):
             return Release(obs.window, self.name, False, {}, 0.0,
                            "entity privacy budget exhausted")
-        for entity in active:
-            self.accountants[entity].spend(self.epsilon_per_window)
+        for accountant in self.accountants.values():
+            accountant.spend(self.epsilon_per_window)
 
         eps = self.epsilon_per_window / self.n_fields
         clipped_requests = sum(min(c, self.request_cap) for c in obs.requests_by_entity.values())
@@ -328,8 +342,8 @@ class DPDisclosure(DisclosureMechanism):
             max(-self.volume_cap, min(v, self.volume_cap))
             for v in obs.signed_volume_by_entity.values()
         )
-        clipped_fills = min(obs.fills, sum(min(c, self.request_cap)
-                                           for c in obs.requests_by_entity.values()))
+        clipped_fills = sum(min(c, self.request_cap)
+                            for c in obs.fills_by_entity.values())
 
         noisy_requests = max(0, clipped_requests + discrete_laplace(eps, self.request_cap, rng))
         noisy_volume = max(0, clipped_volume + discrete_laplace(eps, self.volume_cap, rng))

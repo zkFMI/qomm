@@ -18,8 +18,7 @@ fn main() {
 fn banker(v: f64) -> i64 {
     let floor = v.floor();
     let diff = v - floor;
-    let n = if diff > 0.5 { floor + 1.0 }
-            else if diff < 0.5 { floor }
-            else if (floor as i64) % 2 == 0 { floor } else { floor + 1.0 };
+    let round_up = diff > 0.5 || (diff == 0.5 && (floor as i64) % 2 != 0);
+    let n = if round_up { floor + 1.0 } else { floor };
     n as i64
 }

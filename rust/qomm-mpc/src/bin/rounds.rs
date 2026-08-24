@@ -87,8 +87,10 @@ fn main() {
             match one_run(&opts, *protocol, &run_dir) {
                 Ok(parties) => {
                     let p0 = &parties[0];
-                    println!("  repeat {repeat}: rounds={} sent={} payload={} seconds={:.4}",
-                             p0.rounds, p0.sent, p0.payload, p0.seconds);
+                    println!(
+                        "  repeat {repeat}: rounds={} sent={} payload={} seconds={:.4}",
+                        p0.rounds, p0.sent, p0.payload, p0.seconds
+                    );
                     runs.push(parties);
                 }
                 Err(why) => {
@@ -104,16 +106,22 @@ fn main() {
         "{{\n  \"host\": {},\n  \"program\": {},\n  \"parties\": {},\n  \
          \"threshold\": {},\n  \"repeats\": {},\n  \"delay_ms\": 0,\n  \
          \"protocols\": [\n{}\n  ]\n}}\n",
-        quote(&hosts::this_host()), quote(&opts.program), opts.parties,
-        opts.threshold, opts.repeats, sections.join(",\n"));
-    if let Some(parent) = opts.out.parent() { let _ = std::fs::create_dir_all(parent); }
+        quote(&hosts::this_host()),
+        quote(&opts.program),
+        opts.parties,
+        opts.threshold,
+        opts.repeats,
+        sections.join(",\n")
+    );
+    if let Some(parent) = opts.out.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
     std::fs::write(&opts.out, &json).expect("could not write the artifact");
     println!("wrote {}", opts.out.display());
 }
 
 /// One run of the whole committee: `parties` processes, all of them ours.
-fn one_run(opts: &Options, protocol: Protocol, run_dir: &Path)
-    -> Result<Vec<PartyRun>, String> {
+fn one_run(opts: &Options, protocol: Protocol, run_dir: &Path) -> Result<Vec<PartyRun>, String> {
     let mut children = Vec::new();
     for party in 0..opts.parties {
         let child = Command::new(&opts.party_bin)
@@ -123,7 +131,8 @@ fn one_run(opts: &Options, protocol: Protocol, run_dir: &Path)
             .arg(&opts.program)
             .args(["-N", &opts.parties.to_string()])
             .args(["-T", &opts.threshold.to_string()])
-            .arg("-ip").arg(run_dir.join(format!("hosts-P{party}")))
+            .arg("-ip")
+            .arg(run_dir.join(format!("hosts-P{party}")))
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -140,7 +149,8 @@ fn one_run(opts: &Options, protocol: Protocol, run_dir: &Path)
             failure.get_or_insert(format!(
                 "party {party} exited {}: {}",
                 done.status.code().unwrap_or(-1),
-                if why.is_empty() { "no message" } else { why }));
+                if why.is_empty() { "no message" } else { why }
+            ));
             continue;
         }
         parties.push(read_party(&String::from_utf8_lossy(&done.stdout))?);
@@ -157,14 +167,18 @@ fn read_party(text: &str) -> Result<PartyRun, String> {
     let mut seen = false;
     for line in text.lines() {
         let mut field = line.split_whitespace();
-        if field.next() != Some("QOMM") { continue; }
+        if field.next() != Some("QOMM") {
+            continue;
+        }
         match field.next() {
             Some("total") => {
                 run.rounds = number(field.next())?;
                 run.raw_rounds = number(field.next())?;
                 run.sent = number(field.next())?;
                 run.payload = number(field.next())?;
-                run.seconds = field.next().and_then(|s| s.parse().ok())
+                run.seconds = field
+                    .next()
+                    .and_then(|s| s.parse().ok())
                     .ok_or("a total line without a time")?;
                 seen = true;
             }
@@ -176,11 +190,17 @@ fn read_party(text: &str) -> Result<PartyRun, String> {
             _ => {}
         }
     }
-    if seen { Ok(run) } else { Err("a party said nothing about its run".into()) }
+    if seen {
+        Ok(run)
+    } else {
+        Err("a party said nothing about its run".into())
+    }
 }
 
 fn number(field: Option<&str>) -> Result<u64, String> {
-    field.and_then(|s| s.parse().ok()).ok_or_else(|| "a malformed count".into())
+    field
+        .and_then(|s| s.parse().ok())
+        .ok_or_else(|| "a malformed count".into())
 }
 
 /// One protocol's section of the artifact.
@@ -193,48 +213,82 @@ fn number(field: Option<&str>) -> Result<u64, String> {
 fn report(protocol: Protocol, runs: &[Vec<PartyRun>]) -> String {
     let first = &runs[0][0];
     let rounds_vary = runs.iter().any(|r| r[0].rounds != first.rounds);
-    let bytes_vary = runs.iter().any(|r| r[0].sent != first.sent
-                                      || r[0].payload != first.payload);
+    let bytes_vary = runs
+        .iter()
+        .any(|r| r[0].sent != first.sent || r[0].payload != first.payload);
     let seconds = Summary::of(&runs.iter().map(|r| r[0].seconds).collect::<Vec<_>>())
         .expect("a run has at least one repeat");
 
     // Every party's own byte count, from the same run: a shape the log never
     // showed, because only party 0 was ever read.
-    let per_party: Vec<String> = runs[0].iter().enumerate()
-        .map(|(i, p)| format!("        {{\"party\": {i}, \"rounds\": {}, \"sent\": {}, \
-                               \"payload\": {}}}", p.rounds, p.sent, p.payload))
+    let per_party: Vec<String> = runs[0]
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            format!(
+                "        {{\"party\": {i}, \"rounds\": {}, \"sent\": {}, \
+                               \"payload\": {}}}",
+                p.rounds, p.sent, p.payload
+            )
+        })
         .collect();
 
     let mut channels: Vec<&String> = first.channels.keys().collect();
     channels.sort_by_key(|name| std::cmp::Reverse(first.channels[*name].0));
-    let channel_rows: Vec<String> = channels.iter().map(|name| {
-        let (rounds, bytes) = first.channels[*name];
-        format!("        {{\"channel\": {}, \"rounds\": {rounds}, \"bytes\": {bytes}, \
+    let channel_rows: Vec<String> = channels
+        .iter()
+        .map(|name| {
+            let (rounds, bytes) = first.channels[*name];
+            format!(
+                "        {{\"channel\": {}, \"rounds\": {rounds}, \"bytes\": {bytes}, \
                  \"share_of_rounds\": {:.4}}}",
-                quote(name), rounds as f64 / first.rounds.max(1) as f64)
-    }).collect();
+                quote(name),
+                rounds as f64 / first.rounds.max(1) as f64
+            )
+        })
+        .collect();
 
-    println!("  total rounds={} sent={} payload={} (fan-out {:.2}x) over {} runs{}",
-             first.rounds, first.sent, first.payload,
-             first.sent as f64 / first.payload.max(1) as f64, runs.len(),
-             if rounds_vary || bytes_vary { "  (NOT CONSTANT)" } else { "" });
+    println!(
+        "  total rounds={} sent={} payload={} (fan-out {:.2}x) over {} runs{}",
+        first.rounds,
+        first.sent,
+        first.payload,
+        first.sent as f64 / first.payload.max(1) as f64,
+        runs.len(),
+        if rounds_vary || bytes_vary {
+            "  (NOT CONSTANT)"
+        } else {
+            ""
+        }
+    );
     for name in &channels {
         let (rounds, bytes) = first.channels[*name];
-        println!("    {name:24} rounds={rounds:5} ({:4.1}%)  bytes={bytes}",
-                 100.0 * rounds as f64 / first.rounds.max(1) as f64);
+        println!(
+            "    {name:24} rounds={rounds:5} ({:4.1}%)  bytes={bytes}",
+            100.0 * rounds as f64 / first.rounds.max(1) as f64
+        );
     }
 
-    format!("    {{\n      \"protocol\": {},\n      \"stock_binary\": {},\n      \
+    format!(
+        "    {{\n      \"protocol\": {},\n      \"stock_binary\": {},\n      \
              \"rounds\": {},\n      \"raw_rounds\": {},\n      \"sent\": {},\n      \
              \"payload\": {},\n      \"constant_across_runs\": {},\n      \
              \"seconds\": {{\"n\": {}, \"mean\": {:.6}, \"sd\": {}, \"median\": {:.6}}},\n      \
              \"parties\": [\n{}\n      ],\n      \"channels\": [\n{}\n      ]\n    }}",
-            quote(protocol.as_str()), quote(protocol.stock_binary()),
-            first.rounds, first.raw_rounds, first.sent, first.payload,
-            !(rounds_vary || bytes_vary),
-            seconds.n, seconds.mean,
-            seconds.sd.map_or("null".into(), |sd| format!("{sd:.6}")), seconds.median,
-            per_party.join(",\n"), channel_rows.join(",\n"))
+        quote(protocol.as_str()),
+        quote(protocol.stock_binary()),
+        first.rounds,
+        first.raw_rounds,
+        first.sent,
+        first.payload,
+        !(rounds_vary || bytes_vary),
+        seconds.n,
+        seconds.mean,
+        seconds.sd.map_or("null".into(), |sd| format!("{sd:.6}")),
+        seconds.median,
+        per_party.join(",\n"),
+        channel_rows.join(",\n")
+    )
 }
 
 /// `parties` consecutive ports that nothing is listening on.
@@ -243,14 +297,20 @@ fn report(protocol: Protocol, runs: &[Vec<PartyRun>]) -> String {
 /// people's experiments, and a collision shows up as a party that hangs.
 fn free_port_block(parties: usize, start: u16) -> u16 {
     let mut base = start;
-    'outer: while base < 60_000 {
-        for port in base..base + parties as u16 {
+    while base < 60_000 {
+        let end = base + parties as u16;
+        let mut collision = None;
+        for port in base..end {
             if TcpListener::bind(("127.0.0.1", port)).is_err() {
-                base = port + 1;
-                continue 'outer;
+                collision = Some(port);
+                break;
             }
         }
-        return base;
+        if let Some(port) = collision {
+            base = port + 1;
+        } else {
+            return base;
+        }
     }
     panic!("no free block of {parties} ports");
 }
@@ -272,7 +332,8 @@ fn parse_args() -> Options {
     let (mut parties, mut threshold, mut repeats) = (7usize, 2usize, 3usize);
     let mut protocols = vec![Protocol::MaliciousShamir, Protocol::SemiHonestShamir];
     let mut out = PathBuf::from("artifacts/rounds_by_channel.json");
-    let mut party_bin = std::env::current_exe().ok()
+    let mut party_bin = std::env::current_exe()
+        .ok()
         .and_then(|p| p.parent().map(|d| d.join("qomm-party")))
         .unwrap_or_else(|| PathBuf::from("qomm-party"));
 
@@ -283,7 +344,8 @@ fn parse_args() -> Options {
     let mut i = 0;
     while i < args.len() {
         let flag = args[i].as_str();
-        let value = args.get(i + 1)
+        let value = args
+            .get(i + 1)
             .unwrap_or_else(|| panic!("{flag} needs a value"))
             .as_str();
         match flag {
@@ -294,18 +356,35 @@ fn parse_args() -> Options {
             "--repeats" => repeats = value.parse().expect("--repeats"),
             "--out" => out = PathBuf::from(value),
             "--party-bin" => party_bin = PathBuf::from(value),
-            "--protocols" => protocols = value.split(',')
-                .map(|n| Protocol::parse(n).unwrap_or_else(|| panic!("unknown protocol {n}")))
-                .collect(),
+            "--protocols" => {
+                protocols = value
+                    .split(',')
+                    .map(|n| Protocol::parse(n).unwrap_or_else(|| panic!("unknown protocol {n}")))
+                    .collect()
+            }
             other => panic!("unknown argument {other}"),
         }
         i += 2;
     }
     let root = root.expect("--root, or MP_SPDZ_ROOT in the environment");
-    assert!(!program.is_empty(), "--program: the name compiled by ./compile.py");
-    assert!(parties > 2 * threshold,
-            "Shamir needs more than 2T parties; got N={parties} T={threshold}");
-    Options { root, program, parties, threshold, repeats, protocols, out, party_bin }
+    assert!(
+        !program.is_empty(),
+        "--program: the name compiled by ./compile.py"
+    );
+    assert!(
+        parties > 2 * threshold,
+        "Shamir needs more than 2T parties; got N={parties} T={threshold}"
+    );
+    Options {
+        root,
+        program,
+        parties,
+        threshold,
+        repeats,
+        protocols,
+        out,
+        party_bin,
+    }
 }
 
 fn quote(s: &str) -> String {

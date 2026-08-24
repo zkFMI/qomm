@@ -169,7 +169,16 @@ def main() -> int:
     w("|---|---|---|")
     for c in quote["forgery_controls"]:
         w(f"| {c['control']} | **{c['rejected']}** | {c['reason'][:52]} |")
-    w("\n### Assembled jointly by the nodes\n")
+    w("\n### Assembled jointly by the nodes --- one opening, not the proof\n")
+    w("What is assembled jointly is **one Pedersen opening**: a single scalar "
+      "dealt to seven nodes and one sigma proof built from a quorum of them. "
+      "The quote proof's product and bit steps share the linearity that makes "
+      "this work. Its range proofs do not --- a range proof commits to each bit "
+      "of the value, extracting bits needs the value, and a node holding a "
+      "share cannot do that. Assembling the whole proof from shares is MPC, "
+      "which is what this construction was chosen to avoid, and the range "
+      "proofs are its dominant cost. So the figures below are a lower bound on "
+      "a fully assembled proof and not a measurement of one.\n")
     w("| quorum | assemble | an ordinary verifier accepts | no node holds the witness |")
     w("|---|---:|---|---|")
     for j in quote["joint"]:
@@ -372,8 +381,50 @@ def main() -> int:
         w("A smaller batch means more batches and so more rounds. At the "
           "default of 10,000 the preprocessing fits in one. Generating edaBits "
           "online was 23x worse when measured. Separating offline from online "
-          "could not be measured: the bundled `Fake-Offline.x` does not produce "
-          "malicious-Shamir preprocessing.\n")
+          "is measured in its own section below.\n")
+    prep_path = ART / "prep_split.json"
+    if prep_path.exists():
+        prep = json.loads(prep_path.read_text())
+        runs = {r["tag"]: r for r in prep["runs"]}
+        w("### Offline and online, separated\n")
+        w("An earlier version of this file said this could not be measured "
+          "because `Fake-Offline.x` does not produce malicious-Shamir "
+          "preprocessing. That was wrong. It does --- "
+          "`./Fake-Offline.x 7 --threshold 2 --default 200000 -lgp 128` writes "
+          "`Player-Data/7-MSpT2-128/` for malicious Shamir at T=2 and "
+          "`7-SpT2-128/` for Shamir, which `atlas-party.x` reads too because "
+          "`AtlasShare` does not override `type_short`. `-F` then makes a party "
+          "take its correlated randomness from disk, so what is left on the "
+          "wire is the online phase.\n")
+        w("| protocol | preprocessing | rounds | sent, party 0 | sent, all | time |")
+        w("|---|---|---:|---:|---:|---:|")
+        for tag in ("malicious-shamir", "malicious-shamir_F", "atlas", "atlas_F"):
+            r = runs[tag]
+            w(f"| {r['protocol'].split('-party')[0]} "
+              f"| {'from files' if r['file_prep'] else 'in protocol'} "
+              f"| {r['rounds']:.0f} | {r['party0_mb']:.3f} MB "
+              f"| {r['global_mb']:.3f} MB | {r['protocol_ms']:.1f} ms |")
+        w("")
+        base, filed = runs["malicious-shamir"], runs["malicious-shamir_F"]
+        w(f"All four verify against the cleartext reference. The online phase "
+          f"is **{filed['party0_mb'] / base['party0_mb'] * 100:.0f}% of party "
+          f"0's bytes** and "
+          f"{filed['global_mb'] / base['global_mb'] * 100:.0f}% of the global "
+          f"total --- the two differ because a party's share of the traffic "
+          f"depends on where it sits in the reconstruction --- against "
+          f"{filed['rounds'] / base['rounds'] * 100:.0f}% of the rounds. The "
+          f"byte saving was predicted at \"at least 30%\" and is "
+          f"{100 - filed['party0_mb'] / base['party0_mb'] * 100:.0f}%.\n")
+        w("**What this does not show.** `Fake-Offline.x` is a trusted dealer: "
+          "it writes every party's share from one process that knows all of "
+          "them, which is not a protocol any deployment can run. So this "
+          "measures the *size of the online phase* and not the cost of putting "
+          "the randomness there. A real offline phase among the nodes costs "
+          "more than the dealer did, and the saving is moved off the critical "
+          "path rather than removed.\n")
+        w("Measured on host-c; the absolute times are not comparable with the "
+          "host-a tables above and the ratios are the result.\n")
+
         w("### What buys bandwidth but not rounds\n")
         w("| lever | rounds | sent | wall clock, 15 ms one way |")
         w("|---|---:|---:|---:|")
@@ -455,8 +506,9 @@ def main() -> int:
          "**built**. The joint proof's record names the node whose partial "
          "value does not agree with its own share"),
         ("measure offline/online separation",
-         "**not measured**. The bundled `Fake-Offline.x` does not produce "
-         "malicious-Shamir preprocessing"),
+         "**measured**. `artifacts/prep_split.json`. With preprocessing on "
+         "disk the online phase is 16% of party 0's bytes --- 19% of the "
+         "global total --- and 71% of the rounds"),
         ("secrecy after a trade, where settlement reveals market and size",
          "**out of scope** for this stage"),
     ]:

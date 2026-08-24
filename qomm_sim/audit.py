@@ -125,7 +125,10 @@ def _drop_entity(obs: WindowObservation, entity: int) -> WindowObservation:
         volume_by_entity={k: v for k, v in obs.volume_by_entity.items() if k != entity},
         signed_volume_by_entity={k: v for k, v in obs.signed_volume_by_entity.items()
                                  if k != entity},
-        fills=obs.fills, requests=obs.requests, no_quote=obs.no_quote,
+        fills_by_entity={k: v for k, v in obs.fills_by_entity.items() if k != entity},
+        fills=obs.fills - obs.fills_by_entity.get(entity, 0),
+        requests=obs.requests - obs.requests_by_entity.get(entity, 0),
+        no_quote=obs.no_quote,
         liquidity_lots_in_band=obs.liquidity_lots_in_band, makers_in_band=obs.makers_in_band,
         fills_by_bucket=obs.fills_by_bucket, requests_by_bucket=obs.requests_by_bucket,
     )

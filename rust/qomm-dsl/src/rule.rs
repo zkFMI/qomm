@@ -6,13 +6,19 @@ use crate::interval::{Interval, RuleError};
 use crate::parse::{parse_expression, Cmp, Expr, FORBIDDEN, INTRINSICS};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Role { Param, State, Input }
+pub enum Role {
+    Param,
+    State,
+    Input,
+}
 
 impl Role {
     /// A parameter or a state is secret and so contributes degree; an input is
     /// the request, which is secret from the makers but public to the circuit's
     /// degree accounting.
-    pub fn is_secret(&self) -> bool { matches!(self, Role::Param | Role::State) }
+    pub fn is_secret(&self) -> bool {
+        matches!(self, Role::Param | Role::State)
+    }
 
     fn parse(word: &str) -> Option<Role> {
         match word {
@@ -24,7 +30,11 @@ impl Role {
     }
 
     pub fn as_str(&self) -> &'static str {
-        match self { Role::Param => "param", Role::State => "state", Role::Input => "input" }
+        match self {
+            Role::Param => "param",
+            Role::State => "state",
+            Role::Input => "input",
+        }
     }
 }
 
@@ -59,29 +69,42 @@ pub struct Rule {
 
 impl Rule {
     pub fn secrets(&self) -> Vec<&str> {
-        self.declarations.values().filter(|d| d.role.is_secret())
-            .map(|d| d.name.as_str()).collect()
+        self.declarations
+            .values()
+            .filter(|d| d.role.is_secret())
+            .map(|d| d.name.as_str())
+            .collect()
     }
 
     pub fn inputs(&self) -> Vec<&str> {
-        self.declarations.values().filter(|d| d.role == Role::Input)
-            .map(|d| d.name.as_str()).collect()
+        self.declarations
+            .values()
+            .filter(|d| d.role == Role::Input)
+            .map(|d| d.name.as_str())
+            .collect()
     }
 
     pub fn output_interval(&self) -> Interval {
         let mut combined: Option<Interval> = None;
         for (name, _) in &self.outputs {
             let interval = self.intervals[name];
-            combined = Some(match combined { None => interval, Some(c) => c.union(interval) });
+            combined = Some(match combined {
+                None => interval,
+                Some(c) => c.union(interval),
+            });
         }
         combined.expect("a checked rule has at least one output")
     }
 
     /// The width the circuit has to carry, which is a compiler output rather
     /// than a number someone chose.
-    pub fn required_bits(&self) -> u32 { self.output_interval().width_bits() }
+    pub fn required_bits(&self) -> u32 {
+        self.output_interval().width_bits()
+    }
 
-    pub fn max_degree(&self) -> u32 { self.degrees.values().copied().max().unwrap_or(0) }
+    pub fn max_degree(&self) -> u32 {
+        self.degrees.values().copied().max().unwrap_or(0)
+    }
 }
 
 pub fn compile_rule(source: &str, name: &str) -> Result<Rule, RuleError> {
@@ -95,7 +118,9 @@ pub fn parse(source: &str, name: &str) -> Result<Rule, RuleError> {
     for (index, raw) in source.lines().enumerate() {
         let lineno = index + 1;
         let line = raw.split('#').next().unwrap_or("").trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         let (head, rest) = line.split_once(' ').unwrap_or((line, ""));
         if let Some(role) = Role::parse(head) {
             for declaration in parse_declarations(role, rest, lineno)? {
@@ -103,27 +128,44 @@ pub fn parse(source: &str, name: &str) -> Result<Rule, RuleError> {
             }
             continue;
         }
-        let (target, expression) = line.split_once('=').ok_or_else(|| RuleError(
-            format!("line {lineno}: expected a declaration or an assignment")))?;
+        let (target, expression) = line.split_once('=').ok_or_else(|| {
+            RuleError(format!(
+                "line {lineno}: expected a declaration or an assignment"
+            ))
+        })?;
         let target = target.trim();
         if target.is_empty() || !is_identifier(target) {
-            return Err(RuleError(format!("line {lineno}: '{target}' is not a valid output name")));
+            return Err(RuleError(format!(
+                "line {lineno}: '{target}' is not a valid output name"
+            )));
         }
         if declarations.contains_key(target) {
-            return Err(RuleError(format!("line {lineno}: '{target}' is already declared")));
+            return Err(RuleError(format!(
+                "line {lineno}: '{target}' is already declared"
+            )));
         }
-        outputs.push((target.to_string(), parse_expression(expression.trim(), lineno)?));
+        outputs.push((
+            target.to_string(),
+            parse_expression(expression.trim(), lineno)?,
+        ));
     }
 
     if declarations.is_empty() {
-        return Err(RuleError("a rule must declare at least one parameter".into()));
+        return Err(RuleError(
+            "a rule must declare at least one parameter".into(),
+        ));
     }
     if outputs.is_empty() {
         return Err(RuleError("a rule must produce at least one output".into()));
     }
     Ok(Rule {
-        name: name.to_string(), declarations, outputs, source: source.to_string(),
-        intervals: BTreeMap::new(), degrees: BTreeMap::new(), obligations: Vec::new(),
+        name: name.to_string(),
+        declarations,
+        outputs,
+        source: source.to_string(),
+        intervals: BTreeMap::new(),
+        degrees: BTreeMap::new(),
+        obligations: Vec::new(),
     })
 }
 
@@ -135,52 +177,90 @@ fn is_identifier(text: &str) -> bool {
 
 /// `half[1,200] slope[0,16]` — a name is only accepted with a range, so a rule
 /// cannot declare something whose width the checker would have to guess.
-fn parse_declarations(role: Role, rest: &str, lineno: usize)
-    -> Result<Vec<Declaration>, RuleError> {
+fn parse_declarations(
+    role: Role,
+    rest: &str,
+    lineno: usize,
+) -> Result<Vec<Declaration>, RuleError> {
     let mut out = Vec::new();
     let mut chars = rest.char_indices().peekable();
     let text: Vec<char> = rest.chars().collect();
     let mut consumed = vec![false; text.len()];
 
     while let Some((start, c)) = chars.next() {
-        if !(c.is_alphabetic() || c == '_') { continue; }
+        if !(c.is_alphabetic() || c == '_') {
+            continue;
+        }
         let mut end = start + c.len_utf8();
         while let Some((i, c)) = chars.peek().copied() {
-            if c.is_alphanumeric() || c == '_' { end = i + c.len_utf8(); chars.next(); }
-            else { break; }
+            if c.is_alphanumeric() || c == '_' {
+                end = i + c.len_utf8();
+                chars.next();
+            } else {
+                break;
+            }
         }
         let name = &rest[start..end];
         let remainder = rest[end..].trim_start();
         if !remainder.starts_with('[') {
             return Err(RuleError(format!(
-                "line {lineno}: '{name}' needs a range, e.g. half[1,200]")));
+                "line {lineno}: '{name}' needs a range, e.g. half[1,200]"
+            )));
         }
-        let close = remainder.find(']').ok_or_else(|| RuleError(format!(
-            "line {lineno}: '{name}' has no closing bracket")))?;
+        let close = remainder
+            .find(']')
+            .ok_or_else(|| RuleError(format!("line {lineno}: '{name}' has no closing bracket")))?;
         let bounds = &remainder[1..close];
-        let (lo, hi) = bounds.split_once(',').ok_or_else(|| RuleError(format!(
-            "line {lineno}: bad range on '{name}': expected two bounds")))?;
-        let parse_bound = |t: &str| t.trim().parse::<i128>().map_err(|_| RuleError(
-            format!("line {lineno}: bad range on '{name}': '{}' is not an integer", t.trim())));
+        let (lo, hi) = bounds.split_once(',').ok_or_else(|| {
+            RuleError(format!(
+                "line {lineno}: bad range on '{name}': expected two bounds"
+            ))
+        })?;
+        let parse_bound = |t: &str| {
+            t.trim().parse::<i128>().map_err(|_| {
+                RuleError(format!(
+                    "line {lineno}: bad range on '{name}': '{}' is not an integer",
+                    t.trim()
+                ))
+            })
+        };
         let interval = Interval::new(parse_bound(lo)?, parse_bound(hi)?)
             .map_err(|e| RuleError(format!("line {lineno}: bad range on '{name}': {e}")))?;
 
         if FORBIDDEN.contains(&name) {
             return Err(RuleError(format!(
                 "line {lineno}: '{name}' may not be a pricing input; a quote must not \
-                 depend on who is asking")));
+                 depend on who is asking"
+            )));
         }
-        out.push(Declaration { name: name.to_string(), interval, role });
+        out.push(Declaration {
+            name: name.to_string(),
+            interval,
+            role,
+        });
 
         // Everything up to the closing bracket belongs to this declaration.
         let absolute = rest[..end].chars().count()
-            + rest[end..].chars().take_while(|c| c.is_whitespace()).count();
-        for slot in consumed.iter_mut().take(absolute + close + 1)
-            .skip(rest[..start].chars().count()) { *slot = true; }
+            + rest[end..]
+                .chars()
+                .take_while(|c| c.is_whitespace())
+                .count();
+        for slot in consumed
+            .iter_mut()
+            .take(absolute + close + 1)
+            .skip(rest[..start].chars().count())
+        {
+            *slot = true;
+        }
         // Resume tokenising after the bracket.
-        let skip_to = end + (remainder.as_ptr() as usize - rest[end..].as_ptr() as usize) + close + 1;
+        let skip_to =
+            end + (remainder.as_ptr() as usize - rest[end..].as_ptr() as usize) + close + 1;
         while let Some((i, _)) = chars.peek().copied() {
-            if i < skip_to { chars.next(); } else { break; }
+            if i < skip_to {
+                chars.next();
+            } else {
+                break;
+            }
         }
     }
 
@@ -200,7 +280,10 @@ struct Analyser<'a> {
 impl<'a> Analyser<'a> {
     fn note(&mut self, kind: &str, detail: String, bits: u32) {
         self.obligations.push(Obligation {
-            kind: kind.into(), target: self.label.clone(), detail, bits,
+            kind: kind.into(),
+            target: self.label.clone(),
+            detail,
+            bits,
         });
     }
 
@@ -216,7 +299,7 @@ impl<'a> Analyser<'a> {
             Expr::Name(name) => self.name(name),
             Expr::Neg(inner) => {
                 let (interval, degree) = self.visit(inner)?;
-                Ok((interval.neg(), degree))
+                Ok((interval.negated(), degree))
             }
             Expr::Add(a, b) => self.additive(a, b, true),
             Expr::Sub(a, b) => self.additive(a, b, false),
@@ -229,19 +312,26 @@ impl<'a> Analyser<'a> {
 
     fn name(&mut self, name: &str) -> Result<(Interval, u32), RuleError> {
         if FORBIDDEN.contains(&name) {
-            return Err(RuleError(format!("'{name}' may not be used in a price rule")));
+            return Err(RuleError(format!(
+                "'{name}' may not be used in a price rule"
+            )));
         }
-        let declaration = self.rule.declarations.get(name).ok_or_else(|| RuleError(
-            format!("'{name}' is not declared; a rule may only read its own \
-                     declared parameters, state and inputs")))?;
-        Ok((declaration.interval, u32::from(declaration.role.is_secret())))
+        let declaration = self.rule.declarations.get(name).ok_or_else(|| {
+            RuleError(format!(
+                "'{name}' is not declared; a rule may only read its own \
+                     declared parameters, state and inputs"
+            ))
+        })?;
+        Ok((
+            declaration.interval,
+            u32::from(declaration.role.is_secret()),
+        ))
     }
 
     /// Addition and subtraction are free: no proof, and no round in the circuit.
-    fn additive(&mut self, a: &Expr, b: &Expr, adding: bool)
-        -> Result<(Interval, u32), RuleError> {
+    fn additive(&mut self, a: &Expr, b: &Expr, adding: bool) -> Result<(Interval, u32), RuleError> {
         let ((ia, da), (ib, db)) = (self.visit(a)?, self.visit(b)?);
-        Ok((if adding { ia.add(ib) } else { ia.sub(ib) }, da.max(db)))
+        Ok((if adding { ia.plus(ib) } else { ia.minus(ib) }, da.max(db)))
     }
 
     /// A secret times a secret is the one construct that costs a proof.
@@ -251,25 +341,38 @@ impl<'a> Analyser<'a> {
         if degree > 2 {
             return Err(RuleError(
                 "a price rule may not exceed degree two in its secrets; higher \
-                 degree would need a proof per intermediate product".into()));
+                 degree would need a proof per intermediate product"
+                    .into(),
+            ));
         }
         if degree == 2 {
             self.note("product", format!("{} * {}", a.render(), b.render()), 0);
         }
-        Ok((ia.mul(ib), degree))
+        Ok((ia.times(ib), degree))
     }
 
     /// A comparison costs a range proof and a bit proof, or --- for equality ---
     /// an opening and a bit.
-    fn comparison(&mut self, node: &Expr, a: &Expr, op: &Cmp, b: &Expr)
-        -> Result<(Interval, u32), RuleError> {
+    fn comparison(
+        &mut self,
+        node: &Expr,
+        a: &Expr,
+        op: &Cmp,
+        b: &Expr,
+    ) -> Result<(Interval, u32), RuleError> {
         let ((ia, _), (ib, _)) = (self.visit(a)?, self.visit(b)?);
         if matches!(op, Cmp::Eq | Cmp::Ne) {
-            self.note("opening",
-                      format!("{} decided by opening a difference", node.render()), 0);
+            self.note(
+                "opening",
+                format!("{} decided by opening a difference", node.render()),
+                0,
+            );
         } else {
-            let difference = if matches!(op, Cmp::Gt | Cmp::Ge) { ia.sub(ib) }
-                             else { ib.sub(ia) };
+            let difference = if matches!(op, Cmp::Gt | Cmp::Ge) {
+                ia.minus(ib)
+            } else {
+                ib.minus(ia)
+            };
             self.note("range", node.render(), difference.width_bits());
         }
         self.note("bit", format!("result of {}", node.render()), 0);
@@ -295,20 +398,32 @@ impl<'a> Analyser<'a> {
         if !INTRINSICS.contains(&name) {
             return Err(RuleError(format!("only {INTRINSICS:?} may be called")));
         }
-        let parts: Vec<(Interval, u32)> =
-            args.iter().map(|a| self.visit(a)).collect::<Result<_, _>>()?;
+        let parts: Vec<(Interval, u32)> = args
+            .iter()
+            .map(|a| self.visit(a))
+            .collect::<Result<_, _>>()?;
         match name {
             "min" | "max" => {
                 if parts.len() != 2 {
                     return Err(RuleError(format!("{name} takes exactly two arguments")));
                 }
                 let ((a, da), (b, db)) = (parts[0], parts[1]);
-                self.note("range", format!("{name} comparison"), a.sub(b).width_bits());
+                self.note(
+                    "range",
+                    format!("{name} comparison"),
+                    a.minus(b).width_bits(),
+                );
                 self.note("product", format!("{name} selection"), 0);
                 let merged = if name == "min" {
-                    Interval { lo: a.lo.min(b.lo), hi: a.hi.min(b.hi) }
+                    Interval {
+                        lo: a.lo.min(b.lo),
+                        hi: a.hi.min(b.hi),
+                    }
                 } else {
-                    Interval { lo: a.lo.max(b.lo), hi: a.hi.max(b.hi) }
+                    Interval {
+                        lo: a.lo.max(b.lo),
+                        hi: a.hi.max(b.hi),
+                    }
                 };
                 Ok((merged, da.max(db)))
             }
@@ -319,10 +434,19 @@ impl<'a> Analyser<'a> {
                 let ((value, degree), (lo, _), (hi, _)) = (parts[0], parts[1], parts[2]);
                 if lo.lo != lo.hi || hi.lo != hi.hi {
                     return Err(RuleError(
-                        "clamp bounds must be constants so the range is static".into()));
+                        "clamp bounds must be constants so the range is static".into(),
+                    ));
                 }
-                self.note("range", "clamp lower bound".into(), value.sub(lo).width_bits());
-                self.note("range", "clamp upper bound".into(), hi.sub(value).width_bits());
+                self.note(
+                    "range",
+                    "clamp lower bound".into(),
+                    value.minus(lo).width_bits(),
+                );
+                self.note(
+                    "range",
+                    "clamp upper bound".into(),
+                    hi.minus(value).width_bits(),
+                );
                 self.note("product", "clamp selection".into(), 0);
                 Ok((Interval::new(lo.lo, hi.hi)?, degree))
             }
@@ -333,7 +457,8 @@ impl<'a> Analyser<'a> {
                 let ((side, _), (magnitude, degree)) = (parts[0], parts[1]);
                 if !side.is_condition() {
                     return Err(RuleError(
-                        "the first argument of signed must be a condition".into()));
+                        "the first argument of signed must be a condition".into(),
+                    ));
                 }
                 self.note("product", "signed selection".into(), 0);
                 Ok((Interval::new(-magnitude.hi, magnitude.hi)?, degree))
@@ -345,25 +470,31 @@ impl<'a> Analyser<'a> {
 
 /// Run every static check and fill in the derived facts.
 pub fn check(mut rule: Rule) -> Result<Rule, RuleError> {
-    let mut obligations = Vec::new();
     let mut intervals = BTreeMap::new();
     let mut degrees = BTreeMap::new();
-    {
-        let mut analyser = Analyser { rule: &rule, obligations: Vec::new(), label: String::new() };
+    let mut obligations = {
+        let mut analyser = Analyser {
+            rule: &rule,
+            obligations: Vec::new(),
+            label: String::new(),
+        };
         for (label, tree) in &rule.outputs {
             analyser.label = label.clone();
             let (interval, degree) = analyser.visit(tree)?;
             intervals.insert(label.clone(), interval);
             degrees.insert(label.clone(), degree);
         }
-        obligations = std::mem::take(&mut analyser.obligations);
-    }
+        std::mem::take(&mut analyser.obligations)
+    };
 
     // The declared bounds are themselves obligations at registration time.
-    let mut declared: Vec<Obligation> = rule.declarations.values()
+    let mut declared: Vec<Obligation> = rule
+        .declarations
+        .values()
         .filter(|d| d.role.is_secret())
         .map(|d| Obligation {
-            kind: "range".into(), target: d.name.clone(),
+            kind: "range".into(),
+            target: d.name.clone(),
             detail: format!("{} in {}", d.name, d.interval),
             bits: {
                 let span = (d.interval.hi - d.interval.lo).unsigned_abs();
@@ -377,12 +508,17 @@ pub fn check(mut rule: Rule) -> Result<Rule, RuleError> {
     // something the rule is not supposed to carry. Either way the registry
     // should not be asked to hold it.
     let read: BTreeSet<&str> = rule.outputs.iter().flat_map(|(_, e)| e.names()).collect();
-    let unused: Vec<&str> = rule.declarations.keys()
-        .map(String::as_str).filter(|n| !read.contains(n)).collect();
+    let unused: Vec<&str> = rule
+        .declarations
+        .keys()
+        .map(String::as_str)
+        .filter(|n| !read.contains(n))
+        .collect();
     if !unused.is_empty() {
         return Err(RuleError(format!(
             "declared but never used: {unused:?}; a rule may not register values \
-             it does not price with")));
+             it does not price with"
+        )));
     }
 
     rule.intervals = intervals;

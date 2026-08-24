@@ -25,7 +25,9 @@ pub const INV_SCALE: i64 = 32;
 
 pub fn size_bucket(size: i64) -> usize {
     for (index, (lo, hi)) in SIZE_BUCKETS.iter().enumerate() {
-        if size >= *lo && size <= *hi { return index; }
+        if size >= *lo && size <= *hi {
+            return index;
+        }
     }
     SIZE_BUCKETS.len() - 1
 }
@@ -35,9 +37,8 @@ pub fn size_bucket(size: i64) -> usize {
 pub fn py_round(v: f64) -> i64 {
     let floor = v.floor();
     let diff = v - floor;
-    let n = if diff > 0.5 { floor + 1.0 }
-            else if diff < 0.5 { floor }
-            else if (floor as i64) % 2 == 0 { floor } else { floor + 1.0 };
+    let round_up = diff > 0.5 || (diff == 0.5 && (floor as i64) % 2 != 0);
+    let n = if round_up { floor + 1.0 } else { floor };
     n as i64
 }
 
@@ -64,10 +65,20 @@ pub struct SimConfig {
 impl Default for SimConfig {
     fn default() -> Self {
         SimConfig {
-            steps: 48_000, step_ms: 50, n_mm: 16, n_entities: 24, wallets_per_entity: 3,
-            ref_mid0: 100_000, sigma_ticks: 6.0, arrival_rate: 0.15,
-            informed_base: 0.30, informed_ar: 0.995, informed_sd: 0.05,
-            informed_edge_ticks: 22.0, window_steps: 1_200, seed: 20_260_818,
+            steps: 48_000,
+            step_ms: 50,
+            n_mm: 16,
+            n_entities: 24,
+            wallets_per_entity: 3,
+            ref_mid0: 100_000,
+            sigma_ticks: 6.0,
+            arrival_rate: 0.15,
+            informed_base: 0.30,
+            informed_ar: 0.995,
+            informed_sd: 0.05,
+            informed_edge_ticks: 22.0,
+            window_steps: 1_200,
+            seed: 20_260_818,
         }
     }
 }
@@ -120,7 +131,9 @@ impl MarketMaker {
         let half = self.half_spread(phi_hat, size);
         let depth = self.slope * size;
         let mut skew = self.inv_coef * self.inventory.div_euclid(INV_SCALE);
-        if let Some(cap) = self.skew_cap { skew = skew.clamp(-cap, cap); }
+        if let Some(cap) = self.skew_cap {
+            skew = skew.clamp(-cap, cap);
+        }
         (ref_mid + half + depth + skew, ref_mid - half - depth + skew)
     }
 
@@ -151,7 +164,10 @@ impl ReferenceMarket {
             phi = phi.clamp(0.02, 0.95);
             phi_values.push(phi);
         }
-        ReferenceMarket { mid: mid_values, phi: phi_values }
+        ReferenceMarket {
+            mid: mid_values,
+            phi: phi_values,
+        }
     }
 
     pub fn move_over(&self, step: usize, horizon: usize) -> i64 {
@@ -162,16 +178,22 @@ impl ReferenceMarket {
 
 pub fn build_market_makers(cfg: &SimConfig, seed: u64) -> Vec<MarketMaker> {
     let mut rng = PyRandom::new(seed);
-    (0..cfg.n_mm).map(|i| MarketMaker {
-        mm_id: i,
-        base_half: rng.randint(6, 18),
-        slope: *rng.choice(&[0i64, 0, 1, 1, 2]),
-        inv_coef: *rng.choice(&[0i64, 1, 1, 2]),
-        max_qty: *rng.choice(&[100i64, 200, 400, 400]),
-        kappa: rng.uniform(1.5, 4.0),
-        inv_limit: *rng.choice(&[600i64, 900, 1200]),
-        inventory: 0, fills: 0, realized_pnl: 0.0, quoting: true, skew_cap: None,
-    }).collect()
+    (0..cfg.n_mm)
+        .map(|i| MarketMaker {
+            mm_id: i,
+            base_half: rng.randint(6, 18),
+            slope: *rng.choice(&[0i64, 0, 1, 1, 2]),
+            inv_coef: *rng.choice(&[0i64, 1, 1, 2]),
+            max_qty: *rng.choice(&[100i64, 200, 400, 400]),
+            kappa: rng.uniform(1.5, 4.0),
+            inv_limit: *rng.choice(&[600i64, 900, 1200]),
+            inventory: 0,
+            fills: 0,
+            realized_pnl: 0.0,
+            quoting: true,
+            skew_cap: None,
+        })
+        .collect()
 }
 
 /// One shared request stream. Every arm replays exactly this stream, which is
@@ -182,12 +204,16 @@ pub fn build_requests(cfg: &SimConfig, market: &ReferenceMarket, seed: u64) -> V
 
     // Entity activity is heterogeneous: a few large entities dominate, which is
     // what a real venue looks like and what makes a per-entity cap bite.
-    let raw: Vec<f64> = (0..cfg.n_entities).map(|_| rng.paretovariate(1.6)).collect();
+    let raw: Vec<f64> = (0..cfg.n_entities)
+        .map(|_| rng.paretovariate(1.6))
+        .collect();
     let total: f64 = raw.iter().sum();
     let weights: Vec<f64> = raw.iter().map(|w| w / total).collect();
 
     for step in 0..cfg.steps {
-        if rng.random() >= cfg.arrival_rate { continue; }
+        if rng.random() >= cfg.arrival_rate {
+            continue;
+        }
         let entity = weighted_choice(&mut rng, &weights);
         let wallet = entity * cfg.wallets_per_entity
             + rng.randrange(0, cfg.wallets_per_entity as i64) as usize;
@@ -202,7 +228,15 @@ pub fn build_requests(cfg: &SimConfig, market: &ReferenceMarket, seed: u64) -> V
         } else {
             (rng.randrange(0, 2) as u8, 0)
         };
-        requests.push(Request { step, entity, wallet, size, direction, informed, signal });
+        requests.push(Request {
+            step,
+            entity,
+            wallet,
+            size,
+            direction,
+            informed,
+            signal,
+        });
     }
     requests
 }
@@ -212,7 +246,9 @@ fn weighted_choice(rng: &mut PyRandom, weights: &[f64]) -> usize {
     let mut acc = 0.0;
     for (index, w) in weights.iter().enumerate() {
         acc += w;
-        if draw <= acc { return index; }
+        if draw <= acc {
+            return index;
+        }
     }
     weights.len() - 1
 }

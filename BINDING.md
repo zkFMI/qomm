@@ -274,8 +274,23 @@ coefficient commitments plus one commitment --- against a prediction of 0.19 ms.
 Seventy fields across seven nodes is 13 ms, next to the range proofs the audit
 already pays.
 
-**They compose, and now they have been run together.** Six arms, all verified
-against the cleartext reference on one market:
+**They compose --- and the first time they were run together they did not.**
+
+The generator emitted two definitions of `secret_input`. The input check's
+recorded each party's share into `check_store`; Shamir inputs emitted another
+immediately after that applied the Lagrange coefficients, and the second
+silently replaced the first. So asking for both --- which is the arrangement
+this section recommends --- produced a circuit whose check ran over an array
+nothing had written to. Nothing failed, because a check over zeros passes.
+
+The table below was measured in that state. Its numbers are unaffected: after
+the fix the same four arms reproduce them to four decimal places, because
+recording a share into an array is local and costs no communication. What was
+wrong was the property, not the price. **The rows are the cost of the
+machinery; they became evidence that the composition works only after the
+generator emitted one definition carrying both options.**
+
+Six arms, all verified against the cleartext reference on one market:
 
 | inputs | field | check | rounds | global traffic |
 |---|---|---|---:|---:|
@@ -285,6 +300,10 @@ against the cleartext reference on one market:
 | Shamir | group order | none | 57 | 18.6019 MB |
 | Shamir | group order | aggregate | 58 | 18.6145 MB |
 | **Shamir** | **group order** | **per-party** | **59** | **18.8838 MB** |
+
+Re-measured on `host-c` after the fix: 57 / 9.3038 MB, 59 / 9.4448 MB,
+57 / 18.6019 MB and 59 / 18.8838 MB --- the same four figures, which is what a
+round count and a byte count should do, being counts rather than timings.
 
 The aggregate check is one round and about six kilobytes, and the per-party one
 is **two rounds and 0.28 MB** --- one opening a node rather than one for all of

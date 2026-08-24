@@ -82,15 +82,54 @@ def test_no_node_holds_a_policy_value(generated):
 def test_the_program_reads_a_share_from_every_node(generated):
     _, source, _ = generated
     assert "def secret_input():" in source
+    assert "for _p in range(N_PARTIES):" in source.split("def secret_input():")[1][:200], (
+        "the reconstruction does not loop over every node")
     assert "sint.get_input_from(_p)" in source, (
         "the program does not read from every node")
-    assert "get_input_from(0)" in source.split("def secret_input():")[1][:200], (
-        "the reconstruction should start at node 0")
     body = source.split("def secret_input():")[1]
     body = body[body.index("return total"):]
     assert "get_input_from" not in body, (
         "something outside `secret_input` still reads a party's input directly, "
         "which is the shape this test exists to prevent")
+
+
+@pytest.mark.parametrize("flags", [
+    (), ("--input-check",), ("--shamir-inputs",),
+    ("--input-check", "--shamir-inputs"),
+])
+def test_there_is_exactly_one_secret_input(flags, tmp_path_factory):
+    """Two definitions of one name, and the second wins silently.
+
+    The input check emitted a `secret_input` that recorded each party's share
+    into `check_store`, and Shamir inputs emitted another straight after that
+    applied the Lagrange coefficients. Asking for both --- which is the
+    combination `BINDING.md` recommends --- gave a circuit whose check ran over
+    an array nothing had written to. The rounds and the bytes were real and the
+    property was not, and nothing failed, because a check over zeros passes.
+
+    One definition carrying both options is the fix. This is the test that
+    would have caught it: not what the definition does, but that there is one.
+    """
+    out = tmp_path_factory.mktemp("one-input")
+    subprocess.run(
+        [sys.executable, str(ROOT / "mp_spdz" / "gen_qomm.py"),
+         "--n-mm", "4", "--n-parties", str(N_PARTIES), *flags,
+         "--out-program", str(out / "q.mpc"),
+         "--out-input-dir", str(out / "in"),
+         "--out-reference", str(out / "ref.json")],
+        check=True, capture_output=True)
+    source = (out / "q.mpc").read_text()
+    assert source.count("def secret_input():") == 1, \
+        f"{source.count('def secret_input():')} definitions with flags {flags}"
+
+    body = source.split("def secret_input():")[1]
+    body = body[:body.index("return total")]
+    wants_check = "--input-check" in flags
+    wants_lagrange = "--shamir-inputs" in flags
+    assert ("check_store[_p][_k] = _s" in body) == wants_check, \
+        "the check store is written exactly when the check is asked for"
+    assert ("LAGRANGE[_p]" in body) == wants_lagrange, \
+        "the Lagrange coefficients are applied exactly when Shamir inputs are"
 
 
 def test_the_shares_reconstruct_the_value():

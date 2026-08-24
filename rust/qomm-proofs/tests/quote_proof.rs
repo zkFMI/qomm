@@ -3,18 +3,28 @@
 //! let a prover open any key it liked.
 
 use curve25519_dalek::scalar::Scalar;
-use qomm_proofs::quote_proof::{Registered, Invalid, MakerWitness, QuoteCircuit};
+use qomm_proofs::quote_proof::{Invalid, MakerWitness, QuoteCircuit, Registered};
 use rand_core::OsRng;
 
 fn makers() -> Vec<MakerWitness> {
     // half-spreads of 8, 5 and 12: the middle one should win an ask.
-    [8i64, 5, 12].iter().enumerate().map(|(i, half)| MakerWitness {
-        mid: 0, half: *half, slope: 1 + i as i64, invcoef: 1,
-        inv: 10 * (i as i64 + 1), maxqty: 1_000, expiry: 10_000, active: true,
-        // registered before the request: the proof is about these, not about
-        // whatever the prover would otherwise commit to at proving time
-        blindings: Registered::fresh(&mut OsRng),
-    }).collect()
+    [8i64, 5, 12]
+        .iter()
+        .enumerate()
+        .map(|(i, half)| MakerWitness {
+            mid: 0,
+            half: *half,
+            slope: 1 + i as i64,
+            invcoef: 1,
+            inv: 10 * (i as i64 + 1),
+            maxqty: 1_000,
+            expiry: 10_000,
+            active: true,
+            // registered before the request: the proof is about these, not about
+            // whatever the prover would otherwise commit to at proving time
+            blindings: Registered::fresh(&mut OsRng),
+        })
+        .collect()
 }
 
 const CTX: &[u8] = b"test";
@@ -23,7 +33,18 @@ const CTX: &[u8] = b"test";
 fn the_true_winner_verifies_and_is_the_tightest() {
     let circuit = QuoteCircuit::default();
     let (proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0)
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
         .expect("honest makers prove");
     assert_eq!(circuit.verify(&proof, &public, CTX), Ok(()));
     // packed key = effective * n_slots + index, so the index rides in the low bits
@@ -38,11 +59,24 @@ fn the_true_winner_verifies_and_is_the_tightest() {
 fn claiming_a_loser_as_the_winner_fails_minimality() {
     let circuit = QuoteCircuit::default();
     let (mut proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0)
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
         .expect("honest makers prove");
     proof.winner_index = 2;
-    assert!(matches!(circuit.verify(&proof, &public, CTX),
-                     Err(Invalid::WinnerDoesNotOpen) | Err(Invalid::NotMinimal)));
+    assert!(matches!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::WinnerDoesNotOpen) | Err(Invalid::NotMinimal)
+    ));
 }
 
 /// The gap this test exists for was real: an opening proof shows knowledge of
@@ -52,17 +86,42 @@ fn claiming_a_loser_as_the_winner_fails_minimality() {
 fn a_tampered_winner_value_does_not_open() {
     let circuit = QuoteCircuit::default();
     let (mut proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0)
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
         .expect("honest makers prove");
     proof.winner_value += 1;
-    assert_eq!(circuit.verify(&proof, &public, CTX), Err(Invalid::WinnerDoesNotOpen));
+    assert_eq!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::WinnerDoesNotOpen)
+    );
 }
 
 #[test]
 fn a_proof_does_not_carry_across_contexts() {
     let circuit = QuoteCircuit::default();
     let (proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0)
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
         .expect("honest makers prove");
     assert!(circuit.verify(&proof, &public, b"another venue").is_err());
 }
@@ -73,9 +132,33 @@ fn the_direction_changes_who_wins() {
     // Selling pays the bid, and the slope now works the other way, so the
     // ordering is not the same one.
     let (ask, ask_public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     let (bid, bid_public) = circuit
-        .prove(&makers(), 100, 1, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            1,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     assert_eq!(circuit.verify(&ask, &ask_public, CTX), Ok(()));
     assert_eq!(circuit.verify(&bid, &bid_public, CTX), Ok(()));
     assert_ne!(ask.winner_value, bid.winner_value);
@@ -88,9 +171,21 @@ fn an_ineligible_maker_appears_and_cannot_win() {
     // proving -- omission by another name, which the register cannot see.
     let circuit = QuoteCircuit::default();
     let mut ms = makers();
-    ms[0].maxqty = 10;                       // smaller than the request
+    ms[0].maxqty = 10; // smaller than the request
     let (proof, public) = circuit
-        .prove(&ms, 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &ms,
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     assert_eq!(circuit.verify(&proof, &public, CTX), Ok(()));
     assert_ne!(proof.winner_index, 0, "a maker over its size limit won");
 }
@@ -100,11 +195,27 @@ fn an_ineligible_maker_appears_and_cannot_win() {
 fn an_eligible_maker_cannot_be_switched_off() {
     let circuit = QuoteCircuit::default();
     let (mut proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     let winner = proof.winner_index;
-    proof.maker_proofs[winner].commitments.ok =
-        circuit.key.commit(&Scalar::ZERO, &Scalar::random(&mut OsRng));
-    assert_eq!(circuit.verify(&proof, &public, CTX), Err(Invalid::Eligibility(winner)));
+    proof.maker_proofs[winner].commitments.ok = circuit
+        .key
+        .commit(&Scalar::ZERO, &Scalar::random(&mut OsRng));
+    assert_eq!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::Eligibility(winner))
+    );
 }
 
 /// A maker's commitment swapped for another's is caught by the register now,
@@ -115,11 +226,25 @@ fn an_eligible_maker_cannot_be_switched_off() {
 fn a_swapped_maker_commitment_is_not_on_the_register() {
     let circuit = QuoteCircuit::default();
     let (mut proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     let other = proof.maker_proofs[1].commitments.slope;
     proof.maker_proofs[0].commitments.slope = other;
-    assert_eq!(circuit.verify(&proof, &public, CTX),
-               Err(Invalid::NotOnTheRegister(0, "slope")));
+    assert_eq!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::NotOnTheRegister(0, "slope"))
+    );
 }
 
 /// The statement is what says whose policies these are. Without a register
@@ -128,21 +253,41 @@ fn a_swapped_maker_commitment_is_not_on_the_register() {
 fn a_register_that_does_not_match_the_proof_is_refused() {
     let circuit = QuoteCircuit::default();
     let (proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
 
     let mut short = public.clone();
     short.registry.pop();
-    assert_eq!(circuit.verify(&proof, &short, CTX), Err(Invalid::RegistrySize));
+    assert_eq!(
+        circuit.verify(&proof, &short, CTX),
+        Err(Invalid::RegistrySize)
+    );
 
     let mut relabelled = public.clone();
     relabelled.registry_digest = [0u8; 32];
-    assert_eq!(circuit.verify(&proof, &relabelled, CTX), Err(Invalid::RegistryDigest));
+    assert_eq!(
+        circuit.verify(&proof, &relabelled, CTX),
+        Err(Invalid::RegistryDigest)
+    );
 
     let mut rewritten = public.clone();
     rewritten.registry[0].slope = rewritten.registry[1].slope;
     rewritten.registry_digest = qomm_proofs::quote_proof::registry_digest(&rewritten.registry);
-    assert_eq!(circuit.verify(&proof, &rewritten, CTX),
-               Err(Invalid::NotOnTheRegister(0, "slope")));
+    assert_eq!(
+        circuit.verify(&proof, &rewritten, CTX),
+        Err(Invalid::NotOnTheRegister(0, "slope"))
+    );
 }
 
 #[test]
@@ -150,20 +295,236 @@ fn a_witness_with_no_registered_blindings_cannot_prove() {
     let circuit = QuoteCircuit::default();
     let mut ms = makers();
     ms[0].blindings = Registered::default();
-    assert!(circuit.prove(&ms, 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0)
-            .is_err());
+    assert!(circuit
+        .prove(
+            &ms,
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0
+        )
+        .is_err());
 }
 
 #[test]
 fn the_eligibility_aggregate_must_cover_the_stated_margins() {
     let circuit = QuoteCircuit::default();
     let (mut proof, public) = circuit
-        .prove(&makers(), 100, 0, 1_000, 1 << 20, 4, CTX, &mut OsRng, [0u8; 32], 0).unwrap();
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
     let key = &circuit.key;
     proof.maker_proofs[0].commitments.fits =
         key.commit(&Scalar::from(999u64), &Scalar::random(&mut OsRng));
     // The size test is derived from the register and the request, so a
     // commitment the prover picked is not on the register.
-    assert_eq!(circuit.verify(&proof, &public, CTX),
-               Err(Invalid::NotOnTheRegister(0, "fits")));
+    assert_eq!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::NotOnTheRegister(0, "maxqty"))
+    );
+}
+
+#[test]
+fn every_registered_price_field_is_bound_to_the_quote() {
+    let circuit = QuoteCircuit::default();
+    let (proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+
+    // This exact mutation used to verify: `half` was on the public register,
+    // but the Rust verifier never connected it to the committed cost.
+    let mut rewritten = public.clone();
+    rewritten.registry[0].half = circuit
+        .key
+        .commit(&Scalar::from(1u64), &Scalar::random(&mut OsRng));
+    rewritten.registry_digest = qomm_proofs::quote_proof::registry_digest(&rewritten.registry);
+    assert!(circuit.verify(&proof, &rewritten, CTX).is_err());
+}
+
+#[test]
+fn cost_and_packed_key_are_derived_not_prover_chosen() {
+    let circuit = QuoteCircuit::default();
+    let (mut proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    proof.maker_proofs[0].commitments.cost += circuit.key.g;
+    assert_eq!(circuit.verify(&proof, &public, CTX), Err(Invalid::Cost(0)));
+
+    let (mut proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    proof.key_commitments[0] += circuit.key.g;
+    assert_eq!(circuit.verify(&proof, &public, CTX), Err(Invalid::Key(0)));
+}
+
+#[test]
+fn complete_public_statement_is_transcript_bound() {
+    let circuit = QuoteCircuit::default();
+    let (proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [7u8; 32],
+            19,
+        )
+        .unwrap();
+
+    let mut moved = public.clone();
+    moved.direction = 1;
+    assert!(circuit.verify(&proof, &moved, CTX).is_err());
+    let mut moved = public.clone();
+    moved.market_digest = [8u8; 32];
+    assert!(circuit.verify(&proof, &moved, CTX).is_err());
+    let mut moved = public.clone();
+    moved.slot += 1;
+    assert!(circuit.verify(&proof, &moved, CTX).is_err());
+}
+
+#[test]
+fn malformed_shapes_are_rejected_without_panicking() {
+    let circuit = QuoteCircuit::default();
+    let (mut proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    proof.winner_index = usize::MAX;
+    assert!(matches!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::Malformed(_))
+    ));
+
+    let (mut proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    proof.key_commitments.pop();
+    assert!(matches!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::Malformed(_))
+    ));
+}
+
+#[test]
+fn invalid_configuration_and_arithmetic_fail_closed() {
+    assert!(QuoteCircuit::try_new(63, 32).is_err());
+    assert!(QuoteCircuit::try_new(32, 65).is_err());
+    let circuit = QuoteCircuit::default();
+    assert!(circuit
+        .prove(
+            &makers(),
+            100,
+            2,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .is_err());
+    assert!(circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            2,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .is_err());
+    let mut overflowing = makers();
+    overflowing[0].slope = i64::MAX;
+    assert!(circuit
+        .prove(
+            &overflowing,
+            2,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .is_err());
 }

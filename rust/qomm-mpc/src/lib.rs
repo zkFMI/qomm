@@ -44,7 +44,8 @@ impl Protocol {
 
     pub fn parse(name: &str) -> Option<Protocol> {
         [Protocol::MaliciousShamir, Protocol::SemiHonestShamir]
-            .into_iter().find(|p| p.as_str() == name)
+            .into_iter()
+            .find(|p| p.as_str() == name)
     }
 
     /// The party binary a reader would have run instead, so a result can be
@@ -104,7 +105,9 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::EngineAbsent => write!(
-                f, "built without MP-SPDZ; set MP_SPDZ_ROOT to a checkout with libSPDZ"),
+                f,
+                "built without MP-SPDZ; set MP_SPDZ_ROOT to a checkout with libSPDZ"
+            ),
             Error::Engine(why) => write!(f, "the machine failed: {why}"),
             Error::BadArgument(why) => write!(f, "bad argument: {why}"),
         }
@@ -114,7 +117,9 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 /// Whether this build can run anything.
-pub const fn available() -> bool { cfg!(have_spdz) }
+pub const fn available() -> bool {
+    cfg!(have_spdz)
+}
 
 #[cfg(have_spdz)]
 const MAX_CHANNELS: usize = 64;
@@ -142,12 +147,20 @@ struct CChannel {
 
 #[cfg(have_spdz)]
 unsafe extern "C" {
-    fn qomm_run_malicious_shamir(argc: c_int, argv: *const *const c_char,
-                                 channels: *mut CChannel, capacity: c_int,
-                                 written: *mut c_int) -> CRun;
-    fn qomm_run_semi_honest_shamir(argc: c_int, argv: *const *const c_char,
-                                   channels: *mut CChannel, capacity: c_int,
-                                   written: *mut c_int) -> CRun;
+    fn qomm_run_malicious_shamir(
+        argc: c_int,
+        argv: *const *const c_char,
+        channels: *mut CChannel,
+        capacity: c_int,
+        written: *mut c_int,
+    ) -> CRun;
+    fn qomm_run_semi_honest_shamir(
+        argc: c_int,
+        argv: *const *const c_char,
+        channels: *mut CChannel,
+        capacity: c_int,
+        written: *mut c_int,
+    ) -> CRun;
 }
 
 /// Run one compiled program under one protocol.
@@ -163,33 +176,55 @@ pub fn run(protocol: Protocol, args: &[&str]) -> Result<Run, Error> {
     }
     #[cfg(have_spdz)]
     {
-        let owned: Vec<CString> = args.iter()
+        let owned: Vec<CString> = args
+            .iter()
             .map(|a| CString::new(*a).map_err(|e| Error::BadArgument(e.to_string())))
             .collect::<Result<_, _>>()?;
         let pointers: Vec<*const c_char> = owned.iter().map(|s| s.as_ptr()).collect();
 
-        let mut channels = [CChannel { name: [0; 64], rounds: 0, bytes: 0 }; MAX_CHANNELS];
+        let mut channels = [CChannel {
+            name: [0; 64],
+            rounds: 0,
+            bytes: 0,
+        }; MAX_CHANNELS];
         let mut written: c_int = 0;
         let raw = unsafe {
             let call = match protocol {
                 Protocol::MaliciousShamir => qomm_run_malicious_shamir,
                 Protocol::SemiHonestShamir => qomm_run_semi_honest_shamir,
             };
-            call(pointers.len() as c_int, pointers.as_ptr(),
-                 channels.as_mut_ptr(), MAX_CHANNELS as c_int, &mut written)
+            call(
+                pointers.len() as c_int,
+                pointers.as_ptr(),
+                channels.as_mut_ptr(),
+                MAX_CHANNELS as c_int,
+                &mut written,
+            )
         };
         if raw.ok != 0 {
             let why = unsafe { CStr::from_ptr(raw.error.as_ptr()) }
-                .to_string_lossy().into_owned();
+                .to_string_lossy()
+                .into_owned();
             return Err(Error::Engine(why));
         }
-        let channels = channels[..written.max(0) as usize].iter().map(|c| Channel {
-            name: unsafe { CStr::from_ptr(c.name.as_ptr()) }.to_string_lossy().into_owned(),
-            rounds: c.rounds,
-            bytes: c.bytes,
-        }).collect();
-        Ok(Run { protocol, rounds: raw.rounds, raw_rounds: raw.raw_rounds,
-                 sent: raw.sent, payload: raw.payload,
-                 seconds: raw.seconds, channels })
+        let channels = channels[..written.max(0) as usize]
+            .iter()
+            .map(|c| Channel {
+                name: unsafe { CStr::from_ptr(c.name.as_ptr()) }
+                    .to_string_lossy()
+                    .into_owned(),
+                rounds: c.rounds,
+                bytes: c.bytes,
+            })
+            .collect();
+        Ok(Run {
+            protocol,
+            rounds: raw.rounds,
+            raw_rounds: raw.raw_rounds,
+            sent: raw.sent,
+            payload: raw.payload,
+            seconds: raw.seconds,
+            channels,
+        })
     }
 }

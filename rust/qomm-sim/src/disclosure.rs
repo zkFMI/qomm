@@ -27,7 +27,11 @@ pub struct EntityAccountant {
 
 impl EntityAccountant {
     pub fn new(epsilon_total: f64) -> Self {
-        EntityAccountant { epsilon_total, spent: 0.0, releases: 0 }
+        EntityAccountant {
+            epsilon_total,
+            spent: 0.0,
+            releases: 0,
+        }
     }
     pub fn can_spend(&self, epsilon: f64) -> bool {
         self.spent + epsilon <= self.epsilon_total + 1e-12
@@ -40,14 +44,17 @@ impl EntityAccountant {
 
 /// Two-sided geometric noise with scale `sensitivity / epsilon`.
 pub fn discrete_laplace(epsilon: f64, sensitivity: f64, rng: &mut PyRandom) -> i64 {
-    assert!(sensitivity > 0.0 && epsilon > 0.0, "sensitivity and epsilon must be positive");
+    assert!(
+        sensitivity > 0.0 && epsilon > 0.0,
+        "sensitivity and epsilon must be positive"
+    );
     let alpha = (-epsilon / sensitivity).exp();
     if alpha <= 0.0 {
         // Scale below one quantum: the mechanism degenerates to no noise, which
         // is the correct limit and avoids a log of zero.
         return 0;
     }
-    let mut geom = |rng: &mut PyRandom| {
+    let geom = |rng: &mut PyRandom| {
         let u = rng.random();
         ((-u).ln_1p() / alpha.ln()).floor() as i64
     };
@@ -62,7 +69,9 @@ pub fn discrete_laplace(epsilon: f64, sensitivity: f64, rng: &mut PyRandom) -> i
 /// thresholding at the published scale corrects it deterministically, so a
 /// reader recomputes it from public figures.
 pub fn debias_absolute(observed: f64, scale: f64) -> f64 {
-    if scale <= 0.0 { return observed.abs(); }
+    if scale <= 0.0 {
+        return observed.abs();
+    }
     (observed.abs() - scale).max(0.0)
 }
 
@@ -155,27 +164,40 @@ impl Disclosure {
     pub fn release(&mut self, obs: &WindowObservation, rng: &mut PyRandom) -> Release {
         match self {
             Disclosure::None => Release {
-                window: obs.window, mode: "none", published: false,
-                fields: ReleaseFields::default(), epsilon_spent: 0.0,
+                window: obs.window,
+                mode: "none",
+                published: false,
+                fields: ReleaseFields::default(),
+                epsilon_spent: 0.0,
                 suppressed_reason: "arm A publishes nothing",
             },
-            Disclosure::Threshold { min_makers, min_lots } => {
-                let holds = obs.makers_in_band >= *min_makers
-                    && obs.liquidity_lots_in_band >= *min_lots;
+            Disclosure::Threshold {
+                min_makers,
+                min_lots,
+            } => {
+                let holds =
+                    obs.makers_in_band >= *min_makers && obs.liquidity_lots_in_band >= *min_lots;
                 if !holds {
                     return Release {
-                        window: obs.window, mode: "B_threshold", published: false,
-                        fields: ReleaseFields::default(), epsilon_spent: 0.0,
+                        window: obs.window,
+                        mode: "B_threshold",
+                        published: false,
+                        fields: ReleaseFields::default(),
+                        epsilon_spent: 0.0,
                         suppressed_reason: "threshold statement not satisfied",
                     };
                 }
                 Release {
-                    window: obs.window, mode: "B_threshold", published: true,
+                    window: obs.window,
+                    mode: "B_threshold",
+                    published: true,
                     fields: ReleaseFields {
-                        min_makers: *min_makers, min_lots: *min_lots,
+                        min_makers: *min_makers,
+                        min_lots: *min_lots,
                         ..ReleaseFields::default()
                     },
-                    epsilon_spent: 0.0, suppressed_reason: "",
+                    epsilon_spent: 0.0,
+                    suppressed_reason: "",
                 }
             }
             Disclosure::Dp(dp) => dp.release(obs, rng),
@@ -186,8 +208,11 @@ impl Disclosure {
         match self {
             Disclosure::None => (None, f64::INFINITY),
             Disclosure::Threshold { .. } => {
-                if release.published { (Some(CALM_ESTIMATE), CALM_VARIANCE) }
-                else { (None, f64::INFINITY) }
+                if release.published {
+                    (Some(CALM_ESTIMATE), CALM_VARIANCE)
+                } else {
+                    (None, f64::INFINITY)
+                }
             }
             Disclosure::Dp(dp) => dp.public_signal(release),
         }
@@ -195,85 +220,132 @@ impl Disclosure {
 
     pub fn epsilon_spent_max(&self) -> f64 {
         match self {
-            Disclosure::Dp(dp) =>
-                dp.accountants.values().map(|a| a.spent).fold(0.0, f64::max),
+            Disclosure::Dp(dp) => dp.accountants.values().map(|a| a.spent).fold(0.0, f64::max),
             _ => 0.0,
         }
     }
 }
 
 impl DpDisclosure {
-    pub fn new(epsilon_per_window: f64, request_cap: i64, volume_cap: i64,
-               entities: usize, epsilon_total: f64, debias: bool) -> Self {
+    pub fn new(
+        epsilon_per_window: f64,
+        request_cap: i64,
+        volume_cap: i64,
+        entities: usize,
+        epsilon_total: f64,
+        debias: bool,
+    ) -> Self {
         DpDisclosure {
-            epsilon_per_window, request_cap, volume_cap,
+            epsilon_per_window,
+            request_cap,
+            volume_cap,
             accountants: (0..entities)
-                .map(|e| (e, EntityAccountant::new(epsilon_total))).collect(),
-            n_fields: 4.0, debias, signed_sensitivity_factor: 1.0,
+                .map(|e| (e, EntityAccountant::new(epsilon_total)))
+                .collect(),
+            n_fields: 4.0,
+            debias,
+            signed_sensitivity_factor: 1.0,
         }
     }
 
     fn release(&mut self, obs: &WindowObservation, rng: &mut PyRandom) -> Release {
-        let active: Vec<usize> = obs.requests_by_entity.iter()
-            .filter(|(_, c)| **c > 0).map(|(e, _)| *e).collect();
-        if active.iter().any(|e| self.accountants.get(e)
-                             .is_none_or(|a| !a.can_spend(self.epsilon_per_window))) {
+        let active: Vec<usize> = obs
+            .requests_by_entity
+            .iter()
+            .filter(|(_, c)| **c > 0)
+            .map(|(e, _)| *e)
+            .collect();
+        if active.iter().any(|e| {
+            self.accountants
+                .get(e)
+                .is_none_or(|a| !a.can_spend(self.epsilon_per_window))
+        }) {
             return Release {
-                window: obs.window, mode: "C_dp", published: false,
-                fields: ReleaseFields::default(), epsilon_spent: 0.0,
+                window: obs.window,
+                mode: "C_dp",
+                published: false,
+                fields: ReleaseFields::default(),
+                epsilon_spent: 0.0,
                 suppressed_reason: "entity privacy budget exhausted",
             };
         }
         for e in &active {
-            if let Some(a) = self.accountants.get_mut(e) { a.spend(self.epsilon_per_window); }
+            if let Some(a) = self.accountants.get_mut(e) {
+                a.spend(self.epsilon_per_window);
+            }
         }
 
         let eps = self.epsilon_per_window / self.n_fields;
-        let clipped_requests: i64 = obs.requests_by_entity.values()
-            .map(|c| (*c).min(self.request_cap)).sum();
-        let clipped_volume: i64 = obs.volume_by_entity.values()
-            .map(|v| (*v).min(self.volume_cap)).sum();
-        let clipped_signed: i64 = obs.signed_volume_by_entity.values()
-            .map(|v| (*v).clamp(-self.volume_cap, self.volume_cap)).sum();
+        let clipped_requests: i64 = obs
+            .requests_by_entity
+            .values()
+            .map(|c| (*c).min(self.request_cap))
+            .sum();
+        let clipped_volume: i64 = obs
+            .volume_by_entity
+            .values()
+            .map(|v| (*v).min(self.volume_cap))
+            .sum();
+        let clipped_signed: i64 = obs
+            .signed_volume_by_entity
+            .values()
+            .map(|v| (*v).clamp(-self.volume_cap, self.volume_cap))
+            .sum();
         let clipped_fills = obs.fills.min(clipped_requests);
 
         let request_cap = self.request_cap as f64;
         let volume_cap = self.volume_cap as f64;
         let signed_sensitivity = self.signed_sensitivity_factor * volume_cap;
 
-        let noisy_requests =
-            (clipped_requests + discrete_laplace(eps, request_cap, rng)).max(0);
+        let noisy_requests = (clipped_requests + discrete_laplace(eps, request_cap, rng)).max(0);
         let noisy_volume = (clipped_volume + discrete_laplace(eps, volume_cap, rng)).max(0);
         let noisy_signed = clipped_signed + discrete_laplace(eps, signed_sensitivity, rng);
         let noisy_fills = (clipped_fills + discrete_laplace(eps, request_cap, rng)).max(0);
 
         Release {
-            window: obs.window, mode: "C_dp", published: true,
+            window: obs.window,
+            mode: "C_dp",
+            published: true,
             fields: ReleaseFields {
-                noisy_requests, noisy_volume, noisy_signed_volume: noisy_signed, noisy_fills,
+                noisy_requests,
+                noisy_volume,
+                noisy_signed_volume: noisy_signed,
+                noisy_fills,
                 fill_rate: if noisy_requests > 0 {
                     Some(noisy_fills as f64 / noisy_requests as f64)
-                } else { None },
-                exact_requests: clipped_requests, exact_volume: clipped_volume,
-                exact_signed_volume: clipped_signed, exact_fills: clipped_fills,
+                } else {
+                    None
+                },
+                exact_requests: clipped_requests,
+                exact_volume: clipped_volume,
+                exact_signed_volume: clipped_signed,
+                exact_fills: clipped_fills,
                 noise_scale_requests: request_cap / eps,
                 noise_scale_signed: signed_sensitivity / eps,
                 debiased: self.debias,
-                min_makers: 0, min_lots: 0,
+                min_makers: 0,
+                min_lots: 0,
             },
-            epsilon_spent: self.epsilon_per_window, suppressed_reason: "",
+            epsilon_spent: self.epsilon_per_window,
+            suppressed_reason: "",
         }
     }
 
     /// Signed order-flow imbalance is the public proxy for informed flow.
     fn public_signal(&self, release: &Release) -> PublicSignal {
-        if !release.published { return (None, f64::INFINITY); }
+        if !release.published {
+            return (None, f64::INFINITY);
+        }
         let volume = release.fields.noisy_volume;
-        if volume <= 0 { return (None, f64::INFINITY); }
+        if volume <= 0 {
+            return (None, f64::INFINITY);
+        }
         let signed = release.fields.noisy_signed_volume as f64;
         let magnitude = if release.fields.debiased {
             debias_absolute(signed, release.fields.noise_scale_signed)
-        } else { signed.abs() };
+        } else {
+            signed.abs()
+        };
         let imbalance = magnitude / (volume.max(1) as f64);
         let estimate = imbalance.clamp(0.0, 0.95);
         // sampling variance plus the DP noise contribution

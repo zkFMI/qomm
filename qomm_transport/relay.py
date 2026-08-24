@@ -22,7 +22,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 
-from .wire import FRAME_BYTES, Frame
+from .wire import FRAME_BYTES, Frame, frame_is_authentic
 
 
 @dataclass
@@ -56,7 +56,15 @@ class Relay:
     """
 
     def __init__(self, node: int, inbox: NodeInbox | None = None, rng=None,
-                 downstream_port: int | None = None, hop: int = 0):
+                 downstream_port: int | None = None, hop: int = 0,
+                 key: bytes | None = None):
+        # The key the client MACs with. Optional because a measurement of
+        # transport cost does not need one and a deployment does: without it
+        # anyone who can reach the port can write a well-formed frame into a
+        # slot's batch. `refused` counts what the check rejected, so a relay
+        # that is being fed garbage says so rather than only getting slower.
+        self.key = key
+        self.refused = 0
         self.node = node
         self.inbox = inbox
         self.downstream_port = downstream_port
@@ -79,6 +87,9 @@ class Relay:
                 raw = await reader.readexactly(FRAME_BYTES)
                 self.bytes_in += len(raw)
                 frame = Frame.decode(raw)
+                if self.key is not None and not frame_is_authentic(self.key, frame):
+                    self.refused += 1
+                    continue
                 self._pending.setdefault(frame.slot, []).append(frame)
         except (asyncio.IncompleteReadError, ConnectionError):
             pass

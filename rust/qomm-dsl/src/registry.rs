@@ -44,8 +44,9 @@ pub fn canonical(rule: &Rule) -> Vec<u8> {
         out.extend_from_slice(name.as_bytes());
         out.push(b'=');
         out.extend_from_slice(declaration.role.as_str().as_bytes());
-        out.extend_from_slice(format!(":{}:{}", declaration.interval.lo,
-                                      declaration.interval.hi).as_bytes());
+        out.extend_from_slice(
+            format!(":{}:{}", declaration.interval.lo, declaration.interval.hi).as_bytes(),
+        );
         out.push(b';');
     }
     out.push(0);
@@ -55,8 +56,9 @@ pub fn canonical(rule: &Rule) -> Vec<u8> {
         out.extend_from_slice(expression.as_bytes());
         out.push(b';');
     }
-    out.extend_from_slice(format!("bits={};degree={}", rule.required_bits(),
-                                  rule.max_degree()).as_bytes());
+    out.extend_from_slice(
+        format!("bits={};degree={}", rule.required_bits(), rule.max_degree()).as_bytes(),
+    );
     out
 }
 
@@ -98,16 +100,17 @@ impl RuleRegistry {
     pub fn approve(&mut self, source: &str, name: &str) -> Result<ApprovedRule, RuleError> {
         let rule = compile_rule(source, name)?;
         let entry = ApprovedRule {
-            name: name.to_string(), digest: rule_digest(&rule),
-            required_bits: rule.required_bits(), source: source.to_string(),
+            name: name.to_string(),
+            digest: rule_digest(&rule),
+            required_bits: rule.required_bits(),
+            source: source.to_string(),
         };
         self.approved.insert(entry.digest.clone(), entry.clone());
         Ok(entry)
     }
 
     /// Reject a rule that is not the approved one, or a mislabelled digest.
-    pub fn check(&self, source: &str, name: &str, claimed: &str)
-        -> Result<(), &'static str> {
+    pub fn check(&self, source: &str, name: &str, claimed: &str) -> Result<(), &'static str> {
         if !self.approved.contains_key(claimed) {
             return Err("the claimed digest is not an approved rule form");
         }
@@ -138,13 +141,18 @@ impl ApprovedCircuit {
         if shape != self.shape.as_slice() {
             return Err(format!(
                 "circuit shape {shape:?} was never approved for {}; the approved \
-                 shape is {:?}", self.name, self.shape));
+                 shape is {:?}",
+                self.name, self.shape
+            ));
         }
         let actual = program_digest(program);
         if actual != self.program_digest {
             return Err(format!(
                 "the program for {} does not match what was approved: {} against {}",
-                self.name, &actual[..16], &self.program_digest[..16]));
+                self.name,
+                &actual[..16],
+                &self.program_digest[..16]
+            ));
         }
         Ok(())
     }
@@ -157,8 +165,13 @@ pub struct CircuitRegistry {
 }
 
 impl CircuitRegistry {
-    pub fn approve(&mut self, name: &str, rule_source: &str, program_source: &str,
-                   shape: &[u64]) -> Result<ApprovedCircuit, RuleError> {
+    pub fn approve(
+        &mut self,
+        name: &str,
+        rule_source: &str,
+        program_source: &str,
+        shape: &[u64],
+    ) -> Result<ApprovedCircuit, RuleError> {
         let rule = compile_rule(rule_source, name)?;
         let entry = ApprovedCircuit {
             name: rule.name.clone(),
@@ -177,5 +190,7 @@ impl CircuitRegistry {
         }
     }
 
-    pub fn approved_shapes(&self) -> Vec<&Vec<u64>> { self.approved.keys().collect() }
+    pub fn approved_shapes(&self) -> Vec<&Vec<u64>> {
+        self.approved.keys().collect()
+    }
 }

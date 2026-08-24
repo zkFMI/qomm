@@ -2,8 +2,8 @@
 //! one not: swapping a secret parameter must keep the digest, swapping the rule
 //! or the emitted program must not.
 
-use qomm_dsl::registry::{program_digest, rule_digest, CircuitRegistry, RuleRegistry};
 use qomm_dsl::compile_rule;
+use qomm_dsl::registry::{program_digest, rule_digest, CircuitRegistry, RuleRegistry};
 
 const RULE: &str = "\
 param mid[99000,101000] half[1,200] slope[0,16]
@@ -38,14 +38,19 @@ fn a_substituted_rule_is_rejected_against_the_approved_digest() {
 #[test]
 fn a_digest_that_was_never_approved_is_rejected_before_anything_is_compiled() {
     let registry = RuleRegistry::default();
-    assert_eq!(registry.check(RULE, "policy", &"0".repeat(64)),
-               Err("the claimed digest is not an approved rule form"));
+    assert_eq!(
+        registry.check(RULE, "policy", &"0".repeat(64)),
+        Err("the claimed digest is not an approved rule form")
+    );
 }
 
 #[test]
 fn the_program_digest_ignores_formatting_and_nothing_else() {
     let program = "a = 1\nb = 2\n";
-    assert_eq!(program_digest(program), program_digest("a = 1  \nb = 2\n\n"));
+    assert_eq!(
+        program_digest(program),
+        program_digest("a = 1  \nb = 2\n\n")
+    );
     assert_ne!(program_digest(program), program_digest("a = 1\nb = 3\n"));
 }
 
@@ -53,12 +58,19 @@ fn the_program_digest_ignores_formatting_and_nothing_else() {
 fn a_circuit_is_approved_for_one_shape_and_not_another() {
     let mut registry = CircuitRegistry::default();
     let program = "col_ask = col_mid + col_half\n";
-    registry.approve("policy", RULE, program, &[16, 31]).unwrap();
+    registry
+        .approve("policy", RULE, program, &[16, 31])
+        .unwrap();
 
     assert_eq!(registry.check(program, &[16, 31]), Ok(()));
-    assert!(registry.check(program, &[32, 31]).unwrap_err().contains("no circuit is approved"));
-    assert!(registry.check("col_ask = col_mid\n", &[16, 31])
-            .unwrap_err().contains("does not match what was approved"));
+    assert!(registry
+        .check(program, &[32, 31])
+        .unwrap_err()
+        .contains("no circuit is approved"));
+    assert!(registry
+        .check("col_ask = col_mid\n", &[16, 31])
+        .unwrap_err()
+        .contains("does not match what was approved"));
 }
 
 #[test]
@@ -66,7 +78,9 @@ fn approving_a_rule_does_not_approve_running_a_different_program() {
     // This is the gap the second digest exists to close: a node holding the
     // approved rule digest could still hand its compiler something else.
     let mut registry = CircuitRegistry::default();
-    registry.approve("policy", RULE, "col_ask = col_mid + col_half\n", &[16, 31]).unwrap();
+    registry
+        .approve("policy", RULE, "col_ask = col_mid + col_half\n", &[16, 31])
+        .unwrap();
     let substituted = "col_ask = col_mid + col_half + col_slope * col_slope\n";
     assert!(registry.check(substituted, &[16, 31]).is_err());
 }

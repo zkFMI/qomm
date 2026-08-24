@@ -43,14 +43,21 @@ impl Date {
     pub fn parse(text: &str) -> Result<Date, String> {
         let mut parts = text.split('-');
         let mut next = |what: &str| -> Result<i64, String> {
-            parts.next().ok_or_else(|| format!("a date needs a {what}"))?
-                .parse::<i64>().map_err(|_| format!("{text}: {what} is not a number"))
+            parts
+                .next()
+                .ok_or_else(|| format!("a date needs a {what}"))?
+                .parse::<i64>()
+                .map_err(|_| format!("{text}: {what} is not a number"))
         };
         let (year, month, day) = (next("year")?, next("month")?, next("day")?);
         if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
             return Err(format!("{text} is not a date"));
         }
-        Ok(Date { year: year as i32, month: month as u32, day: day as u32 })
+        Ok(Date {
+            year: year as i32,
+            month: month as u32,
+            day: day as u32,
+        })
     }
 
     /// Days since an arbitrary epoch, for comparing and adding. Proleptic
@@ -87,8 +94,11 @@ impl Date {
         let mp = (5 * doy + 2) / 153;
         let d = doy - (153 * mp + 2) / 5 + 1;
         let m = if mp < 10 { mp + 3 } else { mp - 9 };
-        Date { year: (if m <= 2 { y + 1 } else { y }) as i32,
-               month: m as u32, day: d as u32 }
+        Date {
+            year: (if m <= 2 { y + 1 } else { y }) as i32,
+            month: m as u32,
+            day: d as u32,
+        }
     }
 }
 
@@ -253,10 +263,16 @@ pub struct CompiledDuty {
 impl Compiled {
     /// Whether anything here says the deployment cannot go ahead as written.
     pub fn blocked_by(&self) -> Vec<&CompiledFinding> {
-        self.findings.iter().filter(|f| f.verdict == Verdict::Refused).collect()
+        self.findings
+            .iter()
+            .filter(|f| f.verdict == Verdict::Refused)
+            .collect()
     }
 
     pub fn undischarged(&self) -> Vec<&CompiledDuty> {
-        self.duties.iter().filter(|d| d.undischarged.is_some()).collect()
+        self.duties
+            .iter()
+            .filter(|d| d.undischarged.is_some())
+            .collect()
     }
 }

@@ -32,9 +32,28 @@
       "bytes": 3987,
       "sha256": "2a51665bb285bcfb187b587f28a9cca3891e51afa4873b96fda81d7218cd4aff"
     },
+    "bitdec_rounds.json": {
+      "bytes": 6119,
+      "host": "host-a",
+      "sha256": "1122a9b8e331ca5b6e3c8a612925787f5cc5bef4b6e65010e2f9c6b0b2dbb339"
+    },
+    "block_range_query.json": {
+      "bytes": 44472,
+      "host": "host-c",
+      "sha256": "5cb7dea40abf256a2cd7f39853999c72274cd09cef89dadc8c7117632ec240f1"
+    },
+    "block_range_query_prediction.json": {
+      "bytes": 8779,
+      "sha256": "d8df4783a2db1cf9d064784097a1dea9987e782f8b16e6e76e4b6e160bb3623c"
+    },
     "challenge_fix_prediction.json": {
       "bytes": 2506,
       "sha256": "d65797936a081f62f5002c04c074c22918ef11fb4fe8f363b7c12362c9a29319"
+    },
+    "circuit_bound_proof.json": {
+      "bytes": 1964,
+      "host": "host-a",
+      "sha256": "3af4487c888ebccc2685f5bf2de5b51995602d29744a316e9a8f62017fde289f"
     },
     "clob_baseline_clean_d0.json": {
       "bytes": 1383,
@@ -89,6 +108,11 @@
       "bytes": 2640,
       "sha256": "7acc1df614df52a9136eb70098fd94d5876b5424e4e1328325a0bf2b012cf26c"
     },
+    "disclosure_ceiling.json": {
+      "bytes": 12416,
+      "host": "host-c",
+      "sha256": "1ee44745b4c0ae6a7dd70864f95ac9fd60e791ba420d4c4bcda0bc92daf99bbc"
+    },
     "dishonest_majority.json": {
       "bytes": 4162,
       "host": "host-a",
@@ -98,9 +122,15 @@
       "bytes": 3723,
       "sha256": "88ca92f9defc9e0932e1efa6864b5de08e457fec7b424490f993af019fc5d6b3"
     },
+    "distributed_assembly.json": {
+      "bytes": 435,
+      "host": "host-a",
+      "sha256": "71381098c0bd37a6558080f45ea94e900a86b613a3843489c125fa6bdbecf4d0"
+    },
     "dp_audit.json": {
-      "bytes": 21755,
-      "sha256": "f71dd89aa38a2562cbb5ad7eec259d2e51ef9f2f96c6aa27ebce0077380d49c4"
+      "bytes": 95453,
+      "host": "host-c",
+      "sha256": "1db9f221de7962fe531417bf9dd1d9c0d943edc0018a4f80adfa25549d2ecae0"
     },
     "dp_composition.json": {
       "bytes": 1809,
@@ -108,15 +138,20 @@
       "sha256": "776882827b952571d19861307834516e019d3ccf96c391645a9740a495ecf511"
     },
     "dp_effect.json": {
-      "bytes": 5095,
+      "bytes": 5992,
       "host": "host-c",
       "python": "3.13.5",
-      "sha256": "afc65c41f12f976a266cf0d8c87920238728123fa1de43770c4eeb684dd69e96"
+      "sha256": "450a3364c36c181db2de8af2df509a88a26027268c303b61d5c5a891b071d20f"
     },
     "dp_sampler.json": {
       "bytes": 1108,
       "host": "host-c",
       "sha256": "02715542d4023a28b98aa22644547f89141390af16c4b3408f8b4b1f37d221fa"
+    },
+    "entity_behavior_smoke.json": {
+      "bytes": 1193,
+      "host": "host-c",
+      "sha256": "15cda4e3a82719571a63329889d573e9c8f94e830f3b38d58a348dc96e2a778d"
     },
     "fill_fold.json": {
       "bytes": 1723,
@@ -158,6 +193,11 @@
     "malicious_node_prediction.json": {
       "bytes": 3591,
       "sha256": "7de313a78d141c1fe8e0aa26c6c12a2cd75b5632a1dddafda3cde5d6340fc092"
+    },
+    "market_thickness_smoke.json": {
+      "bytes": 47550,
+      "host": "host-c",
+      "sha256": "4710b42924832dd3034a2814b1c800abcb714a641ec2212b08ace44e0bc8a88e"
     },
     "matched_field.json": {
       "bytes": 2711,
@@ -227,6 +267,10 @@
       "bytes": 782,
       "sha256": "214fdca17c0ec35ade3a695e6966ac76db9a7544fa605afd168bbd387d205364"
     },
+    "probe_budget.json": {
+      "bytes": 2731,
+      "sha256": "54a41043ab30141b3c235fdd91dbc8eeac14355ef3fc6d9819b61a41e06c684b"
+    },
     "qomm_sweep.jsonl": {
       "bytes": 101954,
       "sha256": "b6f6036c3084f6d67261f33218cbd516a91191fc2db3fd75fd650ff36e9e3e0f"
@@ -273,22 +317,26 @@
       "host": "host-a",
       "sha256": "7fd10ac69c1a6512018ed5eff548445cb13d488dc4e911be642f8f3cda3c4f72"
     },
+    "seven_node_cluster.json": {
+      "bytes": 773,
+      "sha256": "799200d707ae2340306f07f3af9feaa2474a4b96b7445fdb93af74df564e53b9"
+    },
     "sim_matrix.json": {
-      "bytes": 26086019,
-      "sha256": "5b5c6924ce6c1fa7067bc6498cbf38aa43429f20a347bd88c0ae090dc443592d"
+      "bytes": 26560687,
+      "sha256": "63abe8c665492f7d0aa9df435c3e6f8102c8ffe74a2e2432040ed916cf97cb9e"
     },
     "sim_matrix_bybit.json": {
-      "bytes": 8472186,
-      "sha256": "40bb5649067121f6b00b50beae487651d01370caff9e9f725e60f712b7c22d69"
+      "bytes": 8768045,
+      "sha256": "79d6601ac42c6d64b36e22da33d2f935a5a74efd2672d79b38cc27a5fa94424b"
     },
     "sim_matrix_uniswapx.json": {
-      "bytes": 734202,
-      "sha256": "6f9121e78348a704c2243e5b9dacfa32f79a03a6e30f95e4a0fa3b3295f3e967"
+      "bytes": 772006,
+      "sha256": "3b092871164d353d60319f954264fe01bd83620aa7f1ee37f654d6391360ca2d"
     },
     "snr_model.json": {
-      "bytes": 963,
+      "bytes": 1212,
       "host": "host-c",
-      "sha256": "111e4f68e2ce8ea8011ba0d7dc1697db366409b6f9faead83f858afd537085d8"
+      "sha256": "1f39bc032003d0fd6acfc0a117eeb22133d21849a70101910b0a9fa3444b3389"
     },
     "sound_check.json": {
       "bytes": 3052,
@@ -301,14 +349,19 @@
       "sha256": "047c8d15435c4c56de1b5f012641427cae3a0ea8033a4050c6fddda9facfb3ea"
     },
     "staleness.json": {
-      "bytes": 3109,
-      "host": "host-b",
-      "sha256": "4d9ac4bba735db2bfdcfeff1074c0a2eb34c26e879a44e4c653679445c3814da"
+      "bytes": 3676,
+      "host": "host-c",
+      "sha256": "b2bb9ff8153c9c9dbe5ca3f4e14baaa99e67d1de6e7e1f9b42107ce6a9415e1f"
     },
     "three_times.json": {
-      "bytes": 2641,
+      "bytes": 2628,
       "host": "host-a",
-      "sha256": "c7ea25a168e887148e902e55516a5893cdb4b97c41a6bca4fe1cef0d87669267"
+      "sha256": "bd7381158924f77aca8110bc453f6f35b11349b674c9d333382035aeeb4f0345"
+    },
+    "threshold_assembly.json": {
+      "bytes": 9651,
+      "host": "host-a",
+      "sha256": "e1df6bac7625841c65a1787b625343df0dc8399a30358bea704dd24ffb3d83dd"
     },
     "transport.json": {
       "bytes": 2556,
@@ -333,5 +386,5 @@
       "sha256": "afdf7e26ff2d6050aeff8bb946874ae72daba935d009f57d49617c44b1e8aa11"
     }
   },
-  "commit": "43aa4604bd042f6f6848b2eefd50a41e84591ae9"
+  "commit": "7b7ab116a640626433142af57efcefb2ed42f773"
 }

@@ -27,8 +27,14 @@ in XX for thing {
 
 #[test]
 fn a_day_number_round_trips() {
-    for text in ["1970-01-01", "2000-02-29", "2020-12-31", "2026-08-01",
-                 "2027-01-28", "1900-03-01"] {
+    for text in [
+        "1970-01-01",
+        "2000-02-29",
+        "2020-12-31",
+        "2026-08-01",
+        "2027-01-28",
+        "1900-03-01",
+    ] {
         let d = Date::parse(text).unwrap();
         assert_eq!(Date::from_day_number(d.day_number()), d, "{text}");
         assert_eq!(d.to_string(), text);
@@ -43,8 +49,10 @@ fn adding_days_lands_where_a_calendar_says() {
     // 180 days from 1 August 2026 is 28 January 2027
     assert_eq!(d.plus_days(180).to_string(), "2027-01-28");
     // and a leap year is a leap year
-    assert_eq!(Date::parse("2028-02-28").unwrap().plus_days(1).to_string(),
-               "2028-02-29");
+    assert_eq!(
+        Date::parse("2028-02-28").unwrap().plus_days(1).to_string(),
+        "2028-02-29"
+    );
 }
 
 #[test]
@@ -61,10 +69,12 @@ fn dates_order_the_way_dates_do() {
 fn a_clause_nobody_has_reviewed_stops_the_build() {
     let base = parse::parse(BASE).unwrap();
     let fine = compile(&base, "XX", "thing", Date::parse("2027-01-28").unwrap());
-    assert!(fine.is_ok(), "the day it falls due is still inside the interval");
+    assert!(
+        fine.is_ok(),
+        "the day it falls due is still inside the interval"
+    );
 
-    let stale = compile(&base, "XX", "thing", Date::parse("2027-01-29").unwrap())
-        .unwrap_err();
+    let stale = compile(&base, "XX", "thing", Date::parse("2027-01-29").unwrap()).unwrap_err();
     assert!(matches!(stale[0], Refusal::Stale { .. }), "{:?}", stale);
     let rendered = stale[0].to_string();
     assert!(rendered.contains("ACT art. 1"), "{rendered}");
@@ -74,17 +84,21 @@ fn a_clause_nobody_has_reviewed_stops_the_build() {
 #[test]
 fn a_clause_that_is_not_yet_in_force_is_refused() {
     let base = parse::parse(BASE).unwrap();
-    let early = compile(&base, "XX", "thing", Date::parse("2019-01-01").unwrap())
-        .unwrap_err();
-    assert!(early.iter().any(|r| matches!(r, Refusal::NotYetInForce { .. })),
-            "{early:?}");
+    let early = compile(&base, "XX", "thing", Date::parse("2019-01-01").unwrap()).unwrap_err();
+    assert!(
+        early
+            .iter()
+            .any(|r| matches!(r, Refusal::NotYetInForce { .. })),
+        "{early:?}"
+    );
 }
 
 #[test]
 fn an_obligation_with_neither_evidence_nor_a_note_does_not_build() {
     let source = BASE.replace(
         "  obligation \"name the sender\" undischarged \"the design cannot\"",
-        "  obligation \"name the sender\"");
+        "  obligation \"name the sender\"",
+    );
     let why = parse::parse(&source).unwrap_err();
     assert!(why.message.contains("nobody has thought about"), "{why}");
 }
@@ -94,8 +108,12 @@ fn an_obligation_pointing_at_evidence_that_does_not_exist_is_caught() {
     let source = BASE.replace("discharged-by a-receipt", "discharged-by a-renamed-thing");
     let base = parse::parse(&source).unwrap();
     let (refusals, _) = lint(&base);
-    assert!(refusals.iter().any(|r| matches!(r, Refusal::NoSuchEvidence { .. })),
-            "{refusals:?}");
+    assert!(
+        refusals
+            .iter()
+            .any(|r| matches!(r, Refusal::NoSuchEvidence { .. })),
+        "{refusals:?}"
+    );
 }
 
 #[test]
@@ -103,8 +121,12 @@ fn a_requirement_the_deployment_never_answers_is_caught() {
     let source = BASE.replace("  R1 conditional by ACT \"1\" \"a note\"\n", "");
     let base = parse::parse(&source).unwrap();
     let (refusals, _) = lint(&base);
-    assert!(refusals.iter().any(|r| matches!(r,
-        Refusal::RequirementUnanswered { .. })), "{refusals:?}");
+    assert!(
+        refusals
+            .iter()
+            .any(|r| matches!(r, Refusal::RequirementUnanswered { .. })),
+        "{refusals:?}"
+    );
 }
 
 #[test]
@@ -119,9 +141,18 @@ fn evidence_that_discharges_nothing_is_a_note_and_not_a_refusal() {
 #[test]
 fn a_pair_with_no_rule_is_a_gap_and_not_a_permission() {
     let base = parse::parse(BASE).unwrap();
-    let why = compile(&base, "XX", "something-else", Date::parse("2026-08-22").unwrap())
-        .unwrap_err();
-    assert!(why[0].to_string().contains("not a permission"), "{:?}", why[0]);
+    let why = compile(
+        &base,
+        "XX",
+        "something-else",
+        Date::parse("2026-08-22").unwrap(),
+    )
+    .unwrap_err();
+    assert!(
+        why[0].to_string().contains("not a permission"),
+        "{:?}",
+        why[0]
+    );
 }
 
 #[test]
@@ -169,8 +200,7 @@ fn a_block_that_is_never_closed_is_named() {
 #[test]
 fn a_verdict_carries_the_clause_it_came_from() {
     let base = parse::parse(BASE).unwrap();
-    let compiled = compile(&base, "XX", "thing",
-                           Date::parse("2026-08-22").unwrap()).unwrap();
+    let compiled = compile(&base, "XX", "thing", Date::parse("2026-08-22").unwrap()).unwrap();
     assert_eq!(compiled.findings[0].verdict, Verdict::Conditional);
     assert_eq!(compiled.findings[0].citation, "ACT art. 1");
     assert_eq!(compiled.findings[0].in_force.to_string(), "2020-01-01");
@@ -179,8 +209,7 @@ fn a_verdict_carries_the_clause_it_came_from() {
 #[test]
 fn an_obligation_nothing_discharges_survives_into_the_output() {
     let base = parse::parse(BASE).unwrap();
-    let compiled = compile(&base, "XX", "thing",
-                           Date::parse("2026-08-22").unwrap()).unwrap();
+    let compiled = compile(&base, "XX", "thing", Date::parse("2026-08-22").unwrap()).unwrap();
     let open = compiled.undischarged();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].says, "name the sender");
@@ -192,8 +221,10 @@ fn an_obligation_nothing_discharges_survives_into_the_output() {
 fn the_shipped_rules_lint_clean() {
     let mut source = String::new();
     for name in ["requirements", "japan", "elsewhere"] {
-        source.push_str(&std::fs::read_to_string(
-            format!("{}/rules/{name}.law", env!("CARGO_MANIFEST_DIR"))).unwrap());
+        source.push_str(
+            &std::fs::read_to_string(format!("{}/rules/{name}.law", env!("CARGO_MANIFEST_DIR")))
+                .unwrap(),
+        );
         source.push('\n');
     }
     let base = parse::parse(&source).expect("the shipped rules parse");
@@ -208,31 +239,53 @@ fn the_shipped_rules_reproduce_the_finding_of_regulation_section_3() {
     // bug --- so it is asserted rather than left to be read off a table.
     let mut source = String::new();
     for name in ["requirements", "japan", "elsewhere"] {
-        source.push_str(&std::fs::read_to_string(
-            format!("{}/rules/{name}.law", env!("CARGO_MANIFEST_DIR"))).unwrap());
+        source.push_str(
+            &std::fs::read_to_string(format!("{}/rules/{name}.law", env!("CARGO_MANIFEST_DIR")))
+                .unwrap(),
+        );
         source.push('\n');
     }
     let base = parse::parse(&source).unwrap();
     let as_of = Date::parse("2026-08-22").unwrap();
     let mut permitted_somewhere = std::collections::BTreeMap::new();
     for deployment in &base.deployments {
-        let compiled = compile(&base, &deployment.jurisdiction,
-                               &deployment.instrument, as_of).unwrap();
-        let all_three = compiled.findings.iter()
+        let compiled = compile(
+            &base,
+            &deployment.jurisdiction,
+            &deployment.instrument,
+            as_of,
+        )
+        .unwrap();
+        let all_three = compiled
+            .findings
+            .iter()
             .all(|f| f.verdict == Verdict::Permitted);
-        assert!(!all_three, "{} for {} meets all three, which section 3 says \
-                             nowhere does", deployment.jurisdiction,
-                deployment.instrument);
+        assert!(
+            !all_three,
+            "{} for {} meets all three, which section 3 says \
+                             nowhere does",
+            deployment.jurisdiction, deployment.instrument
+        );
         for finding in &compiled.findings {
             if finding.verdict == Verdict::Permitted {
-                permitted_somewhere.entry(finding.requirement.clone())
-                    .or_insert_with(Vec::new).push(deployment.jurisdiction.clone());
+                permitted_somewhere
+                    .entry(finding.requirement.clone())
+                    .or_insert_with(Vec::new)
+                    .push(deployment.jurisdiction.clone());
             }
         }
     }
     // N2 outright in Switzerland, N3 outright in the UK, N1 nowhere
-    assert_eq!(permitted_somewhere.get("N2").map(|v| v.as_slice()), Some(&["CH".to_string()][..]));
-    assert_eq!(permitted_somewhere.get("N3").map(|v| v.as_slice()), Some(&["UK".to_string()][..]));
-    assert!(permitted_somewhere.get("N1").is_none(),
-            "no jurisdiction permits a non-disclosing venue outright");
+    assert_eq!(
+        permitted_somewhere.get("N2").map(|v| v.as_slice()),
+        Some(&["CH".to_string()][..])
+    );
+    assert_eq!(
+        permitted_somewhere.get("N3").map(|v| v.as_slice()),
+        Some(&["UK".to_string()][..])
+    );
+    assert!(
+        !permitted_somewhere.contains_key("N1"),
+        "no jurisdiction permits a non-disclosing venue outright"
+    );
 }

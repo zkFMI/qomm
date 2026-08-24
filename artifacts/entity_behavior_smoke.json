@@ -1,0 +1,37 @@
+{
+  "calibration_pairs": 7140,
+  "evidence_class": "smoke_only",
+  "host": "host-c",
+  "limitations": [
+    "Synthetic labeled controllers are not a substitute for investigation data.",
+    "Threshold is calibrated on a disjoint synthetic population.",
+    "A production decision remains blocked pending external validation."
+  ],
+  "maximum_calibration_fpr": 0.01,
+  "metrics": {
+    "false_positive_rate": 0.0074858757062146895,
+    "pair_auc": 0.9365960451977401,
+    "review_candidates": 60,
+    "review_precision": 0.11666666666666667,
+    "threshold_tpr": 0.11666666666666667,
+    "tpr_at_1pct_fpr": 0.13333333333333333
+  },
+  "model_version": "qomm-behavior-v1",
+  "positive_test_pairs": 60,
+  "safety_contract": {
+    "behavior_can_deny_service": false,
+    "behavior_can_merge_entities": false,
+    "kyc_is_authoritative": true,
+    "only_output": "review_required"
+  },
+  "sealed_prediction": {
+    "absolute_error": 0.08659604519774011,
+    "likely_failure": "different legal entities using the same strategy look alike",
+    "metric": "pair_auc",
+    "point_prediction": 0.85
+  },
+  "seed": 202608240,
+  "synthetic": true,
+  "test_pairs": 7140,
+  "threshold": 0.9064255058904567
+}

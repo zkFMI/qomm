@@ -25,8 +25,14 @@ fn bindings(pairs: &[(&str, i128)]) -> BTreeMap<String, i128> {
 }
 
 fn honest() -> BTreeMap<String, i128> {
-    bindings(&[("mid", 100_000), ("half", 12), ("slope", 3),
-               ("invcoef", 2), ("inv", -250), ("qty", 100)])
+    bindings(&[
+        ("mid", 100_000),
+        ("half", 12),
+        ("slope", 3),
+        ("invcoef", 2),
+        ("inv", -250),
+        ("qty", 100),
+    ])
 }
 
 #[test]
@@ -35,43 +41,62 @@ fn an_honest_rule_audits_and_the_value_is_the_one_it_computes() {
     let (prover, verifier) = (RuleProver::new(), RuleVerifier::new());
     let audit = prover.prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
     assert_eq!(verifier.verify(&rule, &audit, b"ctx"), Ok(()));
-    assert_eq!(audit.output_values["ask"], 100_000 + 12 + 3 * 100 + 2 * -250);
+    assert_eq!(
+        audit.output_values["ask"],
+        100_000 + 12 + 3 * 100 + 2 * -250
+    );
 }
 
 #[test]
 fn the_audit_is_sized_by_the_rule_and_not_by_hand() {
     let rule = compile_rule(RULE, "policy").unwrap();
-    let audit = RuleProver::new().prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
+    let audit = RuleProver::new()
+        .prove(&rule, &honest(), b"ctx", &mut OsRng)
+        .unwrap();
     let size = audit.size();
     // Two secret-times-secret products in the source, two product steps here.
     assert_eq!(size["product"], 2);
     // Five secrets share one aggregated declared-range proof.
-    assert_eq!(size["declared_range"], 8, "aggregation pads to a power of two");
+    assert_eq!(
+        size["declared_range"], 8,
+        "aggregation pads to a power of two"
+    );
 }
 
 #[test]
 fn a_value_outside_its_declared_band_cannot_be_proved() {
     let rule = compile_rule(RULE, "policy").unwrap();
     let mut over = honest();
-    over.insert("half".into(), 500);              // band is [1, 200]
-    let err = RuleProver::new().prove(&rule, &over, b"ctx", &mut OsRng).unwrap_err();
+    over.insert("half".into(), 500); // band is [1, 200]
+    let err = RuleProver::new()
+        .prove(&rule, &over, b"ctx", &mut OsRng)
+        .unwrap_err();
     assert!(err.0.contains("outside its declared range"), "{}", err.0);
 }
 
 #[test]
 fn an_audit_does_not_carry_to_another_context() {
     let rule = compile_rule(RULE, "policy").unwrap();
-    let audit = RuleProver::new().prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
-    assert!(RuleVerifier::new().verify(&rule, &audit, b"another").is_err());
+    let audit = RuleProver::new()
+        .prove(&rule, &honest(), b"ctx", &mut OsRng)
+        .unwrap();
+    assert!(RuleVerifier::new()
+        .verify(&rule, &audit, b"another")
+        .is_err());
 }
 
 #[test]
 fn moving_a_committed_value_breaks_the_step_that_used_it() {
     let rule = compile_rule(RULE, "policy").unwrap();
-    let mut audit = RuleProver::new().prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
+    let mut audit = RuleProver::new()
+        .prove(&rule, &honest(), b"ctx", &mut OsRng)
+        .unwrap();
     let key = RuleProver::new().key;
     for step in audit.steps.iter_mut() {
-        if let Step::Product { c, .. } = step { *c += key.g; break; }
+        if let Step::Product { c, .. } = step {
+            **c += key.g;
+            break;
+        }
     }
     assert!(RuleVerifier::new().verify(&rule, &audit, b"ctx").is_err());
 }
@@ -79,7 +104,9 @@ fn moving_a_committed_value_breaks_the_step_that_used_it() {
 #[test]
 fn a_declared_commitment_swapped_for_another_is_caught() {
     let rule = compile_rule(RULE, "policy").unwrap();
-    let mut audit = RuleProver::new().prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
+    let mut audit = RuleProver::new()
+        .prove(&rule, &honest(), b"ctx", &mut OsRng)
+        .unwrap();
     let half = audit.declared["half"];
     audit.declared.insert("slope".into(), half);
     assert!(RuleVerifier::new().verify(&rule, &audit, b"ctx").is_err());
@@ -89,12 +116,17 @@ fn a_declared_commitment_swapped_for_another_is_caught() {
 fn comparisons_and_intrinsics_audit_too() {
     let rule = compile_rule(GATED, "gated").unwrap();
     let values = bindings(&[("cap", 400), ("base", 10), ("qty", 100)]);
-    let audit = RuleProver::new().prove(&rule, &values, b"ctx", &mut OsRng).unwrap();
+    let audit = RuleProver::new()
+        .prove(&rule, &values, b"ctx", &mut OsRng)
+        .unwrap();
     assert_eq!(RuleVerifier::new().verify(&rule, &audit, b"ctx"), Ok(()));
     assert_eq!(audit.output_values["fits"], 1);
     assert_eq!(audit.output_values["price"], 10 + 100);
     let size = audit.size();
-    assert!(size["range"] >= 3, "the comparison and min both need range steps");
+    assert!(
+        size["range"] >= 3,
+        "the comparison and min both need range steps"
+    );
     assert!(size["bit"] >= 1);
 }
 
@@ -104,6 +136,8 @@ fn a_comparison_that_does_not_hold_cannot_be_proved() {
     // qty above cap makes `qty <= cap` false, and a false comparison has no
     // non-negative difference to prove.
     let values = bindings(&[("cap", 50), ("base", 10), ("qty", 900)]);
-    let err = RuleProver::new().prove(&rule, &values, b"ctx", &mut OsRng).unwrap_err();
+    let err = RuleProver::new()
+        .prove(&rule, &values, b"ctx", &mut OsRng)
+        .unwrap_err();
     assert!(err.0.contains("non-negative"), "{}", err.0);
 }

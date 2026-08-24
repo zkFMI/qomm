@@ -1,5 +1,5 @@
 {
-  "host": "host-b",
+  "host": "host-c",
   "block_seconds": 12.0,
   "gaps_blocks": [
     2,
@@ -138,5 +138,28 @@
       }
     }
   ],
-  "median_ratio_at_26s": 1.013109031827573
+  "median_ratio_at_24s": 1.013109031827573,
+  "conditioned_on": "orders that settled; an order that went stale and did not settle leaves no Fill log, so the drift estimate is a lower bound",
+  "pair_count_sensitivity": {
+    "2": {
+      "pairs": 2,
+      "median_ratio": 1.013109031827573
+    },
+    "4": {
+      "pairs": 4,
+      "median_ratio": 1.013109031827573
+    },
+    "8": {
+      "pairs": 8,
+      "median_ratio": 1.013109031827573
+    },
+    "16": {
+      "pairs": 16,
+      "median_ratio": 0.9031496774806311
+    },
+    "32": {
+      "pairs": 27,
+      "median_ratio": 1.0284091214060727
+    }
+  }
 }

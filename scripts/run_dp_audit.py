@@ -22,9 +22,12 @@ from qomm_sim.market import (                                  # noqa: E402
 
 
 def _job(payload: tuple) -> dict:
-    obs, entity, eps, request_cap, volume_cap, trials, seed, n_entities = payload
-    return asdict(audit_window(obs, entity, eps, request_cap, volume_cap,
-                               trials=trials, seed=seed, n_entities=n_entities))
+    obs, entity, eps, request_cap, volume_cap, trials, seed, n_entities, field = payload
+    row = asdict(audit_window(obs, entity, eps, request_cap, volume_cap,
+                              trials=trials, seed=seed, n_entities=n_entities,
+                              field=field))
+    row["field"] = field
+    return row
 
 
 def main() -> int:
@@ -38,6 +41,18 @@ def main() -> int:
     ap.add_argument("--trials", type=int, default=4000)
     ap.add_argument("--windows", type=int, default=6, help="windows sampled per epsilon")
     ap.add_argument("--entities", type=int, default=4, help="busiest entities audited")
+    # All four released fields, not just the request count.
+    #
+    # Only the request count was ever bound here, and the field that was not
+    # bound was the field whose sensitivity was wrong: the fill count was a bare
+    # total clipped against the request sum, so removing an entity moved it by
+    # more than the cap its noise was calibrated to. `_drop_entity` copied the
+    # total across unchanged, so the two worlds the audit compared were
+    # identical in exactly that field. An audit that cannot see a field is not
+    # evidence about it.
+    ap.add_argument("--fields", nargs="+",
+                    default=["noisy_requests", "noisy_volume",
+                             "noisy_signed_volume", "noisy_fills"])
     ap.add_argument("--seed", type=int, default=20260818)
     ap.add_argument("--workers", type=int, default=0)
     args = ap.parse_args()
@@ -58,8 +73,10 @@ def main() -> int:
         for index, obs in enumerate(windows):
             busiest = sorted(obs.requests_by_entity.items(), key=lambda kv: -kv[1])
             for entity, _count in busiest[:args.entities]:
-                jobs.append((obs, entity, eps, dp.request_cap, dp.volume_cap,
-                             args.trials, args.seed + 17 * index, cfg.n_entities))
+                for field in args.fields:
+                    jobs.append((obs, entity, eps, dp.request_cap, dp.volume_cap,
+                                 args.trials, args.seed + 17 * index,
+                                 cfg.n_entities, field))
 
     print(f"auditing {len(jobs)} (window, entity, epsilon) cells", flush=True)
     rows = []
@@ -79,6 +96,14 @@ def main() -> int:
         bucket["max_empirical_epsilon"] = max(bucket["max_empirical_epsilon"],
                                               row["empirical_epsilon"])
         bucket["violations"] += 0 if row["within_claim"] else 1
+        # Per field as well as pooled: a pooled maximum hides which field is
+        # closest to its claim, and that is the thing worth knowing.
+        per = bucket.setdefault("by_field", {}).setdefault(
+            row["field"], {"cells": 0, "max_empirical_epsilon": 0.0, "violations": 0})
+        per["cells"] += 1
+        per["max_empirical_epsilon"] = max(per["max_empirical_epsilon"],
+                                           row["empirical_epsilon"])
+        per["violations"] += 0 if row["within_claim"] else 1
 
     payload = {
 
@@ -91,10 +116,14 @@ def main() -> int:
                    "n_entities": args.n_entities, "arrival_rate": args.arrival_rate,
                    "trials": args.trials, "request_cap": dp.request_cap,
                    "volume_cap": dp.volume_cap,
-                   "note": "epsilon is split across 4 released fields; the audit "
-                           "targets the request count, so the empirical lower "
-                           "bound is compared against epsilon/4, the claim that "
-                           "actually binds that field"},
+                   "fields": args.fields,
+                   "note": "epsilon is split across 4 released fields, and every "
+                           "one of them is audited: the empirical lower bound "
+                           "for each is compared against epsilon/4, the claim "
+                           "that actually binds that field. Only the request "
+                           "count used to be audited, and the fill count --- the "
+                           "one whose sensitivity was wrong --- was the one "
+                           "nothing looked at"},
         "rows": rows,
         "by_epsilon": sorted(by_eps.values(), key=lambda b: b["declared_epsilon"]),
     }

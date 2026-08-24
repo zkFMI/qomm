@@ -28,8 +28,22 @@ from qomm_sim.market import (                                          # noqa: E
 
 # --- the circuit and the simulator must price identically -------------------
 
-def test_generated_reference_matches_the_simulator_policy(tmp_path):
-    """gen_qomm's cleartext reference and MarketMaker.quote are the same function."""
+def test_the_reference_is_internally_consistent(tmp_path):
+    """The reference's own summary agrees with its own quote list.
+
+    It was named for a cross-check it does not perform --- the docstring said
+    this held `gen_qomm`'s reference against `MarketMaker.quote` --- and the
+    two could not be compared anyway: the simulator's half spread is a function
+    of its informed-flow estimate and its eligibility turns on an inventory
+    limit, while the generator prices a committed snapshot whose half spread is
+    a field and whose eligibility turns on an expiry and an active flag. Two
+    abstractions, on purpose.
+
+    What this checks is real and narrow: that the winner the reference reports
+    is the winner its own quotes imply. The second opinion the oracle needs ---
+    the rule as stated, written independently --- is in
+    `test_reference_has_a_second_opinion.py`.
+    """
     program = tmp_path / "p.mpc"
     inputs = tmp_path / "in"
     reference = tmp_path / "ref.json"
@@ -82,6 +96,7 @@ def _observation(counts: dict[int, int]) -> WindowObservation:
         requests_by_entity=dict(counts),
         volume_by_entity={k: 50 * v for k, v in counts.items()},
         signed_volume_by_entity={k: 20 * v for k, v in counts.items()},
+        fills_by_entity=dict(counts),
         fills=sum(counts.values()), requests=sum(counts.values()), no_quote=0,
         liquidity_lots_in_band=2000, makers_in_band=9,
         fills_by_bucket=(1, 1, 1), requests_by_bucket=(1, 1, 1),
@@ -116,7 +131,7 @@ def test_threshold_disclosure_suppresses_a_thin_market():
     thin = WindowObservation(
         window=0, start_step=0, end_step=10, requests_by_entity={0: 1},
         volume_by_entity={0: 10}, signed_volume_by_entity={0: 10},
-        fills=1, requests=1, no_quote=0,
+        fills_by_entity={0: 1}, fills=1, requests=1, no_quote=0,
         liquidity_lots_in_band=10, makers_in_band=1,
         fills_by_bucket=(1, 0, 0), requests_by_bucket=(1, 0, 0),
     )

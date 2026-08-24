@@ -203,13 +203,25 @@ def main() -> int:
                         f"{site.ssh}:{target}/Programs/Schedules/"], check=True)
         subprocess.run(f"scp -q {bytecode}/{program}-*.bc "
                        f"{site.ssh}:{target}/Programs/Bytecode/", shell=True, check=True)
-        subprocess.run(f"scp -q {work}/inputs/Input-P*-0 "
-                       f"{site.ssh}:{target}/Player-Data/", shell=True, check=True)
-        # Every site needs every party's certificate, not just its own: the
-        # parties authenticate each other. Leaving these out is what made the
-        # first run exit non-zero with nothing in its logs.
-        subprocess.run(f"scp -q {certs}/* {site.ssh}:{target}/Player-Data/",
+        # Only the inputs of the parties this site runs. Shipping all seven put
+        # every party's share of the request and of every maker's policy on
+        # every machine, which any site operator could add up --- a measurement
+        # of geographic independence that handed each site the secret.
+        for party in site.parties:
+            subprocess.run(["scp", "-q", str(work / "inputs" / f"Input-P{party}-0"),
+                            f"{site.ssh}:{target}/Player-Data/"], check=True)
+        # Every site needs every party's *certificate*, because the parties
+        # authenticate each other, and only its own parties' *private keys*.
+        # Both used to be shipped: every site held every node's TLS identity and
+        # could speak as any of them. The comment below this line used to say
+        # "certificate" and the glob said `*`.
+        subprocess.run(f"scp -q {certs}/*.pem {site.ssh}:{target}/Player-Data/",
                        shell=True, check=True)
+        for party in site.parties:
+            key = certs / f"P{party}.key"
+            if key.exists():
+                subprocess.run(["scp", "-q", str(key),
+                                f"{site.ssh}:{target}/Player-Data/"], check=True)
         run(["ssh", site.ssh,
              f"cd {target}/Player-Data && c_rehash . >/dev/null 2>&1 || true"])
         run(["ssh", site.ssh, f"cd {target}/Player-Data && c_rehash . >/dev/null 2>&1 || true"])
