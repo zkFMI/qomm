@@ -77,9 +77,16 @@ fn direction_and_size_fall_to_the_population_prior_when_hidden() {
     let p = a::pretrade_attributes(&plain, &cfg);
     let o = a::pretrade_attributes(&oblivious, &cfg);
     assert!(close(p.extra["direction_accuracy"], 1.0));
+    assert!(close(p.extra["size_bucket_accuracy"], 1.0));
     assert!(close(o.extra["direction_accuracy"], 0.5));
     assert!(close(o.extra["direction_prior"], 0.5));
+    assert_eq!(o.extra["direction_accuracy"], o.extra["direction_prior"]);
+    assert_eq!(
+        o.extra["size_bucket_accuracy"],
+        o.extra["size_bucket_prior"]
+    );
     assert_eq!(p.n_examples, 140);
+    assert_eq!(o.n_examples, p.n_examples);
 }
 
 /// Probing survives obliviousness: a firm price is what the venue returns by

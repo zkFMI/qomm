@@ -128,7 +128,7 @@ of one, so a maker in a market with no usable benchmark had no way to say no,
 and a corporate bond has no continuous mid to be an offset from.
 
 `use_ref` is that missing switch: a secret bit per maker, with
-`anchored = mid + use_ref * ref`. It puts one more multiplication into a SIMD
+`anchored = ask_level + use_ref * ref`. It puts one more multiplication into a SIMD
 layer that already had two, so the depth does not move. Measured both arms in
 one session on one machine (`use_ref_cost.json`, M=16, 31 bits, 4 assets, 15 ms,
 both verified):
@@ -162,7 +162,7 @@ The correction works because the reference shifts every maker's cost equally and
 so cannot reorder them --- which stops being true the moment some makers are on
 the reference and others are not. A relative maker at `ref + 30` and an absolute
 one at `100,020` swap places as the reference crosses `99,990`;
-`tests/test_reference_invariance.py` holds the case.
+`rust/qomm-mpc/tests/reference_invariance.rs` holds the case.
 
 So: **per-market is free and keeps the correction, per-maker costs 0.26% and
 keeps the correction only while an asset's makers agree.** A venue that wants
@@ -172,10 +172,10 @@ at registration, which is a rule about admission rather than about the circuit.
 ### 0.5 The drift need not be paid at all
 
 The quote is affine in the reference price and the winner does not depend on it.
-`anchored = mid + spread_request(ref)` adds the same term to every maker, and no
+`anchored = ask_level + spread_request(ref)` adds the same term to every maker, and no
 eligibility gate --- asset, size, expiry, active --- reads the reference, so a
 move in it shifts every cost by the same amount and cannot reorder them.
-`tests/test_reference_invariance.py` checks this rather than asserting it.
+`rust/qomm-mpc/tests/reference_invariance.rs` checks this rather than asserting it.
 
 So a slow committee does not have to produce a stale quote. **Run against
 whatever reference was current when the computation started, and correct the
@@ -358,7 +358,7 @@ the bytes, yes --- and not what that phase will cost.
 
 Today's cohort registry holds a handful to a few dozen firms, so **OR
 composition is the default**. If the venue starts verifying many presentations
-per slot, swap in `zk/gk_oneofmany.py`; the two share the group abstraction, so
+per slot, swap in `rust/qomm-zk/src/oneofmany.rs`; the two share the group abstraction, so
 the change is local.
 
 ### 2.2 Range proofs
@@ -447,7 +447,8 @@ a listing decision, not a technical one.
 
 **The Rust implementation blunts this lever.** Bulletproofs comes only in powers
 of two, so securities at 24 bits round up to 32 and cash at 40 to 64 (section
-2.12). Trimming the width is fully available only in the Python implementation.
+2.12). The retired arbitrary-width prototype allowed finer trimming; the Rust
+implementation deliberately exposes the Bulletproofs widths only.
 
 ### 2.8 Hiding the instrument at the settlement layer
 
@@ -542,9 +543,8 @@ Measured on the same machine (`DEFMI.md` section 7). A 40-bit rail rounds up to
 | audit of the underlying cryptography | none (hand-rolled over libsodium) | dalek and bulletproofs (Quarkslab 2019), FROST (NCC 2023) |
 | DvP on note rails | present | **absent** (not ported) |
 
-**Deploy the Rust.** The Python implementation stays as the measuring
-instrument and as the way to trim widths freely for design decisions. A
-deployment that uses note rails, though, exists only in Python so far.
+**Deploy the Rust.** The retired implementation's measurements remain historical
+calibration data; executable settlement and note rails now live in `rust/qomm-defmi`.
 
 ---
 

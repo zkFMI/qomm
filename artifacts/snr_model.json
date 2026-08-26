@@ -1,39 +1,39 @@
 {
- "host": "host-c",
- "volume_cap": 300,
- "epsilon_per_window": 1.0,
- "epsilon_per_field": 0.25,
- "noise_scale": 1200.0,
- "mean_size_lots": 55.8,
- "trades_per_firm_per_s": 0.125,
- "clip_saturation_s": 231.24060585038737,
- "ceiling": {
-  "generated market, entities configured": 0.8260904157536267,
-  "UniswapX: requests per window in the run (4485/2400)": 0.23051413726812664,
-  "UniswapX: distinct swappers per 150-block window, raw tape median": 0.5592658552736793
- },
- "firms_per_window_for_snr_1": 35.168680531552624,
- "ceiling_if_whole_tape_pooled": 8.474979098425552,
- "firm_counts": {
-  "generated market, entities configured": 24,
-  "UniswapX: requests per window in the run (4485/2400)": 1.86875,
-  "UniswapX: distinct swappers per 150-block window, raw tape median": 11
- },
- "mean_field_noise": {
-  "winning half-spread (ticks)": {
-   "1 min": 3.7333333333333334,
-   "10 min": 0.37333333333333335,
-   "1 hour": 0.06222222222222222
+  "ceiling": {
+    "UniswapX: distinct swappers per 150-block window, raw tape median": 0.5592658552736793,
+    "UniswapX: requests per window in the run (4485/2400)": 0.23051413726812664,
+    "generated market, entities configured": 0.8260904157536267
   },
-  "trade size (lots)": {
-   "1 min": 26.666666666666668,
-   "10 min": 2.6666666666666665,
-   "1 hour": 0.4444444444444444
+  "ceiling_if_whole_tape_pooled": 8.474979098425552,
+  "clip_saturation_s": 231.24060585038737,
+  "epsilon_per_field": 0.25,
+  "epsilon_per_window": 1.0,
+  "firm_counts": {
+    "UniswapX: distinct swappers per 150-block window, raw tape median": 11,
+    "UniswapX: requests per window in the run (4485/2400)": 1.86875,
+    "generated market, entities configured": 24
   },
-  "per-fill markout (ticks)": {
-   "1 min": 2.933333333333333,
-   "10 min": 0.29333333333333333,
-   "1 hour": 0.04888888888888889
-  }
- }
+  "firms_per_window_for_snr_1": 35.168680531552624,
+  "host": "host-a",
+  "mean_field_noise": {
+    "per-fill markout (ticks)": {
+      "1 hour": 0.04888888888888889,
+      "1 min": 2.933333333333333,
+      "10 min": 0.29333333333333333
+    },
+    "trade size (lots)": {
+      "1 hour": 0.4444444444444444,
+      "1 min": 26.666666666666668,
+      "10 min": 2.6666666666666665
+    },
+    "winning half-spread (ticks)": {
+      "1 hour": 0.06222222222222222,
+      "1 min": 3.7333333333333334,
+      "10 min": 0.37333333333333335
+    }
+  },
+  "mean_size_lots": 55.8,
+  "noise_scale": 1200.0,
+  "trades_per_firm_per_s": 0.125,
+  "volume_cap": 300
 }

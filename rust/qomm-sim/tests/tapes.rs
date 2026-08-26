@@ -3,8 +3,34 @@
 //! archive's own format, newest-first, which is the shape that has silently
 //! broken this loader before.
 
+use qomm_sim::lab::{self, BuildOptions};
 use qomm_sim::market::SimConfig;
 use qomm_sim::tapes::*;
+
+const FNV_OFFSET: u64 = 14_695_981_039_346_656_037;
+const FNV_PRIME: u64 = 1_099_511_628_211;
+
+fn hash_bytes(hash: &mut u64, bytes: &[u8]) {
+    for byte in bytes {
+        *hash ^= u64::from(*byte);
+        *hash = hash.wrapping_mul(FNV_PRIME);
+    }
+}
+
+fn requests_fingerprint(requests: &[qomm_sim::market::Request]) -> u64 {
+    let mut hash = FNV_OFFSET;
+    hash_bytes(&mut hash, &(requests.len() as u64).to_le_bytes());
+    for request in requests {
+        for value in [request.step, request.entity, request.wallet] {
+            hash_bytes(&mut hash, &(value as u64).to_le_bytes());
+        }
+        hash_bytes(&mut hash, &request.size.to_le_bytes());
+        hash_bytes(&mut hash, &[request.direction]);
+        hash_bytes(&mut hash, &[u8::from(request.informed)]);
+        hash_bytes(&mut hash, &request.signal.to_le_bytes());
+    }
+    hash
+}
 
 fn fixture() -> String {
     // A deterministic stand-in for a symbol-day: the columns the loader reads,
@@ -44,6 +70,33 @@ fn a_newest_first_file_loads_in_time_order() {
     let tape = load_bybit(&fixture(), &cfg(), "t.csv", Some(4_000), Some(50), None).unwrap();
     assert_eq!(tape.rows.len(), 600);
     assert!(tape.rows.windows(2).all(|w| w[0].step <= w[1].step));
+}
+
+#[test]
+fn a_tape_written_newest_first_spreads_across_its_span() {
+    let tape = load_bybit(&fixture(), &cfg(), "t.csv", Some(4_000), Some(50), None).unwrap();
+    let steps = tape.rows.iter().map(|row| row.step).collect::<Vec<_>>();
+    assert!(!steps.is_empty());
+    assert!(steps.windows(2).all(|window| window[0] <= window[1]));
+    assert_eq!(steps[0], 0);
+    assert!(steps[steps.len() - 1] > steps.len() / 2);
+    assert!(steps.windows(2).any(|window| window[0] != window[1]));
+}
+
+#[test]
+fn the_price_series_follows_time_and_not_file_order() {
+    let config = cfg();
+    let tape = load_bybit(
+        &fixture(),
+        &config,
+        "t.csv",
+        Some(config.steps),
+        Some(config.step_ms),
+        None,
+    )
+    .unwrap();
+    assert_eq!(tape.mid.len(), config.steps + 1);
+    assert!(tape.mid.iter().all(|value| *value > 0));
 }
 
 /// The check that a tape read in the wrong order is refused rather than
@@ -88,6 +141,17 @@ fn informedness_is_latent_rather_than_a_threshold_on_the_move() {
 }
 
 #[test]
+fn the_informed_share_is_estimated_from_agreement() {
+    let tape = load_bybit(&fixture(), &cfg(), "t.csv", Some(4_000), Some(50), None).unwrap();
+    let market = TapeMarket::new(&cfg(), &tape, 20, 60.0, 200, 3);
+    assert!((0.0..=1.0).contains(&market.informed_share));
+    assert_eq!(
+        market.informed_share,
+        (2.0 * market.agreement_rate - 1.0).clamp(0.0, 1.0)
+    );
+}
+
+#[test]
 fn rescaling_moves_the_scale_and_leaves_the_shape() {
     let raw: Vec<f64> = (1..=101).map(|i| i as f64).collect();
     let lots = rescale_sizes(&raw, 40, SIZE_CEILING);
@@ -100,15 +164,44 @@ fn rescaling_moves_the_scale_and_leaves_the_shape() {
 }
 
 #[test]
-fn one_wallet_per_entity_is_the_least_favourable_setting_and_is_the_default() {
-    let tape = load_bybit(&fixture(), &cfg(), "t.csv", Some(4_000), Some(50), None).unwrap();
-    let market = TapeMarket::new(&cfg(), &tape, 20, 60.0, 200, 0);
-    let out = requests_from_tape(&cfg(), &market, &tape, Entities::PerAddress, 1, 7);
-    assert_eq!(out.cfg.wallets_per_entity, 1);
-    assert_eq!(out.entity_kind, "one entity per observed address");
-    // Every synthetic taker is its own entity, so a per-entity cap has nothing
-    // to collapse --- which is the point of testing it here.
-    assert_eq!(out.cfg.n_entities, 600);
+fn the_default_keeps_one_entity_per_observed_address() {
+    let path = std::env::temp_dir().join(format!(
+        "qomm-sim-default-entities-{}.csv",
+        std::process::id()
+    ));
+    std::fs::write(&path, fixture()).unwrap();
+    let built = lab::build(&BuildOptions {
+        cfg: cfg(),
+        tape: Some(path.clone()),
+        tape_kind: "bybit".to_string(),
+        tape_step_ms: 50,
+        ..BuildOptions::default()
+    });
+    std::fs::remove_file(path).unwrap();
+    let setup = built.unwrap();
+    assert_eq!(setup.cfg.wallets_per_entity, 1);
+    assert!(setup.source.starts_with("bybit:qomm-sim-default-entities-"));
+    // The fixture writes six hundred fills under six hundred distinct
+    // addresses, and the default keeps them apart. The Rust port used to carry
+    // `Some(24)` where the Python library carried `None`, so it collapsed those
+    // six hundred round robin into twenty-four. That collapse is not neutral:
+    // a per-entity cap then binds twenty-four synthetic entities aggregating
+    // twenty-five fills each, rather than the six hundred the tape actually
+    // shows, which is the setting most favourable to the venue rather than the
+    // least. It is also the collapse that made the block-range query saturate
+    // in one window on generated data.
+    assert_eq!(
+        setup.meta["entities"], 600.0,
+        "the default keeps one entity per observed address"
+    );
+    assert_eq!(setup.cfg.n_entities, 600);
+    // The observed-address count is not carried in the metadata under its own
+    // key, which is why `entities` has to be read against the tape to know what
+    // an entity stood for. Under this default the two coincide.
+    assert!(
+        !setup.meta.contains_key("observed_addresses"),
+        "if this key appears, assert it equals `entities` under the default"
+    );
 }
 
 #[test]
@@ -117,9 +210,47 @@ fn round_robin_assignment_reproduces_the_python() {
     let market = TapeMarket::new(&cfg(), &tape, 20, 60.0, 200, 0);
     let out = requests_from_tape(&cfg(), &market, &tape, Entities::RoundRobin(24), 1, 7);
     assert_eq!(out.cfg.n_entities, 24);
-    let first = out.requests[0];
+    assert_eq!(out.requests.len(), 600);
+    assert_eq!(requests_fingerprint(&out.requests), 0xd788_1435_4ef6_48e2);
     assert_eq!(
-        (first.step, first.entity, first.size, first.direction),
-        (0, 7, 36, 1)
+        out.requests.last().map(|request| (
+            request.step,
+            request.entity,
+            request.wallet,
+            request.size,
+            request.direction,
+            request.informed,
+            request.signal,
+        )),
+        Some((2_350, 3, 3, 28, 1, false, 0))
     );
+}
+
+#[test]
+fn uniswapx_amount_records_preserve_pair_time_entity_and_direction() {
+    let text = concat!(
+        "{\"block\":90,\"checkpoint\":1}\n",
+        "{\"block\":100,\"log_index\":2,\"filler\":\"f1\",\"swapper\":\"s1\",",
+        "\"legs\":[{\"token\":\"0xa\",\"amount\":100,\"out\":true},",
+        "{\"token\":\"0xb\",\"amount\":50,\"out\":false}]}\n",
+        "{\"block\":102,\"log_index\":1,\"filler\":\"f2\",\"swapper\":\"s2\",",
+        "\"legs\":[{\"token\":\"0xb\",\"amount\":100,\"out\":true},",
+        "{\"token\":\"0xa\",\"amount\":210,\"out\":false}]}\n"
+    );
+    let tape = load_uniswapx(text, &cfg(), "fills.jsonl", None, 1, 1, None).unwrap();
+    assert_eq!(tape.source, "uniswapx:fills.jsonl");
+    assert_eq!(tape.steps(), 2);
+    assert_eq!(tape.rows.len(), 2);
+    assert_eq!(
+        tape.rows
+            .iter()
+            .map(|row| (row.step, row.address.as_str(), row.direction))
+            .collect::<Vec<_>>(),
+        vec![(0, "s1", 0), (2, "s2", 1)]
+    );
+    assert_eq!(
+        tape.rows.iter().map(|row| row.size).collect::<Vec<_>>(),
+        vec![27, 53]
+    );
+    assert_eq!(tape.mid, vec![100_000, 100_000, 105_000]);
 }

@@ -1,5 +1,0 @@
-# how the market maker's inventory moves after a fill: the rule U_i
-state inv[-4000,4000]
-input fill_qty[0,400], side[0,1]
-
-inv_next = clamp(inv + signed(side, fill_qty), -4000, 4000)

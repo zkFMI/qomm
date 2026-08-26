@@ -1,93 +1,101 @@
 {
- "host": "host-a",
- "field_bits": 253,
- "field_matches_commitment_scalar_field": true,
- "parties": 7,
- "threshold": 2,
- "wires_per_maker": 15,
- "wire_order": [
-  "mid",
-  "half",
-  "slope",
-  "invcoef",
-  "inv",
-  "maxqty",
-  "expiry",
-  "active",
-  "depth",
-  "skew",
-  "ask",
-  "bid",
-  "fits",
-  "ok",
-  "key"
- ],
- "runs_in_file": 3,
- "winner_key": 400118,
- "supplied_outside_the_circuit": [
-  "blindings, which the computation does not know about",
-  "cross terms, which are one multiplication in a deployment"
- ],
- "rows": [
-  {
-   "maker": 0,
-   "slope": 3,
-   "wrong_quantity_control_applies": true,
-   "a_wrong_quantity_is_refused": true,
-   "another_makers_depth_is_refused": true,
-   "commitments_from_shares_agree": true,
-   "depth_is_slope_times_qty": true,
-   "bits_proved": {
-    "fits": true,
-    "ok": true,
-    "active": true
-   },
-   "no_node_holds_a_wire": true
-  },
-  {
-   "maker": 1,
-   "slope": 0,
-   "wrong_quantity_control_applies": false,
-   "a_wrong_quantity_is_refused": false,
-   "another_makers_depth_is_refused": true,
-   "commitments_from_shares_agree": true,
-   "depth_is_slope_times_qty": true,
-   "bits_proved": {
-    "fits": true,
-    "ok": true,
-    "active": true
-   },
-   "no_node_holds_a_wire": true
-  },
-  {
-   "maker": 2,
-   "slope": 0,
-   "wrong_quantity_control_applies": false,
-   "a_wrong_quantity_is_refused": false,
-   "another_makers_depth_is_refused": true,
-   "commitments_from_shares_agree": true,
-   "depth_is_slope_times_qty": true,
-   "bits_proved": {
-    "fits": true,
-    "ok": true,
-    "active": true
-   },
-   "no_node_holds_a_wire": true
-  },
-  {
-   "maker": 3,
-   "slope": 1,
-   "wrong_quantity_control_applies": true,
-   "a_wrong_quantity_is_refused": true,
-   "another_makers_depth_is_refused": true,
-   "commitments_from_shares_agree": true,
-   "depth_is_slope_times_qty": true,
-   "bits_proved": {
-    "fits": true,
-    "ok": true,
-    "active": true
-   },
-   "no_node_holds_a_wire": true
-  }
- ]
+  "field_bits": 253,
+  "field_matches_commitment_scalar_field": true,
+  "host": "host-a",
+  "parties": 7,
+  "rows": [
+    {
+      "a_wrong_quantity_is_refused": true,
+      "another_makers_depth_is_refused": true,
+      "bits_proved": {
+        "active": true,
+        "fits": true,
+        "ok": true
+      },
+      "commitments_from_shares_agree": true,
+      "depth_is_slope_times_qty": true,
+      "maker": 0,
+      "no_node_holds_a_wire": true,
+      "slope": 3,
+      "wrong_quantity_control_applies": true
+    },
+    {
+      "a_wrong_quantity_is_refused": false,
+      "another_makers_depth_is_refused": true,
+      "bits_proved": {
+        "active": true,
+        "fits": true,
+        "ok": true
+      },
+      "commitments_from_shares_agree": true,
+      "depth_is_slope_times_qty": true,
+      "maker": 1,
+      "no_node_holds_a_wire": true,
+      "slope": 0,
+      "wrong_quantity_control_applies": false
+    },
+    {
+      "a_wrong_quantity_is_refused": false,
+      "another_makers_depth_is_refused": true,
+      "bits_proved": {
+        "active": true,
+        "fits": true,
+        "ok": true
+      },
+      "commitments_from_shares_agree": true,
+      "depth_is_slope_times_qty": true,
+      "maker": 2,
+      "no_node_holds_a_wire": true,
+      "slope": 0,
+      "wrong_quantity_control_applies": false
+    },
+    {
+      "a_wrong_quantity_is_refused": true,
+      "another_makers_depth_is_refused": true,
+      "bits_proved": {
+        "active": true,
+        "fits": true,
+        "ok": true
+      },
+      "commitments_from_shares_agree": true,
+      "depth_is_slope_times_qty": true,
+      "maker": 3,
+      "no_node_holds_a_wire": true,
+      "slope": 1,
+      "wrong_quantity_control_applies": true
+    }
+  ],
+  "runs_in_file": 1,
+  "supplied_outside_the_circuit": [
+    "blindings, which the computation does not know about",
+    "cross terms, which are one multiplication in a deployment"
+  ],
+  "threshold": 2,
+  "winner_key": 399994,
+  "wire_order": [
+    "ask_level",
+    "spread",
+    "slope",
+    "invcoef",
+    "inv",
+    "maxqty",
+    "expiry",
+    "active",
+    "depth",
+    "skew",
+    "ask",
+    "bid",
+    "fits",
+    "ok",
+    "key",
+    "fits_margin",
+    "fresh_margin",
+    "fresh_bit",
+    "fits_product",
+    "fresh_product",
+    "both",
+    "gated",
+    "cost"
+  ],
+  "wires_per_maker": 23
 }

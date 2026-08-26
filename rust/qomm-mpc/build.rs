@@ -99,6 +99,30 @@ fn main() {
         "stdc++"
     };
     println!("cargo:rustc-link-lib=dylib={cxx}");
+    // The shim is a static archive, so its own GMP references have to be
+    // satisfied at the final link. `libSPDZ.so` already depends on GMP, but a
+    // shared dependency does not resolve an undefined symbol in an archive that
+    // comes before it, and the failure reads as a hundred lines of
+    // `gmpxx.h:1597` rather than as a missing `-lgmp`.
+    // MP-SPDZ's own `CONFIG` sets
+    // `LDLIBS = -lgmpxx -lgmp -lsodium -lssl -lcrypto -lboost_filesystem
+    //  -lboost_iostreams`, and the shim reaches all of them through the headers
+    // it includes. `libSPDZ.so` depending on the same libraries does not
+    // resolve them: an undefined symbol in an archive placed before a shared
+    // object stays undefined, and the failure reads as a hundred lines of
+    // `gmpxx.h:1597` and `boost::filesystem::detail` rather than as a missing
+    // `-lgmp`.
+    for lib in [
+        "gmpxx",
+        "gmp",
+        "sodium",
+        "ssl",
+        "crypto",
+        "boost_filesystem",
+        "boost_iostreams",
+    ] {
+        println!("cargo:rustc-link-lib=dylib={lib}");
+    }
     println!("cargo:rustc-link-arg=-Wl,-rpath,{}", root.display());
     // The rpath is not enough on macOS. MP-SPDZ links `libSPDZ.so` without an
     // `-install_name @rpath/...`, so the library records its own bare name and

@@ -17,6 +17,10 @@
 //! a checkout, and a workspace that will not compile without one is worse than
 //! one that says so.
 
+pub mod inputs;
+pub mod persistence;
+pub mod program;
+
 #[cfg(have_spdz)]
 use std::ffi::{CStr, CString};
 #[cfg(have_spdz)]

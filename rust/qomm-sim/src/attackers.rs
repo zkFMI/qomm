@@ -16,7 +16,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::engine::{ArmResult, ProbeResult};
-use crate::market::{size_bucket, ReferenceMarket, SimConfig};
+use crate::market::{size_bucket, PricePath, SimConfig};
 use crate::pyrandom::PyRandom;
 
 /// Rank-based AUC with ties averaged.
@@ -453,7 +453,7 @@ pub fn probing_entity(result: &ArmResult, probe_budget: usize) -> AttackReport {
         if values.is_empty() {
             None
         } else {
-            Some(values.iter().sum::<f64>() / values.len() as f64)
+            Some(crate::fsum::fsum(values.iter().copied()) / values.len() as f64)
         }
     });
     extra.insert("own_inventory_corr_from_per_mm_quotes", per_mm);
@@ -559,7 +559,14 @@ pub const PROBE_BUDGETS: [usize; 10] = [4, 6, 8, 12, 16, 24, 32, 64, 128, 256];
 
 /// How much probing does the inventory attack actually need?
 pub fn probe_cost_curve(result: &ArmResult) -> BTreeMap<usize, (Option<f64>, Option<f64>)> {
-    PROBE_BUDGETS
+    probe_cost_curve_with_budgets(result, &PROBE_BUDGETS)
+}
+
+pub fn probe_cost_curve_with_budgets(
+    result: &ArmResult,
+    budgets: &[usize],
+) -> BTreeMap<usize, (Option<f64>, Option<f64>)> {
+    budgets
         .iter()
         .map(|budget| {
             let report = probing_entity(result, *budget);
@@ -656,7 +663,7 @@ pub fn colluding_wallets(
 /// requests --- which is the reason to report it. It marks the boundary of what
 /// the design claims.
 pub struct ExternalInfoObserver<'a> {
-    pub market: &'a ReferenceMarket,
+    pub market: &'a dyn PricePath,
 }
 
 impl Attack for ExternalInfoObserver<'_> {
@@ -675,7 +682,7 @@ impl Attack for ExternalInfoObserver<'_> {
         let (mut scores, mut labels) = (Vec::new(), Vec::new());
         for stl in &result.settlements {
             let future =
-                self.market.mid[(stl.step + 20).min(cfg.steps)] - self.market.mid[stl.step];
+                self.market.mid()[(stl.step + 20).min(cfg.steps)] - self.market.mid()[stl.step];
             // a buy just before a rise looks informed
             let signed_move = if stl.direction == 0 { future } else { -future };
             scores.push(signed_move as f64);
@@ -693,7 +700,7 @@ impl Attack for ExternalInfoObserver<'_> {
 pub fn external_info_observer(
     result: &ArmResult,
     cfg: &SimConfig,
-    market: &ReferenceMarket,
+    market: &dyn PricePath,
 ) -> AttackReport {
     ExternalInfoObserver { market }.run(result, cfg)
 }
@@ -704,13 +711,20 @@ fn pearson(a: &[f64], b: &[f64]) -> Option<f64> {
         return None;
     }
     let (a, b) = (&a[..n], &b[..n]);
+    // `statistics.fmean`, which is `fsum` then one division --- not a naive
+    // sum. The difference is one unit in the last place, and it reached the
+    // reported correlations.
     let (ma, mb) = (
-        a.iter().sum::<f64>() / n as f64,
-        b.iter().sum::<f64>() / n as f64,
+        crate::fsum::fsum(a.iter().copied()) / n as f64,
+        crate::fsum::fsum(b.iter().copied()) / n as f64,
     );
-    let num: f64 = a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)).sum();
-    let da = a.iter().map(|x| (x - ma).powi(2)).sum::<f64>().sqrt();
-    let db = b.iter().map(|y| (y - mb).powi(2)).sum::<f64>().sqrt();
+    // The three sums are Python's builtin `sum`, which compensates; the two
+    // means above are `statistics.fmean`, which is `fsum`. Routing all five
+    // through the more accurate of the two would be a different function from
+    // the one being ported.
+    let num = crate::fsum::nsum(a.iter().zip(b).map(|(x, y)| (x - ma) * (y - mb)));
+    let da = crate::fsum::nsum(a.iter().map(|x| (x - ma).powi(2))).sqrt();
+    let db = crate::fsum::nsum(b.iter().map(|y| (y - mb).powi(2))).sqrt();
     if da == 0.0 || db == 0.0 {
         return None;
     }

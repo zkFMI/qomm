@@ -1,204 +1,204 @@
 {
-  "host": "host-c",
-  "python": "3.13.5",
-  "seeds": 12,
   "arms": {
     "generated": {
-      "meta": {
-        "source": "generated"
-      },
       "layer": "reactive",
       "levels": {
-        "none": {
+        "dp_corrected": {
           "fill_rate": {
-            "mean": 0.8265726595124687,
-            "half_width": 0.03238746155021133,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.03852184221277283,
+            "mean": 0.792152170054785,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": 276.5967001205503,
-            "half_width": 95.2917117519434,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 74.76086124620477,
+            "mean": 244.39980703709875,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         },
         "dp_uncorrected": {
           "fill_rate": {
-            "mean": 0.7969497886650655,
-            "half_width": 0.02888117499954116,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.02888117499954116,
+            "mean": 0.7969497886650655,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": 249.69854435361836,
-            "half_width": 73.52298792146911,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 73.52298792146911,
+            "mean": 249.69854435361836,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         },
-        "dp_corrected": {
+        "none": {
           "fill_rate": {
-            "mean": 0.792152170054785,
-            "half_width": 0.03852184221277283,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.03238746155021133,
+            "mean": 0.8265726595124687,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": 244.39980703709875,
-            "half_width": 74.76086124620477,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 95.2917117519434,
+            "mean": 276.5967001205503,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         }
       },
+      "meta": {
+        "source": "generated"
+      },
       "paired_against_no_disclosure": {
-        "dp_uncorrected": {
-          "fill_rate": {
-            "mean": -0.02962287084740316,
-            "half_width": 0.021037436350314236,
-            "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
-          },
-          "mm_pnl_per_fill": {
-            "mean": -26.898155766931925,
-            "half_width": 36.6153930018689,
-            "excludes_zero": false,
-            "n": 12,
-            "multiplier": 2.20098516009159
-          }
-        },
         "dp_corrected": {
           "fill_rate": {
-            "mean": -0.03442048945768386,
-            "half_width": 0.030798298834233125,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.030798298834233125,
+            "mean": -0.03442048945768386,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": -32.196893083451535,
-            "half_width": 40.85776886279927,
             "excludes_zero": false,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 40.85776886279927,
+            "mean": -32.196893083451535,
+            "multiplier": 2.20098516009159,
+            "n": 12
+          }
+        },
+        "dp_uncorrected": {
+          "fill_rate": {
+            "excludes_zero": true,
+            "half_width": 0.021037436350314236,
+            "mean": -0.02962287084740316,
+            "multiplier": 2.20098516009159,
+            "n": 12
+          },
+          "mm_pnl_per_fill": {
+            "excludes_zero": false,
+            "half_width": 36.6153930018689,
+            "mean": -26.898155766931925,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         }
       }
     },
     "tape": {
-      "meta": {
-        "source": "bybit:LTCUSDT2021-06-15.csv",
-        "requests": 411,
-        "entities": 24,
-        "wallets_per_entity": 1,
-        "entity_kind": "assigned round-robin (the tape has no identities)",
-        "informed_share_measured": 0.0,
-        "agreement_rate_measured": 0.46715328467153283,
-        "informed_share_estimated": 0.0,
-        "informed_base_assumed": 0.3,
-        "edge_ticks_measured": 58,
-        "edge_ticks_assumed": 22.0,
-        "trades": 411,
-        "step_ms": 1000,
-        "span_s": 2336.1993000507355,
-        "arrival_per_s": 0.1759267713123081,
-        "tick_value": 0.0017999000000000001,
-        "sizes_over_largest_bucket": 31,
-        "sizes_at_ceiling": 0
-      },
       "layer": "reactive",
       "levels": {
-        "none": {
+        "dp_corrected": {
           "fill_rate": {
-            "mean": 0.8029197080291971,
-            "half_width": 0.043480834074117986,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.03640111415203347,
+            "mean": 0.8185320356853204,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": -419.04813950422977,
-            "half_width": 282.60599482554255,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 227.136451752937,
+            "mean": -338.6364759538723,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         },
         "dp_uncorrected": {
           "fill_rate": {
-            "mean": 0.8179237631792377,
-            "half_width": 0.03669462334335541,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.034608463869714653,
+            "mean": 0.8187347931873479,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": -415.9868459558043,
-            "half_width": 292.89707850100905,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 223.8518884433581,
+            "mean": -448.69938550069634,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         },
-        "dp_corrected": {
+        "none": {
           "fill_rate": {
-            "mean": 0.8213706407137065,
-            "half_width": 0.03892761877678544,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.043480834074117986,
+            "mean": 0.8029197080291971,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": -338.19342926578975,
-            "half_width": 226.46708127965994,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 282.60599482554255,
+            "mean": -419.04813950422977,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         }
       },
+      "meta": {
+        "agreement_rate_measured": 0.46715328467153283,
+        "arrival_per_s": 0.1759267713123081,
+        "edge_ticks_assumed": 22.0,
+        "edge_ticks_measured": 58.0,
+        "entities": 411.0,
+        "entity_kind": "one entity per observed address",
+        "informed_base_assumed": 0.3,
+        "informed_share_estimated": 0.0,
+        "informed_share_measured": 0.0,
+        "requests": 411.0,
+        "sizes_at_ceiling": 0.0,
+        "sizes_over_largest_bucket": 31.0,
+        "source": "bybit:LTCUSDT2021-06-15.csv",
+        "span_s": 2336.1993000507355,
+        "step_ms": 1000.0,
+        "tick_value": 0.0017999000000000001,
+        "trades": 411.0,
+        "wallets_per_entity": 1.0
+      },
       "paired_against_no_disclosure": {
-        "dp_uncorrected": {
-          "fill_rate": {
-            "mean": 0.01500405515004057,
-            "half_width": 0.016464085512469324,
-            "excludes_zero": false,
-            "n": 12,
-            "multiplier": 2.20098516009159
-          },
-          "mm_pnl_per_fill": {
-            "mean": 3.061293548425392,
-            "half_width": 337.4934259035717,
-            "excludes_zero": false,
-            "n": 12,
-            "multiplier": 2.20098516009159
-          }
-        },
         "dp_corrected": {
           "fill_rate": {
-            "mean": 0.01845093268450934,
-            "half_width": 0.013708043056105821,
             "excludes_zero": true,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 0.014863839580648306,
+            "mean": 0.015612327656123295,
+            "multiplier": 2.20098516009159,
+            "n": 12
           },
           "mm_pnl_per_fill": {
-            "mean": 80.85471023844002,
-            "half_width": 301.8308912670554,
             "excludes_zero": false,
-            "n": 12,
-            "multiplier": 2.20098516009159
+            "half_width": 302.14998678826373,
+            "mean": 80.41166355035746,
+            "multiplier": 2.20098516009159,
+            "n": 12
+          }
+        },
+        "dp_uncorrected": {
+          "fill_rate": {
+            "excludes_zero": false,
+            "half_width": 0.01965967349886798,
+            "mean": 0.01581508515815087,
+            "multiplier": 2.20098516009159,
+            "n": 12
+          },
+          "mm_pnl_per_fill": {
+            "excludes_zero": false,
+            "half_width": 358.2943944345507,
+            "mean": -29.65124599646661,
+            "multiplier": 2.20098516009159,
+            "n": 12
           }
         }
       }
     }
-  }
+  },
+  "host": "host-a",
+  "python": "3.12.3",
+  "seeds": 12
 }

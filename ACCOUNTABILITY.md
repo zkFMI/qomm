@@ -59,7 +59,7 @@ lives on rungs 1 to 4.
 Three mechanisms, three different rungs, and it is worth separating them because
 the repository has previously described all three as "attribution".
 
-**The dealt share: rung 4, and only at the boundary.** `qomm_transport/roles.py`
+**The dealt share: rung 4, and only at the boundary.** `rust/qomm-transport/src/roles.rs`
 has the maker sign each dealt share, so a node that later claims a different
 share can be shown to have done so, by anyone. That is a judge-checkable verdict
 --- rung 4 --- but its scope is one message, not the protocol.
@@ -236,7 +236,7 @@ blame the wrong node.**
 
 ### And it is decidable, on data the protocol already sends
 
-`qomm_audit/locate.py` is the decode MP-SPDZ does not do, with 26 tests.
+`rust/qomm-audit/src/locate.rs` is the decode MP-SPDZ does not do, with 26 tests.
 Berlekamp--Welch: solve for `Q` of degree `<= d+e` and monic `E` of degree `e`
 with `Q(x_i) = y_i E(x_i)`, then `P = Q/E` is the true polynomial and every share
 off it belongs to a liar.
@@ -317,7 +317,7 @@ one, and the masks are what forced the 164-bit field in the first place.
 
 ### And the dealer already publishes what would name that one too
 
-`qomm_transport.roles.Dealing` carries **`share_commitments` --- one commitment
+`qomm_transport::roles::Dealing` carries **`share_commitments` --- one commitment
 per share per value** --- so that a node can run `check_share` on what it was
 handed and anyone can run `adds_up` on whether the shares sum to the committed
 value. Those are exactly the commitments a per-party check combines. **What was
@@ -334,7 +334,7 @@ rather than an alternative. The soundness argument is unchanged and now applies
 per party: the coefficients come from the commitments, so a node has to choose
 its error before it can see the coefficient that would cancel it.
 
-**Built and measured** --- `zk/input_check.py` `build_per_party` /
+**Built and measured** --- `rust/qomm-harness/src/bin/run_input_check.rs`'s per-party build /
 `verify_per_party`, 26 tests, `host-a`:
 
 | inputs | verify, aggregate | verify, per party | |
@@ -408,7 +408,7 @@ The same mechanism, and it had to be run to know. `roles.Trader` and
 `secret_input()` exactly like a policy field, so the accumulator should fold it.
 *Should* is not *does*.
 
-`scripts/run_identity.py` follows one quote end to end (`artifacts/identity.json`):
+`rust/qomm-harness/src/bin/run_identity.rs` follows one quote end to end (`artifacts/identity.json`):
 
 | | |
 |---|---|
@@ -458,7 +458,7 @@ the disclosure budget exist to bound.
 
 **That every eligible maker was included.** An omission leaves no commitment in
 the statement to fail against, so no input check can see it.
-`qomm_audit/receipts.py` covers that per slot, on a different axis: a receipt
+`rust/qomm-audit/src/receipts.rs` covers that per slot, on a different axis: a receipt
 from every node every slot, so a node that answers only when the answer suits it
 is visible in the schedule rather than in the arithmetic.
 
@@ -826,7 +826,7 @@ that is a fill.
 `L` in a public book says *I will trade at L*, and not being filled says the
 market is worse. So a binding-limit RFQ leaks **no more than a central limit
 order book**, and less, because `L` is committed rather than displayed ---
-against a baseline `run_clob_baseline.py` already measures.
+against a baseline `rust/qomm-harness/src/bin/run_clob_baseline.rs` already measures.
 
 **Bisection costs fills.** Binary search terminates on the first `q <= L`, which
 *is* a fill; against a uniform quote the first midpoint probe fills with

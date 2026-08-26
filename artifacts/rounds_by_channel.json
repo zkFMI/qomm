@@ -1,6 +1,6 @@
 {
   "host": "host-a",
-  "program": "qomm_rfq_m16_none_3909696",
+  "program": "qomm_rfq_m16_none_1968651",
   "parties": 7,
   "threshold": 2,
   "repeats": 5,
@@ -9,50 +9,48 @@
     {
       "protocol": "malicious-shamir",
       "stock_binary": "malicious-shamir-party.x",
-      "rounds": 70,
-      "raw_rounds": 70,
-      "sent": 3312688,
-      "payload": 2211848,
+      "rounds": 64,
+      "raw_rounds": 64,
+      "sent": 4063600,
+      "payload": 2223880,
       "constant_across_runs": true,
-      "seconds": {"n": 5, "mean": 0.079032, "sd": 0.009903, "median": 0.078097},
+      "seconds": {"n": 5, "mean": 0.020553, "sd": 0.000831, "median": 0.020476},
       "parties": [
-        {"party": 0, "rounds": 70, "sent": 3312688, "payload": 2211848},
-        {"party": 1, "rounds": 65, "sent": 3312400, "payload": 2211368},
-        {"party": 2, "rounds": 65, "sent": 3311824, "payload": 2210792},
-        {"party": 3, "rounds": 65, "sent": 3004368, "payload": 1903336},
-        {"party": 4, "rounds": 65, "sent": 3004368, "payload": 1903336},
-        {"party": 5, "rounds": 65, "sent": 1658064, "payload": 557032},
-        {"party": 6, "rounds": 65, "sent": 1658064, "payload": 557032}
+        {"party": 0, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 1, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 2, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 3, "rounds": 64, "sent": 3756144, "payload": 1916424},
+        {"party": 4, "rounds": 64, "sent": 3756144, "payload": 1916424},
+        {"party": 5, "rounds": 64, "sent": 2407792, "payload": 568072},
+        {"party": 6, "rounds": 64, "sent": 2407792, "payload": 568072}
       ],
       "channels": [
-        {"channel": "Partial broadcasting", "rounds": 49, "bytes": 366784, "share_of_rounds": 0.7000},
-        {"channel": "Sending/receiving", "rounds": 10, "bytes": 1844736, "share_of_rounds": 0.1429},
-        {"channel": "Receiving directly", "rounds": 6, "bytes": 192, "share_of_rounds": 0.0857},
-        {"channel": "Broadcasting", "rounds": 5, "bytes": 136, "share_of_rounds": 0.0714}
+        {"channel": "Partial broadcasting", "rounds": 49, "bytes": 367808, "share_of_rounds": 0.7656},
+        {"channel": "Sending/receiving", "rounds": 10, "bytes": 1855936, "share_of_rounds": 0.1562},
+        {"channel": "Broadcasting", "rounds": 5, "bytes": 136, "share_of_rounds": 0.0781}
       ]
     },
     {
       "protocol": "semi-honest-shamir",
       "stock_binary": "shamir-party.x",
-      "rounds": 62,
-      "raw_rounds": 62,
-      "sent": 1142912,
-      "payload": 1137664,
+      "rounds": 56,
+      "raw_rounds": 56,
+      "sent": 1152512,
+      "payload": 1147072,
       "constant_across_runs": true,
-      "seconds": {"n": 5, "mean": 0.041256, "sd": 0.003915, "median": 0.042526},
+      "seconds": {"n": 5, "mean": 0.013153, "sd": 0.001296, "median": 0.013316},
       "parties": [
-        {"party": 0, "rounds": 62, "sent": 1142912, "payload": 1137664},
-        {"party": 1, "rounds": 57, "sent": 1137184, "payload": 1138272},
-        {"party": 2, "rounds": 57, "sent": 1136608, "payload": 1137696},
-        {"party": 3, "rounds": 50, "sent": 828064, "payload": 829152},
-        {"party": 4, "rounds": 50, "sent": 828064, "payload": 829152},
-        {"party": 5, "rounds": 50, "sent": 1184, "payload": 2272},
-        {"party": 6, "rounds": 50, "sent": 1184, "payload": 2272}
+        {"party": 0, "rounds": 56, "sent": 1152512, "payload": 1147072},
+        {"party": 1, "rounds": 56, "sent": 1147072, "payload": 1148160},
+        {"party": 2, "rounds": 56, "sent": 1147072, "payload": 1148160},
+        {"party": 3, "rounds": 49, "sent": 838528, "payload": 839616},
+        {"party": 4, "rounds": 49, "sent": 838528, "payload": 839616},
+        {"party": 5, "rounds": 49, "sent": 10624, "payload": 11712},
+        {"party": 6, "rounds": 49, "sent": 10624, "payload": 11712}
       ],
       "channels": [
-        {"channel": "Sending/receiving", "rounds": 49, "bytes": 1136384, "share_of_rounds": 0.7903},
-        {"channel": "Sending to all", "rounds": 7, "bytes": 1088, "share_of_rounds": 0.1129},
-        {"channel": "Receiving directly", "rounds": 6, "bytes": 192, "share_of_rounds": 0.0968}
+        {"channel": "Sending/receiving", "rounds": 49, "bytes": 1145984, "share_of_rounds": 0.8750},
+        {"channel": "Sending to all", "rounds": 7, "bytes": 1088, "share_of_rounds": 0.1250}
       ]
     }
   ]

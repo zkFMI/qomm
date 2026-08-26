@@ -1,6 +1,6 @@
 # qomm
 
-**QOMM** is the implementation of *Oblivious Market Making*. It settles through [zkpi](https://github.com/shukob/zkpi) and [defmi](https://github.com/shukob/defmi), a *zero-knowledge payment instruction* and a *decentralized financial market infrastructure*.
+**QOMM** is *query-oblivious market making*. It settles through [zkpi](https://github.com/shukob/zkpi) and [defmi](https://github.com/shukob/defmi), a *zero-knowledge payment instruction* and a *decentralized financial market infrastructure*.
 
 Oblivious market making: quote without disclosing the request, the pricing rule, or the market.
 
@@ -80,31 +80,71 @@ tree.
 
 ## What is here
 
-Rust:
+Rust crates:
 
 - `rust/qomm-dsl`
 - `rust/qomm-law`
 - `rust/qomm-proofs`
 - `rust/qomm-sim`
 - `rust/qomm-mpc`
+- `rust/qomm-transport`
+- `rust/qomm-audit`
+- `rust/qomm-demo`
+- `rust/qomm-zk`
+- `rust/qomm-measure`
+- `rust/qomm-harness`
 
-Python:
+Measurement binaries carried by `qomm-harness`:
 
-- `qomm_sim/`
-- `qomm_dsl/`
-- `qomm_audit/`
-- `qomm_transport/`
-- `qomm_demo/`
-- `qomm_identity/`
-- `mp_spdz/`
-- `zk/`
+- `build_audit_doc`
+- `collect_origins`
+- `collect_uniswapx`
+- `derive_snr`
+- `make_figures`
+- `manifest`
+- `opt_sweep`
+- `report`
+- `research_run`
+- `run_audit_slots`
+- `run_binding_chain`
+- `run_bitdec_rounds`
+- `run_block_range_query`
+- `run_circuit_bound_proof`
+- `run_clob_baseline`
+- `run_disclosure_ceiling`
+- `run_distributed_assembly`
+- `run_dp_audit`
+- `run_dp_effect`
+- `run_entity_behavior`
+- `run_identity`
+- `run_input_check`
+- `run_maker_updates`
+- `run_market_thickness`
+- `run_multi_asset`
+- `run_multiplication_cost`
+- `run_placement`
+- `run_probe_budget`
+- `run_qomm`
+- `run_rho_sweep`
+- `run_robust_atlas`
+- `run_rounds`
+- `run_serve_bench`
+- `run_sim_matrix`
+- `run_sites`
+- `run_stages`
+- `run_staleness`
+- `run_three_times`
+- `run_threshold_assembly`
+- `run_transport`
+- `scrub_artifacts`
+- `serve_demo`
+- `sweep`
+- `tcp_rtt`
 
 `artifacts/` holds the measurements the numbers in the paper are taken from, as
-the runners wrote them. Each carries the host it ran on as a label (`host-a`,
-`host-b`, `host-c`) rather than a machine name, and the mapping back is not
-published --- it names people's machines. `scripts/hosts.py` reads it from a
-local file when there is one and labels nothing when there is not, which is what
-this copy does.
+the binaries wrote them. Each carries the host it ran on as a label (`host-a`,
+`host-b`, `host-c`) rather than a machine name; the private mapping back
+to real machines is not published.
 
 ## Documents
 
@@ -117,25 +157,18 @@ this copy does.
 - [`DEMO.md`](DEMO.md) --- a demonstration a room can operate one seat each, and what is real in it
 - [`REVIEW.md`](REVIEW.md) --- what two rounds of review found, including what was checked and found sound
 
-## Depends on
-
-- [zkpi](https://github.com/shukob/zkpi)
-
-Cargo and Python both resolve these repositories from the checked-in lock files.
-
 ## Running it
 
-```
-cargo test --workspace --all-targets --all-features --release  # in rust/
-uv sync --frozen
-uv run --frozen pytest tests/                               # repository root
+```sh
+cd rust
+cargo test -j 4 --locked --workspace
 ```
 
 ## Measurements
 
-Every reported number has an artifact and a command that produces it. Where a
+Every reported number has an artifact and a Rust binary that produces it. Where a
 measurement needs something not shipped here --- MP-SPDZ, a second host, a market
-data feed --- the command says so and fails rather than substituting a default.
+data feed --- the binary says so and fails rather than substituting a default.
 
 ## License
 

@@ -15,8 +15,8 @@ const NOW: i64 = 1_000;
 
 fn legal() -> Policy {
     Policy {
-        mid: REF_MID + 10,
-        half: 12,
+        ask_level: REF_MID + 22,
+        spread: 24,
         slope: 3,
         invcoef: 2,
         inv: -250,
@@ -61,9 +61,9 @@ fn every_field_is_actually_checked_against_its_band() {
     let bounds = PolicyBounds::default();
     for (name, bad) in [
         (
-            "half",
+            "spread",
             Policy {
-                half: bounds.half.1 + 1,
+                spread: bounds.spread.1 + 1,
                 ..legal()
             },
         ),
@@ -96,9 +96,9 @@ fn every_field_is_actually_checked_against_its_band() {
             },
         ),
         (
-            "mid",
+            "ask_level",
             Policy {
-                mid: REF_MID + bounds.mid_band + 1,
+                ask_level: REF_MID + bounds.level_band + 1,
                 ..legal()
             },
         ),
@@ -223,17 +223,17 @@ fn shares_reconstruct_the_committed_value_and_a_forged_share_does_not_verify() {
         )
         .unwrap();
 
-    let (name, half_shares) = shares.iter().find(|(n, _)| n == "half").unwrap();
-    assert_eq!(name, "half");
+    let (name, spread_shares) = shares.iter().find(|(n, _)| n == "spread").unwrap();
+    assert_eq!(name, "spread");
     assert_eq!(
-        reconstruct(half_shares, 2),
-        Scalar::from(policy.half as u64)
+        reconstruct(spread_shares, 2),
+        Scalar::from(policy.spread as u64)
     );
 
-    let field = &audit.fields.iter().find(|(n, _)| n == "half").unwrap().1;
-    assert!(auditor.verify_node_share(&half_shares[0], field));
+    let field = &audit.fields.iter().find(|(n, _)| n == "spread").unwrap().1;
+    assert!(auditor.verify_node_share(&spread_shares[0], field));
 
-    let mut forged = half_shares[0];
+    let mut forged = spread_shares[0];
     forged.value_share += Scalar::ONE;
     assert!(!auditor.verify_node_share(&forged, field));
 }

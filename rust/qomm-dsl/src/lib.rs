@@ -16,5 +16,6 @@ pub mod parse;
 pub mod registry;
 pub mod rule;
 
+pub use emit::{obligation_plan, ObligationPlan};
 pub use interval::{Interval, RuleError};
 pub use rule::{compile_rule, Declaration, Obligation, Role, Rule};

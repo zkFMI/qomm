@@ -30,7 +30,7 @@ use qomm_zk::sigma::{prove_bit, verify_bit, BitProof};
 use rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 
-pub const FIELDS: [&str; 6] = ["mid", "half", "slope", "invcoef", "inv", "maxqty"];
+pub const FIELDS: [&str; 6] = ["ask_level", "spread", "slope", "invcoef", "inv", "maxqty"];
 const WIDTH_BITS: usize = 32;
 
 /// The bands the venue publishes. A policy is legal when every field is inside
@@ -38,23 +38,23 @@ const WIDTH_BITS: usize = 32;
 /// rather than the venue checks.
 #[derive(Clone, Copy, Debug)]
 pub struct PolicyBounds {
-    pub half: (i64, i64),
+    pub spread: (i64, i64),
     pub slope: (i64, i64),
     pub invcoef: (i64, i64),
     pub maxqty: (i64, i64),
     pub inv: (i64, i64),
-    pub mid_band: i64,
+    pub level_band: i64,
 }
 
 impl Default for PolicyBounds {
     fn default() -> Self {
         PolicyBounds {
-            half: (1, 200),
+            spread: (2, 400),
             slope: (0, 16),
             invcoef: (0, 8),
             maxqty: (1, 1_000),
             inv: (-4_000, 4_000),
-            mid_band: 2_000,
+            level_band: 2_000,
         }
     }
 }
@@ -62,8 +62,8 @@ impl Default for PolicyBounds {
 impl PolicyBounds {
     pub fn for_field(&self, name: &str, ref_mid: i64) -> (i64, i64) {
         match name {
-            "mid" => (ref_mid - self.mid_band, ref_mid + self.mid_band),
-            "half" => self.half,
+            "ask_level" => (ref_mid - self.level_band, ref_mid + self.level_band),
+            "spread" => self.spread,
             "slope" => self.slope,
             "invcoef" => self.invcoef,
             "inv" => self.inv,
@@ -75,8 +75,8 @@ impl PolicyBounds {
 
 #[derive(Clone, Copy, Debug)]
 pub struct Policy {
-    pub mid: i64,
-    pub half: i64,
+    pub ask_level: i64,
+    pub spread: i64,
     pub slope: i64,
     pub invcoef: i64,
     pub inv: i64,
@@ -88,8 +88,8 @@ pub struct Policy {
 impl Policy {
     pub fn field(&self, name: &str) -> i64 {
         match name {
-            "mid" => self.mid,
-            "half" => self.half,
+            "ask_level" => self.ask_level,
+            "spread" => self.spread,
             "slope" => self.slope,
             "invcoef" => self.invcoef,
             "inv" => self.inv,

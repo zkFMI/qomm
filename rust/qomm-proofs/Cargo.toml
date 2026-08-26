@@ -6,7 +6,7 @@ license.workspace = true
 description = "The venue-side proofs: the quote is correct, the policy is well formed, the book moved as stated, and the presenter is a registered entity."
 
 [dependencies]
-qomm-zk = { git = "https://github.com/shukob/zkpi" }
+qomm-zk.workspace = true
 qomm-dsl.workspace = true
 curve25519-dalek.workspace = true
 bulletproofs.workspace = true

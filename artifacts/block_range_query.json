@@ -1,1843 +1,2983 @@
 {
- "host": "host-c",
- "question": "whether a block-range question about distinct requesting entities carries anything, and at what range width",
- "prediction": "artifacts/block_range_query_prediction.json",
- "saturation_definition": "width at which the true distinct count reaches 95% of the entities seen",
- "not_measured_on_purpose": "the fill count. Settlement publishes one on-chain instruction per trade, so that count is exact and free to anyone with a node; a noised version would protect nothing and be worse than the free answer.",
- "arms": [
-  {
-   "arm": "generated",
-   "meta": {
-    "source": "generated"
-   },
-   "seeds": 3,
-   "enrolment_seen_median": 24,
-   "saturation_width_median": 1,
-   "saturation_width_all": [
-    1,
-    1,
-    1
-   ],
-   "sensitivity_flat_every_seed": true,
-   "sd_measured_median": 1.369854006819705,
-   "sd_predicted": 1.3569624860015788,
-   "per_seed": [
+  "arms": [
     {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 1,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 23.65,
-       "fraction_of_enrolment": 0.9854166666666666,
-       "starts": 40
+      "arm": "generated",
+      "enrolment_seen_median": 24,
+      "meta": {
+        "source": "generated"
       },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.974358974358974,
-       "fraction_of_enrolment": 0.9989316239316239,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 27,
-        "event_count_would_move_by_at_most": 27
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 142,
-        "event_count_would_move_by_at_most": 710
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 264,
-        "event_count_would_move_by_at_most": 2640
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 977,
-        "event_count_would_move_by_at_most": 39080
-       }
+      "per_seed": [
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.9854166666666666,
+              "starts": 40,
+              "true_distinct_mean": 23.65,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.9989316239316239,
+              "starts": 39,
+              "true_distinct_mean": 23.974358974358974,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 38,
+              "true_distinct_mean": 24.0,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 37,
+              "true_distinct_mean": 24.0,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 36,
+              "true_distinct_mean": 24.0,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 35,
+              "true_distinct_mean": 24.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 34,
+              "true_distinct_mean": 24.0,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 33,
+              "true_distinct_mean": 24.0,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 32,
+              "true_distinct_mean": 24.0,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 31,
+              "true_distinct_mean": 24.0,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 30,
+              "true_distinct_mean": 24.0,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 29,
+              "true_distinct_mean": 24.0,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 28,
+              "true_distinct_mean": 24.0,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 27,
+              "true_distinct_mean": 24.0,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 26,
+              "true_distinct_mean": 24.0,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 25,
+              "true_distinct_mean": 24.0,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 24,
+              "true_distinct_mean": 24.0,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 23,
+              "true_distinct_mean": 24.0,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 22,
+              "true_distinct_mean": 24.0,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 21,
+              "true_distinct_mean": 24.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 20,
+              "true_distinct_mean": 24.0,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 19,
+              "true_distinct_mean": 24.0,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 18,
+              "true_distinct_mean": 24.0,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 17,
+              "true_distinct_mean": 24.0,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 16,
+              "true_distinct_mean": 24.0,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 15,
+              "true_distinct_mean": 24.0,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 14,
+              "true_distinct_mean": 24.0,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 13,
+              "true_distinct_mean": 24.0,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 12,
+              "true_distinct_mean": 24.0,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 11,
+              "true_distinct_mean": 24.0,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 10,
+              "true_distinct_mean": 24.0,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 9,
+              "true_distinct_mean": 24.0,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 8,
+              "true_distinct_mean": 24.0,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 7,
+              "true_distinct_mean": 24.0,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 6,
+              "true_distinct_mean": 24.0,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 5,
+              "true_distinct_mean": 24.0,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 4,
+              "true_distinct_mean": 24.0,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 3,
+              "true_distinct_mean": 24.0,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 2,
+              "true_distinct_mean": 24.0,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 24.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 24,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3677536327862558,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 24
+          },
+          "saturation_width": 1,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 27,
+                "that_entity_made_requests": 27,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 710,
+                "that_entity_made_requests": 142,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 2640,
+                "that_entity_made_requests": 264,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 39080,
+                "that_entity_made_requests": 977,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.9854166666666666,
+              "starts": 40,
+              "true_distinct_mean": 23.65,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.9989316239316239,
+              "starts": 39,
+              "true_distinct_mean": 23.974358974358974,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 38,
+              "true_distinct_mean": 24.0,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 37,
+              "true_distinct_mean": 24.0,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 36,
+              "true_distinct_mean": 24.0,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 35,
+              "true_distinct_mean": 24.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 34,
+              "true_distinct_mean": 24.0,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 33,
+              "true_distinct_mean": 24.0,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 32,
+              "true_distinct_mean": 24.0,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 31,
+              "true_distinct_mean": 24.0,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 30,
+              "true_distinct_mean": 24.0,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 29,
+              "true_distinct_mean": 24.0,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 28,
+              "true_distinct_mean": 24.0,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 27,
+              "true_distinct_mean": 24.0,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 26,
+              "true_distinct_mean": 24.0,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 25,
+              "true_distinct_mean": 24.0,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 24,
+              "true_distinct_mean": 24.0,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 23,
+              "true_distinct_mean": 24.0,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 22,
+              "true_distinct_mean": 24.0,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 21,
+              "true_distinct_mean": 24.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 20,
+              "true_distinct_mean": 24.0,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 19,
+              "true_distinct_mean": 24.0,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 18,
+              "true_distinct_mean": 24.0,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 17,
+              "true_distinct_mean": 24.0,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 16,
+              "true_distinct_mean": 24.0,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 15,
+              "true_distinct_mean": 24.0,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 14,
+              "true_distinct_mean": 24.0,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 13,
+              "true_distinct_mean": 24.0,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 12,
+              "true_distinct_mean": 24.0,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 11,
+              "true_distinct_mean": 24.0,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 10,
+              "true_distinct_mean": 24.0,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 9,
+              "true_distinct_mean": 24.0,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 8,
+              "true_distinct_mean": 24.0,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 7,
+              "true_distinct_mean": 24.0,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 6,
+              "true_distinct_mean": 24.0,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 5,
+              "true_distinct_mean": 24.0,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 4,
+              "true_distinct_mean": 24.0,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 3,
+              "true_distinct_mean": 24.0,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 2,
+              "true_distinct_mean": 24.0,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 24.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 24,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3469409786623912,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 24
+          },
+          "saturation_width": 1,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 27,
+                "that_entity_made_requests": 27,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 710,
+                "that_entity_made_requests": 142,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 2640,
+                "that_entity_made_requests": 264,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 39080,
+                "that_entity_made_requests": 977,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.9854166666666666,
+              "starts": 40,
+              "true_distinct_mean": 23.65,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.9989316239316239,
+              "starts": 39,
+              "true_distinct_mean": 23.974358974358974,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 38,
+              "true_distinct_mean": 24.0,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 37,
+              "true_distinct_mean": 24.0,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 36,
+              "true_distinct_mean": 24.0,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 35,
+              "true_distinct_mean": 24.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 34,
+              "true_distinct_mean": 24.0,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 33,
+              "true_distinct_mean": 24.0,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 32,
+              "true_distinct_mean": 24.0,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 31,
+              "true_distinct_mean": 24.0,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 30,
+              "true_distinct_mean": 24.0,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 29,
+              "true_distinct_mean": 24.0,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 28,
+              "true_distinct_mean": 24.0,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 27,
+              "true_distinct_mean": 24.0,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 26,
+              "true_distinct_mean": 24.0,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 25,
+              "true_distinct_mean": 24.0,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 24,
+              "true_distinct_mean": 24.0,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 23,
+              "true_distinct_mean": 24.0,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 22,
+              "true_distinct_mean": 24.0,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 21,
+              "true_distinct_mean": 24.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 20,
+              "true_distinct_mean": 24.0,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 19,
+              "true_distinct_mean": 24.0,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 18,
+              "true_distinct_mean": 24.0,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 17,
+              "true_distinct_mean": 24.0,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 16,
+              "true_distinct_mean": 24.0,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 15,
+              "true_distinct_mean": 24.0,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 14,
+              "true_distinct_mean": 24.0,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 13,
+              "true_distinct_mean": 24.0,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 12,
+              "true_distinct_mean": 24.0,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 11,
+              "true_distinct_mean": 24.0,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 10,
+              "true_distinct_mean": 24.0,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 9,
+              "true_distinct_mean": 24.0,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 8,
+              "true_distinct_mean": 24.0,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 7,
+              "true_distinct_mean": 24.0,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 6,
+              "true_distinct_mean": 24.0,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 5,
+              "true_distinct_mean": 24.0,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 4,
+              "true_distinct_mean": 24.0,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 3,
+              "true_distinct_mean": 24.0,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 2,
+              "true_distinct_mean": 24.0,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 24.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 24,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3040322081911935,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 24
+          },
+          "saturation_width": 1,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 27,
+                "that_entity_made_requests": 27,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 710,
+                "that_entity_made_requests": 142,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 2640,
+                "that_entity_made_requests": 264,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 39080,
+                "that_entity_made_requests": 977,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.9854166666666666,
+              "starts": 40,
+              "true_distinct_mean": 23.65,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.9989316239316239,
+              "starts": 39,
+              "true_distinct_mean": 23.974358974358974,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 38,
+              "true_distinct_mean": 24.0,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 37,
+              "true_distinct_mean": 24.0,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 36,
+              "true_distinct_mean": 24.0,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 35,
+              "true_distinct_mean": 24.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 34,
+              "true_distinct_mean": 24.0,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 33,
+              "true_distinct_mean": 24.0,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 32,
+              "true_distinct_mean": 24.0,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 31,
+              "true_distinct_mean": 24.0,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 30,
+              "true_distinct_mean": 24.0,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 29,
+              "true_distinct_mean": 24.0,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 28,
+              "true_distinct_mean": 24.0,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 27,
+              "true_distinct_mean": 24.0,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 26,
+              "true_distinct_mean": 24.0,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 25,
+              "true_distinct_mean": 24.0,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 24,
+              "true_distinct_mean": 24.0,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 23,
+              "true_distinct_mean": 24.0,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 22,
+              "true_distinct_mean": 24.0,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 21,
+              "true_distinct_mean": 24.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 20,
+              "true_distinct_mean": 24.0,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 19,
+              "true_distinct_mean": 24.0,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 18,
+              "true_distinct_mean": 24.0,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 17,
+              "true_distinct_mean": 24.0,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 16,
+              "true_distinct_mean": 24.0,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 15,
+              "true_distinct_mean": 24.0,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 14,
+              "true_distinct_mean": 24.0,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 13,
+              "true_distinct_mean": 24.0,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 12,
+              "true_distinct_mean": 24.0,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 11,
+              "true_distinct_mean": 24.0,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 10,
+              "true_distinct_mean": 24.0,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 9,
+              "true_distinct_mean": 24.0,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 8,
+              "true_distinct_mean": 24.0,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 7,
+              "true_distinct_mean": 24.0,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 6,
+              "true_distinct_mean": 24.0,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 5,
+              "true_distinct_mean": 24.0,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 4,
+              "true_distinct_mean": 24.0,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 3,
+              "true_distinct_mean": 24.0,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 2,
+              "true_distinct_mean": 24.0,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 24.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 24,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3273093083377363,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 24
+          },
+          "saturation_width": 1,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 27,
+                "that_entity_made_requests": 27,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 710,
+                "that_entity_made_requests": 142,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 2640,
+                "that_entity_made_requests": 264,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 39080,
+                "that_entity_made_requests": 977,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.9854166666666666,
+              "starts": 40,
+              "true_distinct_mean": 23.65,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.9989316239316239,
+              "starts": 39,
+              "true_distinct_mean": 23.974358974358974,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 38,
+              "true_distinct_mean": 24.0,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 37,
+              "true_distinct_mean": 24.0,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 36,
+              "true_distinct_mean": 24.0,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 35,
+              "true_distinct_mean": 24.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 34,
+              "true_distinct_mean": 24.0,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 33,
+              "true_distinct_mean": 24.0,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 32,
+              "true_distinct_mean": 24.0,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 31,
+              "true_distinct_mean": 24.0,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 30,
+              "true_distinct_mean": 24.0,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 29,
+              "true_distinct_mean": 24.0,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 28,
+              "true_distinct_mean": 24.0,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 27,
+              "true_distinct_mean": 24.0,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 26,
+              "true_distinct_mean": 24.0,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 25,
+              "true_distinct_mean": 24.0,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 24,
+              "true_distinct_mean": 24.0,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 23,
+              "true_distinct_mean": 24.0,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 22,
+              "true_distinct_mean": 24.0,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 21,
+              "true_distinct_mean": 24.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 20,
+              "true_distinct_mean": 24.0,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 19,
+              "true_distinct_mean": 24.0,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 18,
+              "true_distinct_mean": 24.0,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 17,
+              "true_distinct_mean": 24.0,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 16,
+              "true_distinct_mean": 24.0,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 15,
+              "true_distinct_mean": 24.0,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 14,
+              "true_distinct_mean": 24.0,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 13,
+              "true_distinct_mean": 24.0,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 12,
+              "true_distinct_mean": 24.0,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 11,
+              "true_distinct_mean": 24.0,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 10,
+              "true_distinct_mean": 24.0,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 9,
+              "true_distinct_mean": 24.0,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 8,
+              "true_distinct_mean": 24.0,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 7,
+              "true_distinct_mean": 24.0,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 6,
+              "true_distinct_mean": 24.0,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 5,
+              "true_distinct_mean": 24.0,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 4,
+              "true_distinct_mean": 24.0,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 3,
+              "true_distinct_mean": 24.0,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 2,
+              "true_distinct_mean": 24.0,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 24.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 24,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.4052579834322236,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 24
+          },
+          "saturation_width": 1,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 27,
+                "that_entity_made_requests": 27,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 710,
+                "that_entity_made_requests": 142,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 2640,
+                "that_entity_made_requests": 264,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 39080,
+                "that_entity_made_requests": 977,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        }
       ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.4131525041551602,
+      "saturation_width_all": [
+        1,
+        1,
+        1,
+        1,
+        1
+      ],
+      "saturation_width_median": 1,
+      "sd_measured_median": 1.3469409786623912,
       "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
+      "seeds": 5,
+      "sensitivity_flat_every_seed": true
     },
     {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 1,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 23.65,
-       "fraction_of_enrolment": 0.9854166666666666,
-       "starts": 40
+      "arm": "tape",
+      "enrolment_seen_median": 4331,
+      "meta": {
+        "agreement_rate_measured": 0.4102978526899099,
+        "arrival_per_s": 0.09034726201975843,
+        "edge_ticks_assumed": 22.0,
+        "edge_ticks_measured": 31.0,
+        "entities": 4331.0,
+        "entity_kind": "one entity per observed address",
+        "informed_base_assumed": 0.3,
+        "informed_share_estimated": 0.0,
+        "informed_share_measured": 0.0,
+        "requests": 4331.0,
+        "sizes_at_ceiling": 0.0,
+        "sizes_over_largest_bucket": 348.0,
+        "source": "bybit:LTCUSDT2021-06-15.csv",
+        "span_s": 47937.25789999962,
+        "step_ms": 1000.0,
+        "tick_value": 0.0017853,
+        "trades": 4331.0,
+        "wallets_per_entity": 1.0
       },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.974358974358974,
-       "fraction_of_enrolment": 0.9989316239316239,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 27,
-        "event_count_would_move_by_at_most": 27
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 142,
-        "event_count_would_move_by_at_most": 710
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 264,
-        "event_count_would_move_by_at_most": 2640
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 977,
-        "event_count_would_move_by_at_most": 39080
-       }
+      "per_seed": [
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.025,
+              "starts": 40,
+              "true_distinct_mean": 108.275,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.049215849954709345,
+              "starts": 39,
+              "true_distinct_mean": 213.15384615384616,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 0.07131572871222155,
+              "starts": 38,
+              "true_distinct_mean": 308.86842105263156,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 0.09236366359432625,
+              "starts": 37,
+              "true_distinct_mean": 400.02702702702703,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 0.11327894507298801,
+              "starts": 36,
+              "true_distinct_mean": 490.6111111111111,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 0.1346109443546525,
+              "starts": 35,
+              "true_distinct_mean": 583.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 0.15546606543795077,
+              "starts": 34,
+              "true_distinct_mean": 673.3235294117648,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 0.17608782351336033,
+              "starts": 33,
+              "true_distinct_mean": 762.6363636363636,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 0.19713259062572155,
+              "starts": 32,
+              "true_distinct_mean": 853.78125,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 0.21782200341126612,
+              "starts": 31,
+              "true_distinct_mean": 943.3870967741935,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 0.23889786808281385,
+              "starts": 30,
+              "true_distinct_mean": 1034.6666666666667,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 0.2608141784568348,
+              "starts": 29,
+              "true_distinct_mean": 1129.5862068965516,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 0.2834053501335884,
+              "starts": 28,
+              "true_distinct_mean": 1227.4285714285713,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 0.3056346579782276,
+              "starts": 27,
+              "true_distinct_mean": 1323.7037037037037,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 0.32711400813455765,
+              "starts": 26,
+              "true_distinct_mean": 1416.7307692307693,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 0.3487323943661972,
+              "starts": 25,
+              "true_distinct_mean": 1510.36,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 0.3703436465789271,
+              "starts": 24,
+              "true_distinct_mean": 1603.9583333333333,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 0.3925391264192425,
+              "starts": 23,
+              "true_distinct_mean": 1700.0869565217392,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 0.41526206418840916,
+              "starts": 22,
+              "true_distinct_mean": 1798.5,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 0.4377741861002078,
+              "starts": 21,
+              "true_distinct_mean": 1896.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 0.4596628954052182,
+              "starts": 20,
+              "true_distinct_mean": 1990.8,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 0.48082975853394744,
+              "starts": 19,
+              "true_distinct_mean": 2082.4736842105262,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 0.5015777726468098,
+              "starts": 18,
+              "true_distinct_mean": 2172.3333333333335,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 0.5228380892878971,
+              "starts": 17,
+              "true_distinct_mean": 2264.4117647058824,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 0.5448943661971831,
+              "starts": 16,
+              "true_distinct_mean": 2359.9375,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 0.5669976140998999,
+              "starts": 15,
+              "true_distinct_mean": 2455.6666666666665,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 0.5894382689580103,
+              "starts": 14,
+              "true_distinct_mean": 2552.8571428571427,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 0.610411523364652,
+              "starts": 13,
+              "true_distinct_mean": 2643.6923076923076,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 0.6303009312706842,
+              "starts": 12,
+              "true_distinct_mean": 2729.8333333333335,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 0.6515396402258559,
+              "starts": 11,
+              "true_distinct_mean": 2821.818181818182,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 0.675248210574925,
+              "starts": 10,
+              "true_distinct_mean": 2924.5,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 0.7009158777803433,
+              "starts": 9,
+              "true_distinct_mean": 3035.6666666666665,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 0.7263622719926114,
+              "starts": 8,
+              "true_distinct_mean": 3145.875,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 0.7551208892700465,
+              "starts": 7,
+              "true_distinct_mean": 3270.4285714285716,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 0.785230508735473,
+              "starts": 6,
+              "true_distinct_mean": 3400.8333333333335,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 0.8156084045255138,
+              "starts": 5,
+              "true_distinct_mean": 3532.4,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 0.8543638882475179,
+              "starts": 4,
+              "true_distinct_mean": 3700.25,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 0.9033325636881399,
+              "starts": 3,
+              "true_distinct_mean": 3912.3333333333335,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 0.9597090741168322,
+              "starts": 2,
+              "true_distinct_mean": 4156.5,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 4331.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 4331,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3677536327862558,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 4331
+          },
+          "saturation_width": 39,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 1,
+                "that_entity_made_requests": 1,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 5,
+                "that_entity_made_requests": 1,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 10,
+                "that_entity_made_requests": 1,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 40,
+                "that_entity_made_requests": 1,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.025,
+              "starts": 40,
+              "true_distinct_mean": 108.275,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.049215849954709345,
+              "starts": 39,
+              "true_distinct_mean": 213.15384615384616,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 0.07131572871222155,
+              "starts": 38,
+              "true_distinct_mean": 308.86842105263156,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 0.09236366359432625,
+              "starts": 37,
+              "true_distinct_mean": 400.02702702702703,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 0.11327894507298801,
+              "starts": 36,
+              "true_distinct_mean": 490.6111111111111,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 0.1346109443546525,
+              "starts": 35,
+              "true_distinct_mean": 583.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 0.15546606543795077,
+              "starts": 34,
+              "true_distinct_mean": 673.3235294117648,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 0.17608782351336033,
+              "starts": 33,
+              "true_distinct_mean": 762.6363636363636,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 0.19713259062572155,
+              "starts": 32,
+              "true_distinct_mean": 853.78125,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 0.21782200341126612,
+              "starts": 31,
+              "true_distinct_mean": 943.3870967741935,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 0.23889786808281385,
+              "starts": 30,
+              "true_distinct_mean": 1034.6666666666667,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 0.2608141784568348,
+              "starts": 29,
+              "true_distinct_mean": 1129.5862068965516,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 0.2834053501335884,
+              "starts": 28,
+              "true_distinct_mean": 1227.4285714285713,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 0.3056346579782276,
+              "starts": 27,
+              "true_distinct_mean": 1323.7037037037037,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 0.32711400813455765,
+              "starts": 26,
+              "true_distinct_mean": 1416.7307692307693,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 0.3487323943661972,
+              "starts": 25,
+              "true_distinct_mean": 1510.36,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 0.3703436465789271,
+              "starts": 24,
+              "true_distinct_mean": 1603.9583333333333,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 0.3925391264192425,
+              "starts": 23,
+              "true_distinct_mean": 1700.0869565217392,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 0.41526206418840916,
+              "starts": 22,
+              "true_distinct_mean": 1798.5,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 0.4377741861002078,
+              "starts": 21,
+              "true_distinct_mean": 1896.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 0.4596628954052182,
+              "starts": 20,
+              "true_distinct_mean": 1990.8,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 0.48082975853394744,
+              "starts": 19,
+              "true_distinct_mean": 2082.4736842105262,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 0.5015777726468098,
+              "starts": 18,
+              "true_distinct_mean": 2172.3333333333335,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 0.5228380892878971,
+              "starts": 17,
+              "true_distinct_mean": 2264.4117647058824,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 0.5448943661971831,
+              "starts": 16,
+              "true_distinct_mean": 2359.9375,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 0.5669976140998999,
+              "starts": 15,
+              "true_distinct_mean": 2455.6666666666665,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 0.5894382689580103,
+              "starts": 14,
+              "true_distinct_mean": 2552.8571428571427,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 0.610411523364652,
+              "starts": 13,
+              "true_distinct_mean": 2643.6923076923076,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 0.6303009312706842,
+              "starts": 12,
+              "true_distinct_mean": 2729.8333333333335,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 0.6515396402258559,
+              "starts": 11,
+              "true_distinct_mean": 2821.818181818182,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 0.675248210574925,
+              "starts": 10,
+              "true_distinct_mean": 2924.5,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 0.7009158777803433,
+              "starts": 9,
+              "true_distinct_mean": 3035.6666666666665,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 0.7263622719926114,
+              "starts": 8,
+              "true_distinct_mean": 3145.875,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 0.7551208892700465,
+              "starts": 7,
+              "true_distinct_mean": 3270.4285714285716,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 0.785230508735473,
+              "starts": 6,
+              "true_distinct_mean": 3400.8333333333335,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 0.8156084045255138,
+              "starts": 5,
+              "true_distinct_mean": 3532.4,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 0.8543638882475179,
+              "starts": 4,
+              "true_distinct_mean": 3700.25,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 0.9033325636881399,
+              "starts": 3,
+              "true_distinct_mean": 3912.3333333333335,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 0.9597090741168322,
+              "starts": 2,
+              "true_distinct_mean": 4156.5,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 4331.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 4331,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3469409786623912,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 4331
+          },
+          "saturation_width": 39,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 1,
+                "that_entity_made_requests": 1,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 5,
+                "that_entity_made_requests": 1,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 10,
+                "that_entity_made_requests": 1,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 40,
+                "that_entity_made_requests": 1,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.025,
+              "starts": 40,
+              "true_distinct_mean": 108.275,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.049215849954709345,
+              "starts": 39,
+              "true_distinct_mean": 213.15384615384616,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 0.07131572871222155,
+              "starts": 38,
+              "true_distinct_mean": 308.86842105263156,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 0.09236366359432625,
+              "starts": 37,
+              "true_distinct_mean": 400.02702702702703,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 0.11327894507298801,
+              "starts": 36,
+              "true_distinct_mean": 490.6111111111111,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 0.1346109443546525,
+              "starts": 35,
+              "true_distinct_mean": 583.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 0.15546606543795077,
+              "starts": 34,
+              "true_distinct_mean": 673.3235294117648,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 0.17608782351336033,
+              "starts": 33,
+              "true_distinct_mean": 762.6363636363636,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 0.19713259062572155,
+              "starts": 32,
+              "true_distinct_mean": 853.78125,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 0.21782200341126612,
+              "starts": 31,
+              "true_distinct_mean": 943.3870967741935,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 0.23889786808281385,
+              "starts": 30,
+              "true_distinct_mean": 1034.6666666666667,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 0.2608141784568348,
+              "starts": 29,
+              "true_distinct_mean": 1129.5862068965516,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 0.2834053501335884,
+              "starts": 28,
+              "true_distinct_mean": 1227.4285714285713,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 0.3056346579782276,
+              "starts": 27,
+              "true_distinct_mean": 1323.7037037037037,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 0.32711400813455765,
+              "starts": 26,
+              "true_distinct_mean": 1416.7307692307693,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 0.3487323943661972,
+              "starts": 25,
+              "true_distinct_mean": 1510.36,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 0.3703436465789271,
+              "starts": 24,
+              "true_distinct_mean": 1603.9583333333333,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 0.3925391264192425,
+              "starts": 23,
+              "true_distinct_mean": 1700.0869565217392,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 0.41526206418840916,
+              "starts": 22,
+              "true_distinct_mean": 1798.5,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 0.4377741861002078,
+              "starts": 21,
+              "true_distinct_mean": 1896.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 0.4596628954052182,
+              "starts": 20,
+              "true_distinct_mean": 1990.8,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 0.48082975853394744,
+              "starts": 19,
+              "true_distinct_mean": 2082.4736842105262,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 0.5015777726468098,
+              "starts": 18,
+              "true_distinct_mean": 2172.3333333333335,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 0.5228380892878971,
+              "starts": 17,
+              "true_distinct_mean": 2264.4117647058824,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 0.5448943661971831,
+              "starts": 16,
+              "true_distinct_mean": 2359.9375,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 0.5669976140998999,
+              "starts": 15,
+              "true_distinct_mean": 2455.6666666666665,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 0.5894382689580103,
+              "starts": 14,
+              "true_distinct_mean": 2552.8571428571427,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 0.610411523364652,
+              "starts": 13,
+              "true_distinct_mean": 2643.6923076923076,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 0.6303009312706842,
+              "starts": 12,
+              "true_distinct_mean": 2729.8333333333335,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 0.6515396402258559,
+              "starts": 11,
+              "true_distinct_mean": 2821.818181818182,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 0.675248210574925,
+              "starts": 10,
+              "true_distinct_mean": 2924.5,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 0.7009158777803433,
+              "starts": 9,
+              "true_distinct_mean": 3035.6666666666665,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 0.7263622719926114,
+              "starts": 8,
+              "true_distinct_mean": 3145.875,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 0.7551208892700465,
+              "starts": 7,
+              "true_distinct_mean": 3270.4285714285716,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 0.785230508735473,
+              "starts": 6,
+              "true_distinct_mean": 3400.8333333333335,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 0.8156084045255138,
+              "starts": 5,
+              "true_distinct_mean": 3532.4,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 0.8543638882475179,
+              "starts": 4,
+              "true_distinct_mean": 3700.25,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 0.9033325636881399,
+              "starts": 3,
+              "true_distinct_mean": 3912.3333333333335,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 0.9597090741168322,
+              "starts": 2,
+              "true_distinct_mean": 4156.5,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 4331.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 4331,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3040322081911935,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 4331
+          },
+          "saturation_width": 39,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 1,
+                "that_entity_made_requests": 1,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 5,
+                "that_entity_made_requests": 1,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 10,
+                "that_entity_made_requests": 1,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 40,
+                "that_entity_made_requests": 1,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.025,
+              "starts": 40,
+              "true_distinct_mean": 108.275,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.049215849954709345,
+              "starts": 39,
+              "true_distinct_mean": 213.15384615384616,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 0.07131572871222155,
+              "starts": 38,
+              "true_distinct_mean": 308.86842105263156,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 0.09236366359432625,
+              "starts": 37,
+              "true_distinct_mean": 400.02702702702703,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 0.11327894507298801,
+              "starts": 36,
+              "true_distinct_mean": 490.6111111111111,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 0.1346109443546525,
+              "starts": 35,
+              "true_distinct_mean": 583.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 0.15546606543795077,
+              "starts": 34,
+              "true_distinct_mean": 673.3235294117648,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 0.17608782351336033,
+              "starts": 33,
+              "true_distinct_mean": 762.6363636363636,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 0.19713259062572155,
+              "starts": 32,
+              "true_distinct_mean": 853.78125,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 0.21782200341126612,
+              "starts": 31,
+              "true_distinct_mean": 943.3870967741935,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 0.23889786808281385,
+              "starts": 30,
+              "true_distinct_mean": 1034.6666666666667,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 0.2608141784568348,
+              "starts": 29,
+              "true_distinct_mean": 1129.5862068965516,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 0.2834053501335884,
+              "starts": 28,
+              "true_distinct_mean": 1227.4285714285713,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 0.3056346579782276,
+              "starts": 27,
+              "true_distinct_mean": 1323.7037037037037,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 0.32711400813455765,
+              "starts": 26,
+              "true_distinct_mean": 1416.7307692307693,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 0.3487323943661972,
+              "starts": 25,
+              "true_distinct_mean": 1510.36,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 0.3703436465789271,
+              "starts": 24,
+              "true_distinct_mean": 1603.9583333333333,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 0.3925391264192425,
+              "starts": 23,
+              "true_distinct_mean": 1700.0869565217392,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 0.41526206418840916,
+              "starts": 22,
+              "true_distinct_mean": 1798.5,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 0.4377741861002078,
+              "starts": 21,
+              "true_distinct_mean": 1896.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 0.4596628954052182,
+              "starts": 20,
+              "true_distinct_mean": 1990.8,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 0.48082975853394744,
+              "starts": 19,
+              "true_distinct_mean": 2082.4736842105262,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 0.5015777726468098,
+              "starts": 18,
+              "true_distinct_mean": 2172.3333333333335,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 0.5228380892878971,
+              "starts": 17,
+              "true_distinct_mean": 2264.4117647058824,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 0.5448943661971831,
+              "starts": 16,
+              "true_distinct_mean": 2359.9375,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 0.5669976140998999,
+              "starts": 15,
+              "true_distinct_mean": 2455.6666666666665,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 0.5894382689580103,
+              "starts": 14,
+              "true_distinct_mean": 2552.8571428571427,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 0.610411523364652,
+              "starts": 13,
+              "true_distinct_mean": 2643.6923076923076,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 0.6303009312706842,
+              "starts": 12,
+              "true_distinct_mean": 2729.8333333333335,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 0.6515396402258559,
+              "starts": 11,
+              "true_distinct_mean": 2821.818181818182,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 0.675248210574925,
+              "starts": 10,
+              "true_distinct_mean": 2924.5,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 0.7009158777803433,
+              "starts": 9,
+              "true_distinct_mean": 3035.6666666666665,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 0.7263622719926114,
+              "starts": 8,
+              "true_distinct_mean": 3145.875,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 0.7551208892700465,
+              "starts": 7,
+              "true_distinct_mean": 3270.4285714285716,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 0.785230508735473,
+              "starts": 6,
+              "true_distinct_mean": 3400.8333333333335,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 0.8156084045255138,
+              "starts": 5,
+              "true_distinct_mean": 3532.4,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 0.8543638882475179,
+              "starts": 4,
+              "true_distinct_mean": 3700.25,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 0.9033325636881399,
+              "starts": 3,
+              "true_distinct_mean": 3912.3333333333335,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 0.9597090741168322,
+              "starts": 2,
+              "true_distinct_mean": 4156.5,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 4331.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 4331,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.3273093083377363,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 4331
+          },
+          "saturation_width": 39,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 1,
+                "that_entity_made_requests": 1,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 5,
+                "that_entity_made_requests": 1,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 10,
+                "that_entity_made_requests": 1,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 40,
+                "that_entity_made_requests": 1,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        },
+        {
+          "curve": [
+            {
+              "fraction_of_enrolment": 0.025,
+              "starts": 40,
+              "true_distinct_mean": 108.275,
+              "width_windows": 1
+            },
+            {
+              "fraction_of_enrolment": 0.049215849954709345,
+              "starts": 39,
+              "true_distinct_mean": 213.15384615384616,
+              "width_windows": 2
+            },
+            {
+              "fraction_of_enrolment": 0.07131572871222155,
+              "starts": 38,
+              "true_distinct_mean": 308.86842105263156,
+              "width_windows": 3
+            },
+            {
+              "fraction_of_enrolment": 0.09236366359432625,
+              "starts": 37,
+              "true_distinct_mean": 400.02702702702703,
+              "width_windows": 4
+            },
+            {
+              "fraction_of_enrolment": 0.11327894507298801,
+              "starts": 36,
+              "true_distinct_mean": 490.6111111111111,
+              "width_windows": 5
+            },
+            {
+              "fraction_of_enrolment": 0.1346109443546525,
+              "starts": 35,
+              "true_distinct_mean": 583.0,
+              "width_windows": 6
+            },
+            {
+              "fraction_of_enrolment": 0.15546606543795077,
+              "starts": 34,
+              "true_distinct_mean": 673.3235294117648,
+              "width_windows": 7
+            },
+            {
+              "fraction_of_enrolment": 0.17608782351336033,
+              "starts": 33,
+              "true_distinct_mean": 762.6363636363636,
+              "width_windows": 8
+            },
+            {
+              "fraction_of_enrolment": 0.19713259062572155,
+              "starts": 32,
+              "true_distinct_mean": 853.78125,
+              "width_windows": 9
+            },
+            {
+              "fraction_of_enrolment": 0.21782200341126612,
+              "starts": 31,
+              "true_distinct_mean": 943.3870967741935,
+              "width_windows": 10
+            },
+            {
+              "fraction_of_enrolment": 0.23889786808281385,
+              "starts": 30,
+              "true_distinct_mean": 1034.6666666666667,
+              "width_windows": 11
+            },
+            {
+              "fraction_of_enrolment": 0.2608141784568348,
+              "starts": 29,
+              "true_distinct_mean": 1129.5862068965516,
+              "width_windows": 12
+            },
+            {
+              "fraction_of_enrolment": 0.2834053501335884,
+              "starts": 28,
+              "true_distinct_mean": 1227.4285714285713,
+              "width_windows": 13
+            },
+            {
+              "fraction_of_enrolment": 0.3056346579782276,
+              "starts": 27,
+              "true_distinct_mean": 1323.7037037037037,
+              "width_windows": 14
+            },
+            {
+              "fraction_of_enrolment": 0.32711400813455765,
+              "starts": 26,
+              "true_distinct_mean": 1416.7307692307693,
+              "width_windows": 15
+            },
+            {
+              "fraction_of_enrolment": 0.3487323943661972,
+              "starts": 25,
+              "true_distinct_mean": 1510.36,
+              "width_windows": 16
+            },
+            {
+              "fraction_of_enrolment": 0.3703436465789271,
+              "starts": 24,
+              "true_distinct_mean": 1603.9583333333333,
+              "width_windows": 17
+            },
+            {
+              "fraction_of_enrolment": 0.3925391264192425,
+              "starts": 23,
+              "true_distinct_mean": 1700.0869565217392,
+              "width_windows": 18
+            },
+            {
+              "fraction_of_enrolment": 0.41526206418840916,
+              "starts": 22,
+              "true_distinct_mean": 1798.5,
+              "width_windows": 19
+            },
+            {
+              "fraction_of_enrolment": 0.4377741861002078,
+              "starts": 21,
+              "true_distinct_mean": 1896.0,
+              "width_windows": 20
+            },
+            {
+              "fraction_of_enrolment": 0.4596628954052182,
+              "starts": 20,
+              "true_distinct_mean": 1990.8,
+              "width_windows": 21
+            },
+            {
+              "fraction_of_enrolment": 0.48082975853394744,
+              "starts": 19,
+              "true_distinct_mean": 2082.4736842105262,
+              "width_windows": 22
+            },
+            {
+              "fraction_of_enrolment": 0.5015777726468098,
+              "starts": 18,
+              "true_distinct_mean": 2172.3333333333335,
+              "width_windows": 23
+            },
+            {
+              "fraction_of_enrolment": 0.5228380892878971,
+              "starts": 17,
+              "true_distinct_mean": 2264.4117647058824,
+              "width_windows": 24
+            },
+            {
+              "fraction_of_enrolment": 0.5448943661971831,
+              "starts": 16,
+              "true_distinct_mean": 2359.9375,
+              "width_windows": 25
+            },
+            {
+              "fraction_of_enrolment": 0.5669976140998999,
+              "starts": 15,
+              "true_distinct_mean": 2455.6666666666665,
+              "width_windows": 26
+            },
+            {
+              "fraction_of_enrolment": 0.5894382689580103,
+              "starts": 14,
+              "true_distinct_mean": 2552.8571428571427,
+              "width_windows": 27
+            },
+            {
+              "fraction_of_enrolment": 0.610411523364652,
+              "starts": 13,
+              "true_distinct_mean": 2643.6923076923076,
+              "width_windows": 28
+            },
+            {
+              "fraction_of_enrolment": 0.6303009312706842,
+              "starts": 12,
+              "true_distinct_mean": 2729.8333333333335,
+              "width_windows": 29
+            },
+            {
+              "fraction_of_enrolment": 0.6515396402258559,
+              "starts": 11,
+              "true_distinct_mean": 2821.818181818182,
+              "width_windows": 30
+            },
+            {
+              "fraction_of_enrolment": 0.675248210574925,
+              "starts": 10,
+              "true_distinct_mean": 2924.5,
+              "width_windows": 31
+            },
+            {
+              "fraction_of_enrolment": 0.7009158777803433,
+              "starts": 9,
+              "true_distinct_mean": 3035.6666666666665,
+              "width_windows": 32
+            },
+            {
+              "fraction_of_enrolment": 0.7263622719926114,
+              "starts": 8,
+              "true_distinct_mean": 3145.875,
+              "width_windows": 33
+            },
+            {
+              "fraction_of_enrolment": 0.7551208892700465,
+              "starts": 7,
+              "true_distinct_mean": 3270.4285714285716,
+              "width_windows": 34
+            },
+            {
+              "fraction_of_enrolment": 0.785230508735473,
+              "starts": 6,
+              "true_distinct_mean": 3400.8333333333335,
+              "width_windows": 35
+            },
+            {
+              "fraction_of_enrolment": 0.8156084045255138,
+              "starts": 5,
+              "true_distinct_mean": 3532.4,
+              "width_windows": 36
+            },
+            {
+              "fraction_of_enrolment": 0.8543638882475179,
+              "starts": 4,
+              "true_distinct_mean": 3700.25,
+              "width_windows": 37
+            },
+            {
+              "fraction_of_enrolment": 0.9033325636881399,
+              "starts": 3,
+              "true_distinct_mean": 3912.3333333333335,
+              "width_windows": 38
+            },
+            {
+              "fraction_of_enrolment": 0.9597090741168322,
+              "starts": 2,
+              "true_distinct_mean": 4156.5,
+              "width_windows": 39
+            },
+            {
+              "fraction_of_enrolment": 1.0,
+              "starts": 1,
+              "true_distinct_mean": 4331.0,
+              "width_windows": 40
+            }
+          ],
+          "enrolled_seen": 4331,
+          "noise": {
+            "draws": 4000,
+            "epsilon": 1.0,
+            "noise_scale_entities": 1.0,
+            "sd_measured": 1.4052579834322236,
+            "sd_predicted": 1.3569624860015788,
+            "true_distinct": 4331
+          },
+          "saturation_width": 39,
+          "sensitivity": {
+            "entity_sensitivity_is_flat": true,
+            "rows": [
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 1,
+                "that_entity_made_requests": 1,
+                "width_windows": 1
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 5,
+                "that_entity_made_requests": 1,
+                "width_windows": 5
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 10,
+                "that_entity_made_requests": 1,
+                "width_windows": 10
+              },
+              {
+                "entity_count_moves_by": 1,
+                "event_count_would_move_by_at_most": 40,
+                "that_entity_made_requests": 1,
+                "width_windows": 40
+              }
+            ]
+          },
+          "windows": 40
+        }
       ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.369854006819705,
-      "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
-    },
-    {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 1,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 23.65,
-       "fraction_of_enrolment": 0.9854166666666666,
-       "starts": 40
-      },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.974358974358974,
-       "fraction_of_enrolment": 0.9989316239316239,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 27,
-        "event_count_would_move_by_at_most": 27
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 142,
-        "event_count_would_move_by_at_most": 710
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 264,
-        "event_count_would_move_by_at_most": 2640
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 977,
-        "event_count_would_move_by_at_most": 39080
-       }
+      "saturation_width_all": [
+        39,
+        39,
+        39,
+        39,
+        39
       ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.2545915670049756,
+      "saturation_width_median": 39,
+      "sd_measured_median": 1.3469409786623912,
       "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
+      "seeds": 5,
+      "sensitivity_flat_every_seed": true
     }
-   ]
+  ],
+  "host": "host-a",
+  "not_measured_on_purpose": "the fill count. Settlement publishes one on-chain instruction per trade, so that count is exact and free to anyone with a node; a noised version would protect nothing and be worse than the free answer.",
+  "prediction": "artifacts/block_range_query_prediction.json",
+  "question": "whether a block-range question about distinct requesting entities carries anything, and at what range width",
+  "real_identities": {
+    "arm": "uniswapx_real_identities",
+    "block_span": 1426489,
+    "distinct_swappers": 48000,
+    "fills": 150000,
+    "fills_per_swapper": 3.125,
+    "rows": [
+      {
+        "dp_noise_sd_entities": 1.3569624860015788,
+        "mean_distinct_swappers": 9.025,
+        "mean_fills": 10.6825,
+        "r2_against_public_fill_count": 0.9527879269487743,
+        "residual_sd_entities": 1.6923625214790554,
+        "samples": 400,
+        "signal_to_noise": 1.2471697183507005,
+        "slope_distinct_per_fill": 0.7769070761658285,
+        "width_blocks": 100,
+        "width_hours_at_12s": 0.3333333333333333
+      },
+      {
+        "dp_noise_sd_entities": 1.3569624860015788,
+        "mean_distinct_swappers": 49.8875,
+        "mean_fills": 64.41,
+        "r2_against_public_fill_count": 0.9578595392385592,
+        "residual_sd_entities": 6.364302851682255,
+        "samples": 400,
+        "signal_to_noise": 4.690109651030434,
+        "slope_distinct_per_fill": 0.7116947599433101,
+        "width_blocks": 600,
+        "width_hours_at_12s": 2.0
+      },
+      {
+        "dp_noise_sd_entities": 1.3569624860015788,
+        "mean_distinct_swappers": 242.475,
+        "mean_fills": 337.3325,
+        "r2_against_public_fill_count": 0.9733240623410122,
+        "residual_sd_entities": 19.30493301056635,
+        "samples": 400,
+        "signal_to_noise": 14.226578265586548,
+        "slope_distinct_per_fill": 0.6804315695183584,
+        "width_blocks": 3000,
+        "width_hours_at_12s": 10.0
+      },
+      {
+        "dp_noise_sd_entities": 1.3569624860015788,
+        "mean_distinct_swappers": 528.6875,
+        "mean_fills": 776.09,
+        "r2_against_public_fill_count": 0.9738820056512608,
+        "residual_sd_entities": 34.24866047933001,
+        "samples": 400,
+        "signal_to_noise": 25.239209508471383,
+        "slope_distinct_per_fill": 0.6390343638841025,
+        "width_blocks": 7200,
+        "width_hours_at_12s": 24.0
+      },
+      {
+        "dp_noise_sd_entities": 1.3569624860015788,
+        "mean_distinct_swappers": 2836.4275,
+        "mean_fills": 5206.0075,
+        "r2_against_public_fill_count": 0.9616654044828055,
+        "residual_sd_entities": 148.98046891511555,
+        "samples": 400,
+        "signal_to_noise": 109.78967396077464,
+        "slope_distinct_per_fill": 0.5178153120150342,
+        "width_blocks": 50000,
+        "width_hours_at_12s": 166.66666666666666
+      }
+    ],
+    "saturates": false,
+    "source": "uniswapx_amounts.jsonl",
+    "swappers_appearing_once": 0.596,
+    "top_1pct_share_of_fills": 0.22700666666666666,
+    "what_this_cannot_say": "UniswapX records fills, so these are settled requests. QOMM's denominator includes requests that settled nothing, and no chain records those. If they come from a different population the relation here does not carry.",
+    "why_not": "48,000 swappers over 1.43M blocks with 60% appearing once. The pool is unbounded against any range an asker names, so the count is close to linear in width. The one-window saturation on the simulator was the round-robin assignment."
   },
-  {
-   "arm": "tape",
-   "meta": {
-    "source": "bybit:LTCUSDT2021-06-15.csv",
-    "requests": 4331,
-    "entities": 24,
-    "wallets_per_entity": 1,
-    "entity_kind": "assigned round-robin (the tape has no identities)",
-    "informed_share_measured": 0.0,
-    "agreement_rate_measured": 0.4102978526899099,
-    "informed_share_estimated": 0.0,
-    "informed_base_assumed": 0.3,
-    "edge_ticks_measured": 31,
-    "edge_ticks_assumed": 22.0,
-    "trades": 4331,
-    "step_ms": 1000,
-    "span_s": 47937.25789999962,
-    "arrival_per_s": 0.09034726201975843,
-    "tick_value": 0.0017853,
-    "sizes_over_largest_bucket": 348,
-    "sizes_at_ceiling": 0
-   },
-   "seeds": 3,
-   "enrolment_seen_median": 24,
-   "saturation_width_median": 2,
-   "saturation_width_all": [
-    2,
-    2,
-    2
-   ],
-   "sensitivity_flat_every_seed": true,
-   "sd_measured_median": 1.369854006819705,
-   "sd_predicted": 1.3569624860015788,
-   "per_seed": [
-    {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 2,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 22.725,
-       "fraction_of_enrolment": 0.946875,
-       "starts": 40
-      },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.897435897435898,
-       "fraction_of_enrolment": 0.9957264957264957,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 23.973684210526315,
-       "fraction_of_enrolment": 0.9989035087719298,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 16,
-        "event_count_would_move_by_at_most": 16
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 43,
-        "event_count_would_move_by_at_most": 215
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 65,
-        "event_count_would_move_by_at_most": 650
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 181,
-        "event_count_would_move_by_at_most": 7240
-       }
-      ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.4131525041551602,
-      "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
-    },
-    {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 2,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 22.725,
-       "fraction_of_enrolment": 0.946875,
-       "starts": 40
-      },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.897435897435898,
-       "fraction_of_enrolment": 0.9957264957264957,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 23.973684210526315,
-       "fraction_of_enrolment": 0.9989035087719298,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 16,
-        "event_count_would_move_by_at_most": 16
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 43,
-        "event_count_would_move_by_at_most": 215
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 65,
-        "event_count_would_move_by_at_most": 650
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 181,
-        "event_count_would_move_by_at_most": 7240
-       }
-      ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.369854006819705,
-      "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
-    },
-    {
-     "enrolled_seen": 24,
-     "windows": 40,
-     "saturation_width": 2,
-     "curve": [
-      {
-       "width_windows": 1,
-       "true_distinct_mean": 22.725,
-       "fraction_of_enrolment": 0.946875,
-       "starts": 40
-      },
-      {
-       "width_windows": 2,
-       "true_distinct_mean": 23.897435897435898,
-       "fraction_of_enrolment": 0.9957264957264957,
-       "starts": 39
-      },
-      {
-       "width_windows": 3,
-       "true_distinct_mean": 23.973684210526315,
-       "fraction_of_enrolment": 0.9989035087719298,
-       "starts": 38
-      },
-      {
-       "width_windows": 4,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 37
-      },
-      {
-       "width_windows": 5,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 36
-      },
-      {
-       "width_windows": 6,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 35
-      },
-      {
-       "width_windows": 7,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 34
-      },
-      {
-       "width_windows": 8,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 33
-      },
-      {
-       "width_windows": 9,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 32
-      },
-      {
-       "width_windows": 10,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 31
-      },
-      {
-       "width_windows": 11,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 30
-      },
-      {
-       "width_windows": 12,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 29
-      },
-      {
-       "width_windows": 13,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 28
-      },
-      {
-       "width_windows": 14,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 27
-      },
-      {
-       "width_windows": 15,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 26
-      },
-      {
-       "width_windows": 16,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 25
-      },
-      {
-       "width_windows": 17,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 24
-      },
-      {
-       "width_windows": 18,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 23
-      },
-      {
-       "width_windows": 19,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 22
-      },
-      {
-       "width_windows": 20,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 21
-      },
-      {
-       "width_windows": 21,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 20
-      },
-      {
-       "width_windows": 22,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 19
-      },
-      {
-       "width_windows": 23,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 18
-      },
-      {
-       "width_windows": 24,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 17
-      },
-      {
-       "width_windows": 25,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 16
-      },
-      {
-       "width_windows": 26,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 15
-      },
-      {
-       "width_windows": 27,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 14
-      },
-      {
-       "width_windows": 28,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 13
-      },
-      {
-       "width_windows": 29,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 12
-      },
-      {
-       "width_windows": 30,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 11
-      },
-      {
-       "width_windows": 31,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 10
-      },
-      {
-       "width_windows": 32,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 9
-      },
-      {
-       "width_windows": 33,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 8
-      },
-      {
-       "width_windows": 34,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 7
-      },
-      {
-       "width_windows": 35,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 6
-      },
-      {
-       "width_windows": 36,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 5
-      },
-      {
-       "width_windows": 37,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 4
-      },
-      {
-       "width_windows": 38,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 3
-      },
-      {
-       "width_windows": 39,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 2
-      },
-      {
-       "width_windows": 40,
-       "true_distinct_mean": 24.0,
-       "fraction_of_enrolment": 1.0,
-       "starts": 1
-      }
-     ],
-     "sensitivity": {
-      "rows": [
-       {
-        "width_windows": 1,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 16,
-        "event_count_would_move_by_at_most": 16
-       },
-       {
-        "width_windows": 5,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 43,
-        "event_count_would_move_by_at_most": 215
-       },
-       {
-        "width_windows": 10,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 65,
-        "event_count_would_move_by_at_most": 650
-       },
-       {
-        "width_windows": 40,
-        "entity_count_moves_by": 1,
-        "that_entity_made_requests": 181,
-        "event_count_would_move_by_at_most": 7240
-       }
-      ],
-      "entity_sensitivity_is_flat": true
-     },
-     "noise": {
-      "epsilon": 1.0,
-      "true_distinct": 24,
-      "sd_measured": 1.2545915670049756,
-      "sd_predicted": 1.3569624860015788,
-      "noise_scale_entities": 1.0,
-      "draws": 2000
-     }
-    }
-   ]
-  }
- ],
- "real_identities": {
-  "arm": "uniswapx_real_identities",
-  "source": "uniswapx_amounts.jsonl",
-  "fills": 150000,
-  "distinct_swappers": 48000,
-  "fills_per_swapper": 3.125,
-  "swappers_appearing_once": 0.596,
-  "top_1pct_share_of_fills": 0.22700666666666666,
-  "block_span": 1426489,
-  "saturates": false,
-  "why_not": "48,000 swappers over 1.43M blocks with 60% appearing once. The pool is unbounded against any range an asker names, so the count is close to linear in width. The one-window saturation on the simulator was the round-robin assignment.",
-  "what_this_cannot_say": "UniswapX records fills, so these are settled requests. QOMM's denominator includes requests that settled nothing, and no chain records those. If they come from a different population the relation here does not carry.",
-  "rows": [
-   {
-    "width_blocks": 100,
-    "width_hours_at_12s": 0.3333333333333333,
-    "mean_fills": 10.6825,
-    "mean_distinct_swappers": 9.025,
-    "r2_against_public_fill_count": 0.9527879269487743,
-    "slope_distinct_per_fill": 0.7769070761658285,
-    "residual_sd_entities": 1.6923625214790554,
-    "dp_noise_sd_entities": 1.3569624860015788,
-    "signal_to_noise": 1.2471697183507005,
-    "samples": 400
-   },
-   {
-    "width_blocks": 600,
-    "width_hours_at_12s": 2.0,
-    "mean_fills": 64.41,
-    "mean_distinct_swappers": 49.8875,
-    "r2_against_public_fill_count": 0.9578595392385592,
-    "slope_distinct_per_fill": 0.7116947599433101,
-    "residual_sd_entities": 6.364302851682255,
-    "dp_noise_sd_entities": 1.3569624860015788,
-    "signal_to_noise": 4.690109651030434,
-    "samples": 400
-   },
-   {
-    "width_blocks": 3000,
-    "width_hours_at_12s": 10.0,
-    "mean_fills": 337.3325,
-    "mean_distinct_swappers": 242.475,
-    "r2_against_public_fill_count": 0.9733240623410122,
-    "slope_distinct_per_fill": 0.6804315695183584,
-    "residual_sd_entities": 19.30493301056635,
-    "dp_noise_sd_entities": 1.3569624860015788,
-    "signal_to_noise": 14.226578265586548,
-    "samples": 400
-   },
-   {
-    "width_blocks": 7200,
-    "width_hours_at_12s": 24.0,
-    "mean_fills": 776.09,
-    "mean_distinct_swappers": 528.6875,
-    "r2_against_public_fill_count": 0.9738820056512608,
-    "slope_distinct_per_fill": 0.6390343638841025,
-    "residual_sd_entities": 34.24866047933001,
-    "dp_noise_sd_entities": 1.3569624860015788,
-    "signal_to_noise": 25.239209508471383,
-    "samples": 400
-   },
-   {
-    "width_blocks": 50000,
-    "width_hours_at_12s": 166.66666666666666,
-    "mean_fills": 5206.0075,
-    "mean_distinct_swappers": 2836.4275,
-    "r2_against_public_fill_count": 0.9616654044828055,
-    "slope_distinct_per_fill": 0.5178153120150342,
-    "residual_sd_entities": 148.98046891511555,
-    "dp_noise_sd_entities": 1.3569624860015788,
-    "signal_to_noise": 109.78967396077464,
-    "samples": 400
-   }
-  ]
- }
+  "saturation_definition": "width at which the true distinct count reaches 95% of the entities seen"
 }

@@ -17,7 +17,7 @@ check its own share against the dealer's commitment before it computes
 (`check_share`). **What nothing forces is that the value the node then puts into
 MP-SPDZ is the share it checked.**
 
-`qomm_transport/roles.py` says so in the code rather than leaving it to be
+`rust/qomm-transport/src/roles.rs` says so in the code rather than leaving it to be
 discovered: the signature on a dealt share buys **detection and attribution, not
 prevention**. A node that substitutes an input can be shown afterwards to have
 done it.
@@ -28,7 +28,7 @@ attribution; prevention buys them little. Seven anonymous operators are not held
 by anything, and everything below is for that case.
 
 The same gap sits under three modules, and it is one gap rather than three.
-`policy_audit.py` states it exactly:
+`rust/qomm-proofs/src/policy_audit.rs` states it exactly:
 
 > these shares are not the shares MP-SPDZ consumes. MP-SPDZ works over its own
 > prime field, so an end-to-end binding needs the computation to run over the
@@ -62,7 +62,7 @@ It works only if the shares are over the group order. MP-SPDZ works over its own
 prime, so today the proof is assembled from shares nobody can show are the
 computation's.
 
-**Two proofs need this and two do not.** `policy_audit.py` and `state_audit.py`
+**Two proofs need this and two do not.** `rust/qomm-proofs/src/policy_audit.rs` and `rust/qomm-proofs/src/state_audit.rs`
 never import `threshold_sigma`: a maker proving something about its own policy
 knows the witness and proves alone. The quote proof and zkPI are assembled from
 node shares, and they are where the field matters --- and they are also the
@@ -139,7 +139,7 @@ decisions, while the tool printed the reason in plain English on every run.
 
 ## 3. Checking the inputs instead
 
-`zk/input_check.py`. The dealer already publishes a commitment per input. Once
+`rust/qomm-harness/src/bin/run_input_check.rs`. The dealer already publishes a commitment per input. Once
 the inputs are fixed, public coefficients are derived from those commitments by
 Fiat--Shamir, the circuit computes
 
@@ -231,7 +231,7 @@ In the circuit, both arms verified:
 ## 3.9 Built, and run end to end
 
 Sections 2 and 3 measured the two routes. This is the first one wired up:
-`zk/binding.py`, `scripts/run_binding_chain.py`, `make binding-chain`.
+`rust/qomm-transport/src/binding.rs`, `rust/qomm-harness/src/bin/run_binding_chain.rs`, `make binding-chain`.
 
 The fix is an identity rather than a comparison, which is the part worth
 stating. `build_inputs` takes a `deal_hook`, so the party that commits to a
@@ -351,8 +351,8 @@ produced.
 
 ## 4.5 The commitment scheme as a choice, and what a different one costs
 
-`groups.py` made the *group* pluggable, which covers every discrete-logarithm
-scheme and no others. `zk/scheme.py` moves the seam up to the commitment, because
+`rust/qomm-zk/src/lib.rs` made the *group* pluggable, which covers every discrete-logarithm
+scheme and no others. The Rust commitment traits move the seam up to the commitment, because
 the interesting alternative is not another group:
 
     commit, add, scale, negate, zero, encode, equal, scalar_modulus
@@ -362,7 +362,7 @@ commitment from a VOLE correlation --- `M = K + Delta*x` over a prime field,
 where the prover holds `(x, M)` and the verifier `(K, Delta)`. Every operation is
 field arithmetic instead of a scalar multiplication.
 
-`input_check.py` is ported to the seam and runs unmodified on both, which is what
+`rust/qomm-harness/src/bin/run_input_check.rs` is ported to the seam and runs unmodified on both, which is what
 the seam is for. Measured on `host-a`, 30 repeats:
 
 | | one `scale` | build, 166 inputs | verify, 166 inputs |
@@ -394,7 +394,7 @@ seam is what makes trying it a substitution rather than a rewrite.**
 
 ## 4.6 VOLE-in-the-Head, implemented, and what the 113x became
 
-The transform is now in `zk/voleith.py`, so the question above is answered by a
+The transform is now in `rust/qomm-harness/src/voleith.rs`, so the question above is answered by a
 measurement rather than by a citation. What it does, in the order it happens:
 
 1. `repeats` GGM trees of `2^depth` leaves each. Each leaf seeds a vector of
@@ -503,7 +503,7 @@ figure above. Counting figure 6's messages, the best parameters move to
 smaller than the measured repetition-code proof, for 2.9x the computation, and
 3.5x Pedersen's rather than 2.0x.
 
-**Neither is implemented.** `scripts/run_voleith.py` returns both branches ---
+**Neither is implemented.** `rust/qomm-harness/src/bin/run_voleith.rs` returns both branches ---
 `code_swap_only` and `protocol_complete` --- so the distance between what was
 measured and what the construction reaches is a number, and so is the distance
 between the two ways of counting it.
@@ -545,7 +545,7 @@ difference**. The byte counts have no such caveat.
 
 ---
 
-Only `input_check.py` is ported to the per-value seam. The rest of `zk/` still
+Only `rust/qomm-harness/src/bin/run_input_check.rs` is ported to the per-value seam. The rest of the proof layer still
 takes a `Pedersen` directly, and porting it would buy nothing further: what the
 comparison needed was a second seam at the level of a statement, and that is
 what `LinearProofScheme` is.

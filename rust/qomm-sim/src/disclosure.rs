@@ -13,9 +13,28 @@
 //! rather than a per-record bound --- which turns out to decide what the
 //! mechanism can and cannot publish.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::pyrandom::PyRandom;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PrivacyBudgetExceeded {
+    pub spent: f64,
+    pub wanted: f64,
+    pub limit: f64,
+}
+
+impl std::fmt::Display for PrivacyBudgetExceeded {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "budget exhausted: spent={:.3} want={:.3} cap={}",
+            self.spent, self.wanted, self.limit
+        )
+    }
+}
+
+impl std::error::Error for PrivacyBudgetExceeded {}
 
 /// Continual-observation budget, tracked per protected entity.
 #[derive(Clone, Debug)]
@@ -23,6 +42,9 @@ pub struct EntityAccountant {
     pub epsilon_total: f64,
     pub spent: f64,
     pub releases: u64,
+    /// Zero selects pure-DP basic composition. A positive value selects the
+    /// published advanced-composition bound.
+    pub delta: f64,
 }
 
 impl EntityAccountant {
@@ -31,34 +53,182 @@ impl EntityAccountant {
             epsilon_total,
             spent: 0.0,
             releases: 0,
+            delta: 0.0,
         }
     }
+    pub fn with_delta(epsilon_total: f64, delta: f64) -> Self {
+        Self {
+            delta,
+            ..Self::new(epsilon_total)
+        }
+    }
+    fn cost(&self, releases: u64, epsilon: f64) -> f64 {
+        advanced_composition(epsilon, releases, self.delta)
+    }
     pub fn can_spend(&self, epsilon: f64) -> bool {
-        self.spent + epsilon <= self.epsilon_total + 1e-12
+        self.cost(self.releases + 1, epsilon) <= self.epsilon_total + 1e-12
     }
     pub fn spend(&mut self, epsilon: f64) {
-        self.spent += epsilon;
+        self.try_spend(epsilon)
+            .unwrap_or_else(|error| panic!("{error}"));
+    }
+    pub fn try_spend(&mut self, epsilon: f64) -> Result<(), PrivacyBudgetExceeded> {
+        if !self.can_spend(epsilon) {
+            return Err(PrivacyBudgetExceeded {
+                spent: self.spent,
+                wanted: epsilon,
+                limit: self.epsilon_total,
+            });
+        }
         self.releases += 1;
+        self.spent = self.cost(self.releases, epsilon);
+        Ok(())
     }
 }
 
-/// Two-sided geometric noise with scale `sensitivity / epsilon`.
+/// Dwork--Rothblum--Vadhan advanced composition; delta zero is basic composition.
+pub fn advanced_composition(epsilon_0: f64, k: u64, delta: f64) -> f64 {
+    if k == 0 {
+        return 0.0;
+    }
+    if delta <= 0.0 {
+        return k as f64 * epsilon_0;
+    }
+    (2.0 * k as f64 * (1.0 / delta).ln()).sqrt() * epsilon_0
+        + k as f64 * epsilon_0 * epsilon_0.exp_m1()
+}
+
+pub const RATE_DENOMINATOR_LIMIT: u64 = 10_000_000;
+
+/// Exact positive rational represented by an `f64`, reduced by powers of two.
+fn float_ratio(value: f64) -> (u128, u128) {
+    assert!(value.is_finite() && value >= 0.0);
+    if value == 0.0 {
+        return (0, 1);
+    }
+    let bits = value.to_bits();
+    let exponent_bits = ((bits >> 52) & 0x7ff) as i32;
+    let fraction = bits & ((1u64 << 52) - 1);
+    let (mut numerator, exponent) = if exponent_bits == 0 {
+        (fraction as u128, -1022 - 52)
+    } else {
+        (((1u64 << 52) | fraction) as u128, exponent_bits - 1023 - 52)
+    };
+    if exponent >= 0 {
+        return (numerator << exponent, 1);
+    }
+    let mut denominator_exponent = (-exponent) as u32;
+    let removable = numerator.trailing_zeros().min(denominator_exponent);
+    numerator >>= removable;
+    denominator_exponent -= removable;
+    assert!(
+        denominator_exponent < 128,
+        "noise rate is too small to represent"
+    );
+    (numerator, 1u128 << denominator_exponent)
+}
+
+/// CPython `Fraction(value).limit_denominator(max_denominator)`.
+fn limit_denominator(value: f64, max_denominator: u64) -> (u64, u64) {
+    let (mut numerator, mut denominator) = float_ratio(value);
+    if denominator <= max_denominator as u128 {
+        return (numerator as u64, denominator as u64);
+    }
+
+    let (mut p0, mut q0, mut p1, mut q1) = (0u128, 1u128, 1u128, 0u128);
+    loop {
+        let a = numerator / denominator;
+        let q2 = q0 + a * q1;
+        if q2 > max_denominator as u128 {
+            break;
+        }
+        (p0, q0, p1, q1) = (p1, q1, p0 + a * p1, q2);
+        (numerator, denominator) = (denominator, numerator - a * denominator);
+    }
+    let k = (max_denominator as u128 - q0) / q1;
+    let bound1 = (p0 + k * p1, q0 + k * q1);
+    let bound2 = (p1, q1);
+    let distance1 = (value - bound1.0 as f64 / bound1.1 as f64).abs();
+    let distance2 = (value - bound2.0 as f64 / bound2.1 as f64).abs();
+    let chosen = if distance2 <= distance1 {
+        bound2
+    } else {
+        bound1
+    };
+    (chosen.0 as u64, chosen.1 as u64)
+}
+
+/// A fair-coin construction for a Bernoulli with probability `exp(-n/d)`.
+fn bernoulli_exp_minus(numerator: u64, denominator: u64, rng: &mut PyRandom) -> bool {
+    assert!(denominator > 0);
+    if numerator > denominator {
+        let whole = numerator / denominator;
+        let rest = numerator % denominator;
+        for _ in 0..whole {
+            if !bernoulli_exp_minus(1, 1, rng) {
+                return false;
+            }
+        }
+        return bernoulli_exp_minus(rest, denominator, rng);
+    }
+    let mut k = 1u64;
+    loop {
+        let stop = denominator
+            .checked_mul(k)
+            .and_then(|v| i64::try_from(v).ok())
+            .expect("exact geometric denominator overflow");
+        if rng.randrange(0, stop) as u64 >= numerator {
+            break;
+        }
+        k += 1;
+    }
+    k % 2 == 1
+}
+
+fn geometric_exact(numerator: u64, denominator: u64, rng: &mut PyRandom) -> i64 {
+    let mut count = 0i64;
+    while bernoulli_exp_minus(numerator, denominator, rng) {
+        count += 1;
+    }
+    count
+}
+
+/// Two-sided geometric noise sampled with integer comparisons only.
+///
+/// This is the ideal mechanism used by the Python implementation and its
+/// privacy proof, rather than the distinguishable floating-point inverse-CDF
+/// approximation.
 pub fn discrete_laplace(epsilon: f64, sensitivity: f64, rng: &mut PyRandom) -> i64 {
+    assert!(
+        sensitivity > 0.0 && epsilon > 0.0,
+        "sensitivity and epsilon must be positive"
+    );
+    let rate = epsilon / sensitivity;
+    if rate >= 64.0 {
+        return 0;
+    }
+    let (numerator, denominator) = limit_denominator(rate, RATE_DENOMINATOR_LIMIT);
+    assert!(numerator > 0, "the noise rate rounded to zero");
+    if numerator >= 64 * denominator {
+        return 0;
+    }
+    geometric_exact(numerator, denominator, rng) - geometric_exact(numerator, denominator, rng)
+}
+
+/// The former floating-point inverse-CDF sampler, kept only so old experiment
+/// results can be reproduced explicitly. New privacy releases use
+/// [`discrete_laplace`].
+pub fn discrete_laplace_approximate(epsilon: f64, sensitivity: f64, rng: &mut PyRandom) -> i64 {
     assert!(
         sensitivity > 0.0 && epsilon > 0.0,
         "sensitivity and epsilon must be positive"
     );
     let alpha = (-epsilon / sensitivity).exp();
     if alpha <= 0.0 {
-        // Scale below one quantum: the mechanism degenerates to no noise, which
-        // is the correct limit and avoids a log of zero.
         return 0;
     }
-    let geom = |rng: &mut PyRandom| {
-        let u = rng.random();
-        ((-u).ln_1p() / alpha.ln()).floor() as i64
-    };
-    geom(rng) - geom(rng)
+    let geometric = |rng: &mut PyRandom| ((-rng.random()).ln_1p() / alpha.ln()).floor() as i64;
+    geometric(rng) - geometric(rng)
 }
 
 /// Recover `|S|` from a noisy `|S + N|`.
@@ -84,6 +254,7 @@ pub struct WindowObservation {
     pub requests_by_entity: BTreeMap<usize, i64>,
     pub volume_by_entity: BTreeMap<usize, i64>,
     pub signed_volume_by_entity: BTreeMap<usize, i64>,
+    pub fills_by_entity: BTreeMap<usize, i64>,
     pub fills: i64,
     pub requests: i64,
     pub no_quote: i64,
@@ -105,11 +276,15 @@ pub struct ReleaseFields {
     pub exact_volume: i64,
     pub exact_signed_volume: i64,
     pub exact_fills: i64,
+    pub request_cap: i64,
+    pub volume_cap: i64,
     pub noise_scale_requests: f64,
     pub noise_scale_signed: f64,
     pub debiased: bool,
     pub min_makers: i64,
     pub min_lots: i64,
+    /// Exact informed fraction used only by the disclosure-ceiling experiment.
+    pub phi: Option<f64>,
 }
 
 #[derive(Clone, Debug)]
@@ -128,8 +303,15 @@ pub type PublicSignal = (Option<f64>, f64);
 
 pub enum Disclosure {
     None,
-    Threshold { min_makers: i64, min_lots: i64 },
+    Threshold {
+        min_makers: i64,
+        min_lots: i64,
+    },
     Dp(Box<DpDisclosure>),
+    Oracle {
+        phi_by_window: BTreeMap<usize, f64>,
+        reaches: Option<BTreeSet<usize>>,
+    },
 }
 
 pub struct DpDisclosure {
@@ -143,6 +325,10 @@ pub struct DpDisclosure {
     /// calls for. The signed field alone took twice that --- the replace-one
     /// figure --- which doubled its noise for no gain in privacy.
     pub signed_sensitivity_factor: f64,
+    /// Optional subscriber set.  `None` is a venue-wide release; `Some` lets
+    /// the simulator separate the information effect of a disclosure from the
+    /// competition effect of every maker receiving it.
+    pub reaches: Option<BTreeSet<usize>>,
 }
 
 /// A satisfied depth statement says the market is not stressed, which shifts the
@@ -158,6 +344,7 @@ impl Disclosure {
             Disclosure::None => "A_none",
             Disclosure::Threshold { .. } => "B_threshold",
             Disclosure::Dp(_) => "C_dp",
+            Disclosure::Oracle { .. } => "Z_oracle",
         }
     }
 
@@ -201,6 +388,17 @@ impl Disclosure {
                 }
             }
             Disclosure::Dp(dp) => dp.release(obs, rng),
+            Disclosure::Oracle { phi_by_window, .. } => Release {
+                window: obs.window,
+                mode: "Z_oracle",
+                published: true,
+                fields: ReleaseFields {
+                    phi: Some(*phi_by_window.get(&obs.window).unwrap_or(&0.45)),
+                    ..ReleaseFields::default()
+                },
+                epsilon_spent: 0.0,
+                suppressed_reason: "",
+            },
         }
     }
 
@@ -215,12 +413,34 @@ impl Disclosure {
                 }
             }
             Disclosure::Dp(dp) => dp.public_signal(release),
+            Disclosure::Oracle { .. } => {
+                if release.published {
+                    (release.fields.phi, 1e-4)
+                } else {
+                    (None, f64::INFINITY)
+                }
+            }
+        }
+    }
+
+    /// Whether this disclosure reaches a particular maker.
+    pub fn reaches(&self, mm_id: usize) -> bool {
+        match self {
+            Disclosure::Dp(dp) => dp
+                .reaches
+                .as_ref()
+                .is_none_or(|subscribers| subscribers.contains(&mm_id)),
+            Disclosure::Oracle { reaches, .. } => reaches
+                .as_ref()
+                .is_none_or(|subscribers| subscribers.contains(&mm_id)),
+            _ => true,
         }
     }
 
     pub fn epsilon_spent_max(&self) -> f64 {
         match self {
             Disclosure::Dp(dp) => dp.accountants.values().map(|a| a.spent).fold(0.0, f64::max),
+            Disclosure::Oracle { .. } => 0.0,
             _ => 0.0,
         }
     }
@@ -245,21 +465,21 @@ impl DpDisclosure {
             n_fields: 4.0,
             debias,
             signed_sensitivity_factor: 1.0,
+            reaches: None,
         }
     }
 
-    fn release(&mut self, obs: &WindowObservation, rng: &mut PyRandom) -> Release {
-        let active: Vec<usize> = obs
-            .requests_by_entity
-            .iter()
-            .filter(|(_, c)| **c > 0)
-            .map(|(e, _)| *e)
-            .collect();
-        if active.iter().any(|e| {
-            self.accountants
-                .get(e)
-                .is_none_or(|a| !a.can_spend(self.epsilon_per_window))
-        }) {
+    pub fn release(&mut self, obs: &WindowObservation, rng: &mut PyRandom) -> Release {
+        // Whether a scheduled window is published must not reveal which
+        // entities contributed to it.  Budget-checking only active entities
+        // made the published/withheld bit distinguish presence with
+        // probability one.  The schedule therefore checks and charges every
+        // enrolled entity, including entities that sat this window out.
+        if self
+            .accountants
+            .values()
+            .any(|a| !a.can_spend(self.epsilon_per_window))
+        {
             return Release {
                 window: obs.window,
                 mode: "C_dp",
@@ -269,10 +489,8 @@ impl DpDisclosure {
                 suppressed_reason: "entity privacy budget exhausted",
             };
         }
-        for e in &active {
-            if let Some(a) = self.accountants.get_mut(e) {
-                a.spend(self.epsilon_per_window);
-            }
+        for accountant in self.accountants.values_mut() {
+            accountant.spend(self.epsilon_per_window);
         }
 
         let eps = self.epsilon_per_window / self.n_fields;
@@ -291,7 +509,14 @@ impl DpDisclosure {
             .values()
             .map(|v| (*v).clamp(-self.volume_cap, self.volume_cap))
             .sum();
-        let clipped_fills = obs.fills.min(clipped_requests);
+        // Entity adjacency applies to fills too.  Clipping a bare fill total
+        // against the request sum lets one entity move this field by many
+        // caps; clip each entity's contribution before summing instead.
+        let clipped_fills: i64 = obs
+            .fills_by_entity
+            .values()
+            .map(|c| (*c).min(self.request_cap))
+            .sum();
 
         let request_cap = self.request_cap as f64;
         let volume_cap = self.volume_cap as f64;
@@ -320,11 +545,14 @@ impl DpDisclosure {
                 exact_volume: clipped_volume,
                 exact_signed_volume: clipped_signed,
                 exact_fills: clipped_fills,
+                request_cap: self.request_cap,
+                volume_cap: self.volume_cap,
                 noise_scale_requests: request_cap / eps,
                 noise_scale_signed: signed_sensitivity / eps,
                 debiased: self.debias,
                 min_makers: 0,
                 min_lots: 0,
+                phi: None,
             },
             epsilon_spent: self.epsilon_per_window,
             suppressed_reason: "",
@@ -332,7 +560,7 @@ impl DpDisclosure {
     }
 
     /// Signed order-flow imbalance is the public proxy for informed flow.
-    fn public_signal(&self, release: &Release) -> PublicSignal {
+    pub fn public_signal(&self, release: &Release) -> PublicSignal {
         if !release.published {
             return (None, f64::INFINITY);
         }

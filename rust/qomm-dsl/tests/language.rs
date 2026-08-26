@@ -2,7 +2,7 @@
 //! carries its own audit; an illegal one is refused with a reason its author can
 //! act on; and no rule can read who is asking.
 
-use qomm_dsl::{compile_rule, emit};
+use qomm_dsl::{compile_rule, emit, obligation_plan};
 use std::collections::BTreeMap;
 
 const RULE: &str = "\
@@ -21,16 +21,13 @@ fn a_legal_rule_compiles_and_derives_its_own_facts() {
         vec!["half", "inv", "invcoef", "mid", "slope"]
     );
     assert_eq!(rule.inputs(), vec!["qty"]);
-    // slope * qty is secret times public, so degree one; invcoef * inv is
-    // secret times secret, so degree two and one product obligation each.
+    // The input is committed with a fresh blinding, so both slope * qty and
+    // invcoef * inv are secret-times-secret products in each output.
     assert_eq!(rule.max_degree(), 2);
-    let products = rule
-        .obligations
-        .iter()
-        .filter(|o| o.kind == "product")
-        .count();
+    let plan = obligation_plan(&rule);
+    let products = plan.counts["product"];
     assert_eq!(
-        products, 2,
+        products, 4,
         "one product proof per secret-times-secret term"
     );
     assert!(rule.required_bits() >= 18, "{}", rule.required_bits());

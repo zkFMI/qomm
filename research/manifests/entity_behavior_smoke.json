@@ -1,5 +1,5 @@
 {
-  "experiment_id": "QOMM-ENTITY-BEHAVIOR-SMOKE-001",
+  "experiment_id": "QOMM-ENTITY-BEHAVIOR-SMOKE-002",
   "contract_id": "QOMM-PRODUCT-2026-08-24",
   "contract_sha256": "8c783133f6f737784497d700d9738a6ab9623c524fe36cae85635cb9f4153333",
   "stage": "smoke",
@@ -14,11 +14,7 @@
   "promotion_rule": "Behavior cannot merge entities or deny service, and this run cannot support production use before externally labeled validation.",
   "evidence_class": "smoke_only",
   "command": [
-    "uv",
-    "run",
-    "--frozen",
-    "python",
-    "scripts/run_entity_behavior.py",
+    "rust/target/release/run_entity_behavior",
     "--out",
     "artifacts/entity_behavior_smoke.json",
     "--seed",
@@ -26,5 +22,7 @@
     "--max-fpr",
     "0.01"
   ],
-  "output": "artifacts/entity_behavior_smoke.json"
+  "output": "artifacts/entity_behavior_smoke.json",
+  "supersedes_blocked_experiment": "QOMM-ENTITY-BEHAVIOR-SMOKE-001",
+  "new_causal_evidence": "The recorded command names a file that no longer exists. The measurement instrument was reimplemented in Rust and the Python it invoked was deleted, so the receipt on QOMM-ENTITY-BEHAVIOR-SMOKE-001 describes a run of a different instrument than the one this repository now contains. The Rust binary was compared against that Python value by value while both existed --- 26 non-timing values identical, 0 different --- so this is a re-run of the same experiment on a rebuilt instrument, not a new hypothesis. Nothing about the market, the seeds, the population or the rules has changed."
 }

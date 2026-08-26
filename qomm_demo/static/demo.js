@@ -38,7 +38,7 @@ ja: {
   // maker
   makerTitle:"あなたの価格方針（あなただけが見ています）",
   makerWhy:"注文は見えません。方針だけを置き、見えない注文に対して評価されます。",
-  mid:"中心のずらし", half:"半値幅", slope:"サイズ料", invcoef:"スキュー係数",
+  ask_level:"売る値段", spread:"スプレッド", slope:"サイズ料", invcoef:"スキュー係数",
   inv:"在庫スキュー", maxqty:"受ける最大数量", active:"稼働", assetLabel:"建てる市場",
   invWhy:"＋で両サイドを上げる（買い戻したい）、−で下げる（売りたい）。",
   fillTitle:"約定", noFill:"今回、あなたへの通知はありません。",
@@ -136,7 +136,7 @@ en: {
   coverRound:"that round was cover. The price is not used.",
   makerTitle:"Your price policy (only this seat sees it)",
   makerWhy:"You never see the order. You leave a policy and it is priced against something you are not shown.",
-  mid:"offset", half:"half-spread", slope:"charge per unit", invcoef:"skew weight",
+  ask_level:"ask level", spread:"spread", slope:"charge per unit", invcoef:"skew weight",
   inv:"inventory skew", maxqty:"largest size taken", active:"switched on",
   assetLabel:"market made",
   invWhy:"positive lifts both quotes (wants to buy back), negative drops them (wants to sell).",
@@ -530,7 +530,7 @@ function updateTaker(){
 
 /* ---------- maker ------------------------------------------------------ */
 let makerEls = {};
-const POLICY_RANGE = {mid:[-40,40], half:[3,60], slope:[0,4], invcoef:[0,3],
+const POLICY_RANGE = {ask_level:[-40,40], spread:[6,120], slope:[0,4], invcoef:[0,3],
                       inv:[-120,120], maxqty:[0,500]};
 function buildMaker(root){
   const c = card(t('makerTitle'), t('makerWhy'));
@@ -572,10 +572,10 @@ function drawLocal(out, qty){
   out.textContent = '';
   if (!pol) return;
   const ref = V.assets[pol.asset] ? V.assets[pol.asset].reference : 0;
-  const anchor = pol.use_ref * ref + pol.mid;
+  const anchor = pol.use_ref * ref + pol.ask_level;
   const depth = pol.slope * qty, skew = pol.invcoef * pol.inv;
-  [[t('ask'), anchor + pol.half + depth + skew],
-   [t('bid'), anchor - pol.half - depth + skew]].forEach(([k, v]) => {
+  [[t('ask'), anchor + depth + skew],
+   [t('bid'), anchor - pol.spread - depth + skew]].forEach(([k, v]) => {
     const tr = el('tr'); tr.appendChild(el('td', null, k));
     tr.appendChild(el('td', 'mono', showPrice(V.assets, pol.asset, v)));
     out.appendChild(tr); });

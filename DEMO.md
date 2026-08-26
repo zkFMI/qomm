@@ -1,9 +1,9 @@
 # Running the demo
 
-    python3 scripts/serve_demo.py
+    cargo run -j 4 --release --manifest-path rust/Cargo.toml -p qomm-harness --bin serve_demo
 
-Open the address it prints. That is the whole setup: no install, no build step,
-no packages beyond the standard library, and it serves on every interface so a
+Open the address it prints. Cargo builds the Rust workspace on the first run,
+and the server listens on every interface so a
 second machine can reach it by typing the address rather than by being the same
 machine.
 
@@ -52,10 +52,10 @@ reason to sit a person at a node is to let them find that out by pressing.
 | goes quiet after the inputs | one fewer evaluation point, so one fewer liar can be corrected |
 | never takes part at all | the round cannot start: inputs are the sum of every node's share |
 
-That table is not a script. `qomm_demo/protocol.py` deals real additive shares,
+That table is not a script. `rust/qomm-demo/src/protocol.rs` deals real additive shares,
 does a real Shamir multiplication in the Damgard--Nielsen shape --- local
 product to degree `2t`, mask with a double sharing, open, subtract --- and
-decodes the opening with `qomm_audit.locate`, which is Berlekamp--Welch. When
+decodes the opening with `qomm_audit::locate`, which is Berlekamp--Welch. When
 the screen says a node was named, an error locator polynomial said so.
 
 The last two rows are the ones worth dwelling on. Robustness was built for the
@@ -79,7 +79,7 @@ party's log, and it is checked against the cleartext reference every round --- a
 round that does not match is reported as not matching. What a node seat is shown
 is its own party input file, because that is what it holds.
 
-    python3 scripts/serve_demo.py --engine mpc --nodes 7 --threshold 2 \
+    cargo run -j 4 --release --manifest-path rust/Cargo.toml -p qomm-harness --bin serve_demo -- --engine mpc --nodes 7 --threshold 2 \
         --mp-spdz-root ~/work/qomm/MP-SPDZ
 
 A round is a few hundred milliseconds against a couple, and it needs a built
@@ -108,8 +108,8 @@ going quiet --- still run in the demo's own share layer only, and the banner
 says so.
 
 The demo's market is the circuit's market, and that is a test rather than a
-claim: `tests/test_demo.py` prices twenty-five random fixtures through both
-`qomm_demo.model` and the generator's own cleartext reference and requires every
+claim: `rust/qomm-demo/tests/model.rs` prices twenty-five random fixtures through both
+`qomm_demo::model` and the generator's own cleartext reference and requires every
 quote to agree.
 
 ## What each seat is shown, and what it is not

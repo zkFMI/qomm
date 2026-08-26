@@ -3,17 +3,19 @@
 //! let a prover open any key it liked.
 
 use curve25519_dalek::scalar::Scalar;
-use qomm_proofs::quote_proof::{Invalid, MakerWitness, QuoteCircuit, Registered};
+use qomm_proofs::quote_proof::{
+    registry_digest, Invalid, MakerWitness, MinimalityProof, QuoteCircuit, Registered,
+};
 use rand_core::OsRng;
 
 fn makers() -> Vec<MakerWitness> {
-    // half-spreads of 8, 5 and 12: the middle one should win an ask.
-    [8i64, 5, 12]
+    // Full spreads are doubled while the converted ask levels preserve prices.
+    [(8i64, 16i64), (5, 10), (12, 24)]
         .iter()
         .enumerate()
-        .map(|(i, half)| MakerWitness {
-            mid: 0,
-            half: *half,
+        .map(|(i, (ask_level, spread))| MakerWitness {
+            ask_level: *ask_level,
+            spread: *spread,
             slope: 1 + i as i64,
             invcoef: 1,
             inv: 10 * (i as i64 + 1),
@@ -49,9 +51,9 @@ fn the_true_winner_verifies_and_is_the_tightest() {
     assert_eq!(circuit.verify(&proof, &public, CTX), Ok(()));
     // packed key = effective * n_slots + index, so the index rides in the low bits
     assert_eq!(proof.winner_value as usize % 4, proof.winner_index);
-    // The tightest half-spread does not win by itself: cost carries the depth
-    // term too, and maker 0's shallower slope beats maker 1's tighter quote at
-    // this size. Asserting the winner rather than the half-spread is the point.
+    // The tightest spread and lowest base ask do not win by themselves: cost
+    // carries the depth term too, and maker 0's shallower slope beats maker 1
+    // at this size. Asserting the winner rather than the spread is the point.
     assert_eq!(proof.winner_index, 0);
 }
 
@@ -129,11 +131,13 @@ fn a_proof_does_not_carry_across_contexts() {
 #[test]
 fn the_direction_changes_who_wins() {
     let circuit = QuoteCircuit::default();
-    // Selling pays the bid, and the slope now works the other way, so the
-    // ordering is not the same one.
+    let mut ms = makers();
+    // Spread does not move maker 0's ask, but its whole 400 ticks move the bid.
+    // That makes maker 0 the best ask and maker 1 the best bid.
+    ms[0].spread = 400;
     let (ask, ask_public) = circuit
         .prove(
-            &makers(),
+            &ms,
             100,
             0,
             1_000,
@@ -147,7 +151,7 @@ fn the_direction_changes_who_wins() {
         .unwrap();
     let (bid, bid_public) = circuit
         .prove(
-            &makers(),
+            &ms,
             100,
             1,
             1_000,
@@ -161,7 +165,10 @@ fn the_direction_changes_who_wins() {
         .unwrap();
     assert_eq!(circuit.verify(&ask, &ask_public, CTX), Ok(()));
     assert_eq!(circuit.verify(&bid, &bid_public, CTX), Ok(()));
-    assert_ne!(ask.winner_value, bid.winner_value);
+    // qty=100 gives asks [118, 225, 342] and bids [-482, -185, -282].
+    // The published value packs cost * 4 + slot; sell cost is -bid.
+    assert_eq!((ask.winner_index, ask.winner_value), (0, 118 * 4));
+    assert_eq!((bid.winner_index, bid.winner_value), (1, 185 * 4 + 1));
 }
 
 #[test]
@@ -357,12 +364,19 @@ fn every_registered_price_field_is_bound_to_the_quote() {
         )
         .unwrap();
 
-    // This exact mutation used to verify: `half` was on the public register,
-    // but the Rust verifier never connected it to the committed cost.
+    // These fields must remain tied to the registered commitments even after
+    // recomputing the registry digest.
     let mut rewritten = public.clone();
-    rewritten.registry[0].half = circuit
+    rewritten.registry[0].ask_level = circuit
         .key
         .commit(&Scalar::from(1u64), &Scalar::random(&mut OsRng));
+    rewritten.registry_digest = qomm_proofs::quote_proof::registry_digest(&rewritten.registry);
+    assert!(circuit.verify(&proof, &rewritten, CTX).is_err());
+
+    let mut rewritten = public.clone();
+    rewritten.registry[0].spread = circuit
+        .key
+        .commit(&Scalar::from(2u64), &Scalar::random(&mut OsRng));
     rewritten.registry_digest = qomm_proofs::quote_proof::registry_digest(&rewritten.registry);
     assert!(circuit.verify(&proof, &rewritten, CTX).is_err());
 }
@@ -476,6 +490,56 @@ fn malformed_shapes_are_rejected_without_panicking() {
         circuit.verify(&proof, &public, CTX),
         Err(Invalid::Malformed(_))
     ));
+}
+
+#[test]
+fn a_proof_about_no_makers_is_not_a_proof() {
+    let circuit = QuoteCircuit::default();
+    let (proof, mut public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    assert_eq!(circuit.verify(&proof, &public, CTX), Ok(()));
+    public.registry.clear();
+    public.registry_digest = registry_digest(&public.registry);
+    assert_eq!(circuit.verify(&proof, &public, CTX), Err(Invalid::NoMakers));
+}
+
+#[test]
+fn minimality_cannot_be_deleted() {
+    let circuit = QuoteCircuit::default();
+    let (mut proof, public) = circuit
+        .prove(
+            &makers(),
+            100,
+            0,
+            1_000,
+            1 << 20,
+            4,
+            CTX,
+            &mut OsRng,
+            [0u8; 32],
+            0,
+        )
+        .unwrap();
+    assert_eq!(circuit.verify(&proof, &public, CTX), Ok(()));
+    proof.minimality = MinimalityProof::Threshold(Vec::new());
+    assert_eq!(
+        circuit.verify(&proof, &public, CTX),
+        Err(Invalid::Malformed(
+            "one minimality proof is required per maker"
+        ))
+    );
 }
 
 #[test]

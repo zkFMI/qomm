@@ -77,6 +77,8 @@ A sigma protocol's response is **linear in the witness**, so `t` composes in the
 
 The statement proved is that applying the committed policy to the committed request yields `key_i`, and that the disclosed winner is the minimum of those. Minimality and membership together say exactly that `v` is the minimum.
 
+**Which policy form.** The verifier rebuilds `ask = ask_level + depth + skew` and `bid = ask_level - spread - depth + skew` from the registered commitments, where `depth` is `slope * qty` and `skew` is `invcoef * inv`. There is no reference-price term in it. That is the rule a circuit generated with `--reference none` computes, and it is the form every figure in this section was measured on: `circuit_bound_proof.json` records the wires the circuit wrote and its `wire_order` carries no `use_ref` and no `ref_mid`. A circuit generated with `--reference anchored`, which is still the flag's default, reaches `ask` through `anchored = ask_level + use_ref * ref` instead, and `shares_from_circuit` refuses that wire rather than proving a different rule than the one the verifier checks. Section 5 shows both forms.
+
 | makers | prove | verify | winner matches the cleartext minimum |
 |---:|---:|---:|---|
 | 4 | 152 ± 0 (n=15) ms | 173 ± 0 (n=15) ms | True |
@@ -112,7 +114,7 @@ Below the threshold (two nodes) the assembled proof does not verify; that is che
 
 The proof is assembled from shares, and until the circuit kept them those shares reached the prover by a route of their own --- nothing said they were the numbers the circuit computed on. A proof about numbers that merely agree with a computation is not a proof about the computation, and this was the largest thing the design asserted rather than showed.
 
-`sint.write_to_file` now makes each node keep its share of the winner, and `mp_spdz/persistence.py` reads them back. On a seven-party run at *T* = 2 over MP-SPDZ's 128-bit field the shares reconstruct to the value the cleartext reference predicts; every subset of three agrees, two do not recover it, and one flipped bit is noticed. The run ships as a fixture, so the check needs no MP-SPDZ.
+`sint.write_to_file` now makes each node keep its share of the winner, and `rust/qomm-mpc/src/persistence.rs` reads them back. On a seven-party run at *T* = 2 over MP-SPDZ's 128-bit field the shares reconstruct to the value the cleartext reference predicts; every subset of three agrees, two do not recover it, and one flipped bit is noticed. The run ships as a fixture, so the check needs no MP-SPDZ.
 
 | makers | field | rounds | sent per party | median, 1 ms one way |
 |---:|---|---:|---:|---:|
@@ -129,44 +131,98 @@ The price is 1.6 to 1.9x the rounds, 13x the traffic and 1.5 to 2.2x the wall cl
 
 The pricing rule is restricted to a small notation with a limited instruction set: it must reference only permitted inputs, must not use a user's identity or address as a pricing input, and must have a bounded output range. These are **static properties of a program**, so they are a checker's job and not a proof's.
 
+Two forms are registered, and which one a maker uses is the `use_ref` bit. **The proof of section 4 is over the second.**
+
+*Anchored* --- `mid` is an offset from the reference price of whichever asset was asked for, so one rule serves every market (`--reference anchored`, the flag's default):
+
 ```
 # the price rule a market maker registers, and nothing else.
-# mid is an offset from the reference price of whichever asset was asked for,
-# so the same rule serves every market the circuit covers. A maker in a market
-# with no usable reference sets use_ref to 0 instead --- see quote_absolute.rule.
-param mid[-2000,2000], half[1,200], slope[0,16], invcoef[0,8], maxqty[1,1000]
+# ask_level is an offset from the reference price of whichever asset was asked
+# for, so the same rule serves every market the circuit covers. A maker in a
+# market with no usable reference sets use_ref to 0 instead --- see
+# quote_absolute.rule.
+#
+# A maker registers the price it will sell at and the spread it will buy at,
+# which is how a maker quotes. The earlier form registered a midpoint and half a
+# spread; the two are an affine change of variables, but this one lets the level
+# be declared without a sign in the absolute rule and so keeps both prices
+# positive there. The spread costs one Bulletproof bucket more --- [2,400] needs
+# 9 bits where a half-spread of [1,200] needed 8 --- and that is the whole price
+# of the change.
+#
+# Non-crossing is still an identity rather than a check:
+#     ask - bid = spread + 2 * slope * qty >= 2
+# so a crossed quote cannot be written, which is stronger than being filtered.
+param ask_level[-2000,2000], spread[2,400], slope[0,16], invcoef[0,8], maxqty[1,1000]
 param expiry[0,1000000], active[0,1], use_ref[1,1]
 state inv[-4000,4000]
 input qty[1,400], ref_mid[90000,110000], now[0,1000000]
 
-ask      = use_ref * ref_mid + mid + half + slope * qty + invcoef * inv
-bid      = use_ref * ref_mid + mid - half - slope * qty + invcoef * inv
+ask      = use_ref * ref_mid + ask_level + slope * qty + invcoef * inv
+bid      = use_ref * ref_mid + ask_level - spread - slope * qty + invcoef * inv
 eligible = (qty <= maxqty) and (expiry > now) and (active == 1)
 ```
+
+*Absolute* --- the maker carries the whole level in `mid` and re-deals it as often as it likes, so nothing is added from the reference table (`--reference none`). This is the form the quote proof's statement covers and the one every figure in section 4 was measured on:
+
+```
+# The same price rule for a market with no usable benchmark.
+#
+# `use_ref` is 0, so nothing is added from the reference table and `ask_level`
+# carries the whole price rather than an offset from one. That is what an
+# illiquid instrument needs --- a corporate bond has no continuous mid to be an
+# offset from --- and it is why `ask_level` is declared wide here and narrow in
+# `quote.rule`.
+#
+# The lower bound is not a style choice. With no reference to lift them, both
+# prices are the level minus everything that adjusts it downward:
+#
+#     spread(400) + slope(16) * qty(400) + invcoef(8) * |inv|(4000) = 38800
+#
+# so a level under 38801 admits a registration that quotes a negative price, and
+# the checker derives exactly that. The floor is set above it. The skew is 82%
+# of the total, so the alternative to a high floor is less skew authority, not a
+# clamp: clamping both sides costs 328 Bulletproof bits against 176 here, and it
+# means buying at the floor when the rule said not to buy at all.
+#
+# The cost of the width is a range proof: a 12-bit parameter rounds up to a
+# 16-bit proof, an 18-bit one to 32. The two files are the two ends of that
+# trade, and a maker picks per market rather than the venue picking for all.
+param ask_level[40000,200000], spread[2,400], slope[0,16], invcoef[0,8], maxqty[1,1000]
+param expiry[0,1000000], active[0,1], use_ref[0,0]
+state inv[-4000,4000]
+input qty[1,400], ref_mid[90000,110000], now[0,1000000]
+
+ask      = use_ref * ref_mid + ask_level + slope * qty + invcoef * inv
+bid      = use_ref * ref_mid + ask_level - spread - slope * qty + invcoef * inv
+eligible = (qty <= maxqty) and (expiry > now) and (active == 1)
+```
+
+The `use_ref * ref_mid` term survives in both because the checker refuses a rule that declares a value it does not price with; at `use_ref[0,0]` it contributes exactly zero. The circuit does not carry the term at all under `--reference none`, which is why the two agree on the value while disagreeing share by share --- a multiplication re-randomises, so even a sharing of zero is a fresh one.
 
 The instructions are `+ - *`, comparison, `and`, and `min` `max` `clamp` `signed`. There is no division, no loop, no indexing and no attribute access. The surface is a subset of Python expressions parsed with the standard `ast`, and **only the permitted node types pass**. The allowlist is itself the safety argument.
 
 ### What the checker derives, with no proof involved
 
-| derived | value |
-|---|---|
-| output interval `ask` | (56001, 150600) |
-| output interval `bid` | (49400, 143999) |
-| output interval `eligible` | (0, 1) |
-| maximum degree in the secrets | 2 |
-| **bit width the circuit needs** | **19** |
+| derived | anchored | **absolute (what is proved)** |
+|---|---|---|
+| output interval `ask` | (56000, 150400) | **(8000, 238400)** |
+| output interval `bid` | (49200, 143998) | **(1200, 231998)** |
+| output interval `eligible` | (0, 1) | **(0, 1)** |
+| maximum degree in the secrets | 2 | **2** |
+| **bit width the circuit needs** | 19 | **19** |
 
-That is what shows the output range is bounded. The bit width is the justification for the 31 bits that were chosen by hand. **The same declaration yields both the circuit's width and the content of the audit.**
+That is what shows the output range is bounded. Both forms need the same 19 bits --- the anchored rule spends them on a reference band that the absolute rule spends on a wider `mid` --- so the justification for the 31 bits chosen by hand does not depend on which one a maker registers. **The same declaration yields both the circuit's width and the content of the audit.**
 
 ### The audit is derived
 
 One walk of the same tree produces the value and the proof together. There is no hand-written audit.
 
-| kind of proof | count |
-|---|---:|
-| bit | 3 |
-| product | 12 |
-| range | 11 |
+| kind of proof | anchored | absolute |
+|---|---:|---:|
+| bit | 3 | 3 |
+| product | 12 | 12 |
+| range | 11 | 11 |
 
 Measured on Ed25519: building the audit **28.9 ms**, verifying **32.2 ms**, output identical to cleartext evaluation. A test checks that adding a term to the rule adds the corresponding proof.
 
@@ -329,9 +385,8 @@ Even at 15 ms one way (30 ms RTT), 32 requests together reach about 0.28 s each.
 | restrict the form of an approved pricing rule and audit it at registration | **measured** (5). The DSL's checker and the derived audit |
 | a ZK audit of the state-update rule | **measured** (5). Another rule in the same language, same machinery |
 | the three times: priced, proved, settleable | **measured** (7), and it does not make a one-second RFS slot |
-| register a digest of the approved circuit and detect substitution | **built**. `qomm_dsl/registry.py`. The digest covers the expressions, the declared ranges, the circuit and the required bit width. Substituting a secret parameter passes; substituting the rule is refused |
+| register a digest of the approved circuit and detect substitution | **built**. `rust/qomm-dsl/src/registry.rs`. The digest covers the expressions, the declared ranges, the circuit and the required bit width. Substituting a secret parameter passes; substituting the rule is refused |
 | relays over a real network, multiple hops | **measured** (3). Each hop is a real socket, about 4.4 ms per hop |
 | identify a node that emitted an inconsistent partial value | **built**. The joint proof's record names the node whose partial value does not agree with its own share |
 | measure offline/online separation | **measured**. `artifacts/prep_split.json`. With preprocessing on disk the online phase is 16% of party 0's bytes --- 19% of the global total --- and 71% of the rounds |
 | secrecy after a trade, where settlement reveals market and size | **out of scope** for this stage |
-

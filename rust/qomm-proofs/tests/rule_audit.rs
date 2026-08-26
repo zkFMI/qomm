@@ -7,10 +7,11 @@ use rand_core::OsRng;
 use std::collections::BTreeMap;
 
 const RULE: &str = "\
-param mid[99000,101000] half[1,200] slope[0,16] invcoef[0,8]
+param ask_level[99000,101000] spread[2,400] slope[0,16] invcoef[0,8]
 state inv[-4000,4000]
 input qty[1,1000]
-ask = mid + half + slope * qty + invcoef * inv
+ask = ask_level + slope * qty + invcoef * inv
+bid = ask_level - spread - slope * qty + invcoef * inv
 ";
 
 const GATED: &str = "\
@@ -26,8 +27,8 @@ fn bindings(pairs: &[(&str, i128)]) -> BTreeMap<String, i128> {
 
 fn honest() -> BTreeMap<String, i128> {
     bindings(&[
-        ("mid", 100_000),
-        ("half", 12),
+        ("ask_level", 100_012),
+        ("spread", 24),
         ("slope", 3),
         ("invcoef", 2),
         ("inv", -250),
@@ -41,9 +42,10 @@ fn an_honest_rule_audits_and_the_value_is_the_one_it_computes() {
     let (prover, verifier) = (RuleProver::new(), RuleVerifier::new());
     let audit = prover.prove(&rule, &honest(), b"ctx", &mut OsRng).unwrap();
     assert_eq!(verifier.verify(&rule, &audit, b"ctx"), Ok(()));
+    assert_eq!(audit.output_values["ask"], 100_012 + 3 * 100 + 2 * -250);
     assert_eq!(
-        audit.output_values["ask"],
-        100_000 + 12 + 3 * 100 + 2 * -250
+        audit.output_values["bid"],
+        100_012 - 24 - 3 * 100 + 2 * -250
     );
 }
 
@@ -54,8 +56,8 @@ fn the_audit_is_sized_by_the_rule_and_not_by_hand() {
         .prove(&rule, &honest(), b"ctx", &mut OsRng)
         .unwrap();
     let size = audit.size();
-    // Two secret-times-secret products in the source, two product steps here.
-    assert_eq!(size["product"], 2);
+    // Four secret-times-secret products in the source, four product steps here.
+    assert_eq!(size["product"], 4);
     // Five secrets share one aggregated declared-range proof.
     assert_eq!(
         size["declared_range"], 8,
@@ -67,7 +69,7 @@ fn the_audit_is_sized_by_the_rule_and_not_by_hand() {
 fn a_value_outside_its_declared_band_cannot_be_proved() {
     let rule = compile_rule(RULE, "policy").unwrap();
     let mut over = honest();
-    over.insert("half".into(), 500); // band is [1, 200]
+    over.insert("spread".into(), 1_000); // band is [2, 400]
     let err = RuleProver::new()
         .prove(&rule, &over, b"ctx", &mut OsRng)
         .unwrap_err();
@@ -107,8 +109,8 @@ fn a_declared_commitment_swapped_for_another_is_caught() {
     let mut audit = RuleProver::new()
         .prove(&rule, &honest(), b"ctx", &mut OsRng)
         .unwrap();
-    let half = audit.declared["half"];
-    audit.declared.insert("slope".into(), half);
+    let spread = audit.declared["spread"];
+    audit.declared.insert("slope".into(), spread);
     assert!(RuleVerifier::new().verify(&rule, &audit, b"ctx").is_err());
 }
 

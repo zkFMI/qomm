@@ -11,16 +11,16 @@ requirement N3 "a cash leg with strong finality reachable from a distributed led
 instrument listed-equity  register book-entry
 instrument security-token register issuer-ledger
 
-evidence slot-receipt from "qomm_audit/receipts.py"
+evidence slot-receipt from "rust/qomm-audit/src/receipts.rs"
   covers "keep a record of the moment of execution"
   covers "show a node did not act, or signed twice"
   not "identifying who placed the order"
 
-evidence quote-proof from "zk/quote_proof.py"
+evidence quote-proof from "rust/qomm-proofs/src/quote_proof.rs"
   covers "show the price returned was the best available"
   not "execution quality other than price --- speed, certainty"
 
-evidence policy-audit from "zk/policy_audit.py"
+evidence policy-audit from "rust/qomm-proofs/src/policy_audit.rs"
   covers "show a maker's pricing rule is inside the venue's band"
   not "that the maker's internal control is functioning"
 

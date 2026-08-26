@@ -20,7 +20,7 @@
 use std::collections::BTreeMap;
 
 use crate::disclosure::{Disclosure, PublicSignal, Release, WindowObservation};
-use crate::market::{size_bucket, MarketMaker, ReferenceMarket, Request, SimConfig};
+use crate::market::{size_bucket, MarketMaker, PricePath, Request, SimConfig};
 use crate::pyrandom::PyRandom;
 
 pub const PLAIN_PROTOCOLS: [&str; 3] = ["plain_rfq", "plain_rfm", "plain_rfs"];
@@ -32,6 +32,8 @@ pub const MARKOUT_HORIZONS: [(&str, usize); 3] = [
 ];
 
 const PRIOR_HALF_TICKS: f64 = 26.0;
+const PRIOR_HALF_SD: f64 = 14.0;
+const TIGHT_HALF_SD: f64 = 5.0;
 const USER_SLACK_TICKS: i64 = 6;
 
 /// What a maker learned at request time, if anything.
@@ -142,7 +144,7 @@ impl ArmResult {
         if values.is_empty() {
             None
         } else {
-            Some(values.iter().sum::<f64>() / values.len() as f64)
+            Some(crate::fsum::nsum(values.iter().copied()) / values.len() as f64)
         }
     }
 }
@@ -311,24 +313,27 @@ pub fn leakage_policy(protocol: &str) -> Box<dyn LeakagePolicy> {
 }
 
 /// What the user believes the best achievable half spread is.
-fn user_half_estimate(name: &str, release: Option<&Release>) -> f64 {
+fn user_half_estimate(name: &str, release: Option<&Release>) -> (f64, f64) {
     let Some(release) = release else {
-        return PRIOR_HALF_TICKS;
+        return (PRIOR_HALF_TICKS, PRIOR_HALF_SD);
     };
     match name {
         "B_threshold" => {
             if release.published {
-                PRIOR_HALF_TICKS * 0.75
+                (PRIOR_HALF_TICKS * 0.75, TIGHT_HALF_SD * 1.6)
             } else {
-                PRIOR_HALF_TICKS * 1.15
+                (PRIOR_HALF_TICKS * 1.15, PRIOR_HALF_SD)
             }
         }
         "C_dp" if release.published => match release.fields.fill_rate {
-            None => PRIOR_HALF_TICKS,
+            None => (PRIOR_HALF_TICKS, PRIOR_HALF_SD),
             // a high observed fill rate implies quotes are close to the mid
-            Some(rate) => PRIOR_HALF_TICKS * (1.35 - 0.7 * rate.clamp(0.0, 1.0)),
+            Some(rate) => (
+                PRIOR_HALF_TICKS * (1.35 - 0.7 * rate.clamp(0.0, 1.0)),
+                TIGHT_HALF_SD,
+            ),
         },
-        _ => PRIOR_HALF_TICKS,
+        _ => (PRIOR_HALF_TICKS, PRIOR_HALF_SD),
     }
 }
 
@@ -339,6 +344,19 @@ pub struct ArmOptions {
     pub reactive: bool,
     pub max_retries: u32,
     pub retry_delay: usize,
+}
+
+/// The public signal visible to one maker. A subscriber-only disclosure must
+/// not silently become venue-wide inside quote or probe pricing.
+pub fn public_for(
+    disclosure: &Disclosure,
+    release: Option<&Release>,
+    mm_id: usize,
+) -> PublicSignal {
+    match release {
+        Some(release) if disclosure.reaches(mm_id) => disclosure.public_signal(release),
+        _ => (None, f64::INFINITY),
+    }
 }
 
 impl ArmOptions {
@@ -364,6 +382,7 @@ struct WindowState {
     requests: BTreeMap<usize, i64>,
     volume: BTreeMap<usize, i64>,
     signed: BTreeMap<usize, i64>,
+    fills_by_entity: BTreeMap<usize, i64>,
     fills: i64,
     total: i64,
     no_quote: i64,
@@ -386,6 +405,7 @@ impl WindowState {
     fn saw_fill(&mut self, req: &Request, bucket: usize, signed: i64) {
         self.fills += 1;
         self.fills_by_bucket[bucket] += 1;
+        *self.fills_by_entity.entry(req.entity).or_insert(0) += 1;
         *self.volume.entry(req.entity).or_insert(0) += req.size;
         *self.signed.entry(req.entity).or_insert(0) += signed;
     }
@@ -404,6 +424,7 @@ impl WindowState {
             requests_by_entity: self.requests.clone(),
             volume_by_entity: self.volume.clone(),
             signed_volume_by_entity: self.signed.clone(),
+            fills_by_entity: self.fills_by_entity.clone(),
             fills: self.fills,
             requests: self.total,
             no_quote: self.no_quote,
@@ -423,7 +444,7 @@ impl WindowState {
 /// it accepted, what did it do to the book.
 struct Arm<'a> {
     cfg: &'a SimConfig,
-    market: &'a ReferenceMarket,
+    market: &'a dyn PricePath,
     requests: &'a [Request],
     disclosure: &'a mut Disclosure,
     options: &'a ArmOptions,
@@ -444,7 +465,7 @@ struct Arm<'a> {
 impl<'a> Arm<'a> {
     fn new(
         cfg: &'a SimConfig,
-        market: &'a ReferenceMarket,
+        market: &'a dyn PricePath,
         requests: &'a [Request],
         makers: &[MarketMaker],
         disclosure: &'a mut Disclosure,
@@ -515,6 +536,13 @@ impl<'a> Arm<'a> {
         }
     }
 
+    /// What one maker receives.  A selective release and a venue-wide release
+    /// are different experiments because the latter lets every maker narrow at
+    /// once and compete away the information surplus.
+    fn public_for(&self, mm_id: usize) -> PublicSignal {
+        public_for(self.disclosure, self.last_release.as_ref(), mm_id)
+    }
+
     fn record(&mut self, req: &Request, step: usize, executed: bool) {
         self.out.truth.push(Truth {
             step,
@@ -533,10 +561,9 @@ impl<'a> Arm<'a> {
     /// minimises the ask and a seller maximises the bid, which is minimising its
     /// negation.
     fn best_quote(&self, req: &Request, ref_mid: i64) -> Option<(i64, usize)> {
-        let public = self.public();
         let mut best: Option<(i64, usize)> = None;
         for mm in self.mms.iter().filter(|m| m.eligible(req.size)) {
-            let phi_hat = self.beliefs[mm.mm_id].combined(public);
+            let phi_hat = self.beliefs[mm.mm_id].combined(self.public_for(mm.mm_id));
             let (ask, bid) = mm.quote(ref_mid, req.size, phi_hat);
             let price = if req.direction == 0 { ask } else { bid };
             let cost = if req.direction == 0 { price } else { -price };
@@ -562,7 +589,7 @@ impl<'a> Arm<'a> {
                 ref_mid - edge
             }) as f64
         } else {
-            let half = user_half_estimate(self.disclosure.name(), self.last_release.as_ref());
+            let half = user_half_estimate(self.disclosure.name(), self.last_release.as_ref()).0;
             if req.direction == 0 {
                 ref_mid as f64 + half + USER_SLACK_TICKS as f64
             } else {
@@ -612,7 +639,7 @@ impl<'a> Arm<'a> {
         self.mms[mm_id].inventory -= signed;
         self.mms[mm_id].fills += 1;
         for (name, horizon) in MARKOUT_HORIZONS {
-            let future = self.market.mid[(step + horizon).min(self.cfg.steps)];
+            let future = self.market.mid()[(step + horizon).min(self.cfg.steps)];
             let pnl = if req.direction == 0 {
                 (quote - future) * req.size
             } else {
@@ -681,11 +708,10 @@ impl<'a> Arm<'a> {
     /// A firm price comes back in every arm by design, which is why probing
     /// survives obliviousness.
     fn answer_probe(&mut self, probe: Probe, step: usize, ref_mid: i64) {
-        let public = self.public();
         let (mut best_ask, mut best_bid): (Option<i64>, Option<i64>) = (None, None);
         let mut per_mm = BTreeMap::new();
         for mm in self.mms.iter().filter(|m| m.eligible(probe.size)) {
-            let phi_hat = self.beliefs[mm.mm_id].combined(public);
+            let phi_hat = self.beliefs[mm.mm_id].combined(self.public_for(mm.mm_id));
             let (ask, bid) = mm.quote(ref_mid, probe.size, phi_hat);
             per_mm.insert(mm.mm_id, (ask, bid));
             if best_ask.is_none_or(|a| ask < a) {
@@ -730,9 +756,17 @@ impl<'a> Arm<'a> {
     }
 
     fn close_window(&mut self, step: usize) {
-        let public = self.public();
+        // Per maker, not venue-wide. A release that reaches one maker and not
+        // another has to be counted that way here too; this used to hand the
+        // venue-wide signal to every maker, so the published band count was
+        // computed as though everyone had received a disclosure that by
+        // construction only one of them got. The quote path already went
+        // through `public_for`; this was the one place that did not.
+        let reached: Vec<PublicSignal> = (0..self.mms.len())
+            .map(|mm_id| public_for(&*self.disclosure, self.last_release.as_ref(), mm_id))
+            .collect();
         let (makers_in_band, lots_in_band) =
-            depth_snapshot(&self.mms, &self.beliefs, self.market.mid[step], public);
+            depth_snapshot(&self.mms, &self.beliefs, self.market.mid()[step], &reached);
         let obs = self.window.observation(
             step / self.cfg.window_steps,
             step,
@@ -767,7 +801,7 @@ impl<'a> Arm<'a> {
     /// The loop itself, now short enough to read.
     fn run(mut self) -> ArmResult {
         for step in 0..self.cfg.steps {
-            let ref_mid = self.market.mid[step];
+            let ref_mid = self.market.mid()[step];
             for index in self.by_step.get(&step).cloned().unwrap_or_default() {
                 self.handle(index, step, ref_mid);
             }
@@ -808,7 +842,7 @@ impl<'a> Arm<'a> {
 /// Run one arm. The work is in `Arm`; this is the name callers know.
 pub fn run_arm(
     cfg: &SimConfig,
-    market: &ReferenceMarket,
+    market: &dyn PricePath,
     requests: &[Request],
     makers: &[MarketMaker],
     disclosure: &mut Disclosure,
@@ -821,14 +855,14 @@ fn depth_snapshot(
     mms: &[MarketMaker],
     beliefs: &[BeliefState],
     ref_mid: i64,
-    public: PublicSignal,
+    reached: &[PublicSignal],
 ) -> (i64, i64) {
     const BAND_BPS: i64 = 5;
     const PROBE_SIZE: i64 = 100;
     let band = BAND_BPS * ref_mid / 10_000;
     let (mut count, mut lots) = (0i64, 0i64);
     for mm in mms.iter().filter(|m| m.eligible(PROBE_SIZE)) {
-        let phi_hat = beliefs[mm.mm_id].combined(public);
+        let phi_hat = beliefs[mm.mm_id].combined(reached[mm.mm_id]);
         let (ask, bid) = mm.quote(ref_mid, PROBE_SIZE, phi_hat);
         if (ask - ref_mid).abs() <= band && (bid - ref_mid).abs() <= band {
             count += 1;

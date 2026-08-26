@@ -17,8 +17,8 @@
 //! ```text
 //! depth_i = slope_i * qty              product proof
 //! skew_i  = invcoef_i * inv_i          product proof
-//! ask_i   = mid_i + half_i + depth_i + skew_i     linear, free
-//! bid_i   = mid_i - half_i - depth_i + skew_i     linear, free
+//! ask_i   = ask_level_i + depth_i + skew_i                linear, free
+//! bid_i   = ask_level_i - spread_i - depth_i + skew_i     linear, free
 //! fits_i  = maxqty_i - qty >= 0        range proof
 //! fresh_i = expiry_i - now  >= 0       range proof
 //! ok_i    is a bit, and gates the cost bit + product proofs
@@ -35,7 +35,7 @@
 //! ranges share one aggregated proof, and so do the minimality ranges, which is
 //! why the proof does not grow linearly the way the original did.
 
-use bulletproofs::RangeProof;
+use bulletproofs::RangeProof as BulletproofRangeProof;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
@@ -49,11 +49,13 @@ use qomm_zk::sigma::{
 use rand_core::{CryptoRng, RngCore};
 use sha2::{Digest, Sha256};
 
+use crate::threshold_range::{verify_threshold_range, ThresholdRangeProof};
+
 /// A maker's secret policy and state. Never leaves the maker or the quorum.
 #[derive(Clone, Debug)]
 pub struct MakerWitness {
-    pub mid: i64,
-    pub half: i64,
+    pub ask_level: i64,
+    pub spread: i64,
     pub slope: i64,
     pub invcoef: i64,
     pub inv: i64,
@@ -69,11 +71,29 @@ pub struct MakerWitness {
     pub blindings: Registered,
 }
 
+impl MakerWitness {
+    pub fn registered(&self, key: &Pedersen) -> RegisteredPolicy {
+        RegisteredPolicy {
+            ask_level: key.commit(&scalar(self.ask_level), &self.blindings.ask_level),
+            spread: key.commit(&scalar(self.spread), &self.blindings.spread),
+            slope: key.commit(&scalar(self.slope), &self.blindings.slope),
+            invcoef: key.commit(&scalar(self.invcoef), &self.blindings.invcoef),
+            inv: key.commit(&scalar(self.inv), &self.blindings.inv),
+            maxqty: key.commit(&scalar(self.maxqty), &self.blindings.maxqty),
+            expiry: key.commit(&scalar(self.expiry), &self.blindings.expiry),
+            active: key.commit(
+                &Scalar::from(u64::from(self.active)),
+                &self.blindings.active,
+            ),
+        }
+    }
+}
+
 /// One maker's registered blindings, in the order the fields are committed.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Registered {
-    pub mid: Scalar,
-    pub half: Scalar,
+    pub ask_level: Scalar,
+    pub spread: Scalar,
     pub slope: Scalar,
     pub invcoef: Scalar,
     pub inv: Scalar,
@@ -85,8 +105,8 @@ pub struct Registered {
 impl Registered {
     pub fn fresh<R: RngCore + CryptoRng>(rng: &mut R) -> Registered {
         Registered {
-            mid: Scalar::random(rng),
-            half: Scalar::random(rng),
+            ask_level: Scalar::random(rng),
+            spread: Scalar::random(rng),
             slope: Scalar::random(rng),
             invcoef: Scalar::random(rng),
             inv: Scalar::random(rng),
@@ -96,10 +116,10 @@ impl Registered {
         }
     }
 
-    fn is_registered(&self) -> bool {
+    pub(crate) fn is_registered(&self) -> bool {
         ![
-            self.mid,
-            self.half,
+            self.ask_level,
+            self.spread,
             self.slope,
             self.invcoef,
             self.inv,
@@ -115,8 +135,8 @@ impl Registered {
 /// The commitments a maker put on the record before any request arrived.
 #[derive(Clone, Copy, Debug)]
 pub struct RegisteredPolicy {
-    pub mid: RistrettoPoint,
-    pub half: RistrettoPoint,
+    pub ask_level: RistrettoPoint,
+    pub spread: RistrettoPoint,
     pub slope: RistrettoPoint,
     pub invcoef: RistrettoPoint,
     pub inv: RistrettoPoint,
@@ -128,8 +148,8 @@ pub struct RegisteredPolicy {
 impl RegisteredPolicy {
     fn parts(&self) -> [RistrettoPoint; 8] {
         [
-            self.mid,
-            self.half,
+            self.ask_level,
+            self.spread,
             self.slope,
             self.invcoef,
             self.inv,
@@ -178,15 +198,48 @@ pub struct MakerCommitments {
     pub shifted_cost: RistrettoPoint,
 }
 
+/// A bit proof made either by one witness-holder or by a threshold quorum.
+/// Both variants establish the same prime-field statement and are checked by
+/// the same ordinary quote verifier.
+#[derive(Debug)]
+pub enum BitValidityProof {
+    Disjunction(BitProof),
+    Square(ProductProof),
+}
+
+/// The two eligibility witnesses. Bulletproofs aggregate them for the local
+/// prover; a threshold prover keeps one shared bit-decomposition per witness.
+#[derive(Debug)]
+pub enum EligibilityProof {
+    Bulletproof {
+        proof: Box<BulletproofRangeProof>,
+        commitments: Vec<CompressedRistretto>,
+    },
+    Threshold {
+        fits: Box<ThresholdRangeProof>,
+        fresh: Box<ThresholdRangeProof>,
+    },
+}
+
+/// Minimality is aggregated on the local path and proved one shared difference
+/// at a time on the threshold path.
+#[derive(Debug)]
+pub enum MinimalityProof {
+    Bulletproof {
+        proof: Box<BulletproofRangeProof>,
+        commitments: Vec<CompressedRistretto>,
+    },
+    Threshold(Vec<ThresholdRangeProof>),
+}
+
 #[derive(Debug)]
 pub struct MakerProof {
     pub depth: ProductProof,
     pub skew: ProductProof,
     pub gate_cost: ProductProof,
-    /// One aggregated proof covering both `fits` and `fresh`.
-    pub eligibility: RangeProof,
-    pub eligibility_commitments: Vec<CompressedRistretto>,
-    pub active_bit: BitProof,
+    /// One proof object covering both `fits` and `fresh`.
+    pub eligibility: EligibilityProof,
+    pub active_bit: BitValidityProof,
     /// The two `>= 0` tests, each a bit pinned to its difference.
     pub fits_gate: Gate,
     pub fresh_gate: Gate,
@@ -201,9 +254,8 @@ pub struct QuoteProof {
     pub winner_value: u64,
     pub maker_proofs: Vec<MakerProof>,
     pub winner_opening: OpeningProof,
-    /// One aggregated proof that every key is at least the winner's.
-    pub minimality: RangeProof,
-    pub minimality_commitments: Vec<CompressedRistretto>,
+    /// Proof that every key is at least the winner's.
+    pub minimality: MinimalityProof,
     pub key_commitments: Vec<RistrettoPoint>,
 }
 
@@ -228,15 +280,18 @@ pub struct Public {
 /// One `>= 0` test: the bit, what proves it, and the value the range covers.
 #[derive(Debug)]
 pub struct Gate {
-    pub holds: bool,
-    pub blinding: Scalar,
     pub commitment: RistrettoPoint,
-    pub bit_proof: BitProof,
+    pub bit_proof: BitValidityProof,
     pub product: ProductProof,
     pub product_commitment: RistrettoPoint,
-    pub witness: i64,
-    pub witness_blinding: Scalar,
     pub witness_commitment: RistrettoPoint,
+}
+
+struct GateWitness {
+    holds: bool,
+    blinding: Scalar,
+    witness: i64,
+    witness_blinding: Scalar,
 }
 
 pub struct QuoteCircuit {
@@ -250,7 +305,7 @@ fn bp_width(bits: usize) -> Option<usize> {
     [8usize, 16, 32, 64].into_iter().find(|w| *w >= bits)
 }
 
-fn scalar(value: i64) -> Scalar {
+pub(crate) fn scalar(value: i64) -> Scalar {
     if value < 0 {
         -Scalar::from(value.unsigned_abs())
     } else {
@@ -322,13 +377,21 @@ impl QuoteCircuit {
         })
     }
 
+    pub fn eligibility_bits(&self) -> usize {
+        self.eligibility_bits
+    }
+
+    pub fn span_bits(&self) -> usize {
+        self.span_bits
+    }
+
     /// Bind every proof transcript to the complete public statement.
     ///
     /// The caller context alone names a venue, but not a request. Without this
     /// digest a proof produced for one direction, market epoch or slot can be
     /// presented under another one even if each local sigma equation remains
     /// true. Length-prefixing the caller context keeps framing unambiguous.
-    fn statement_context(context: &[u8], public: &Public) -> [u8; 32] {
+    pub(crate) fn statement_context(context: &[u8], public: &Public) -> [u8; 32] {
         let mut hasher = Sha256::new();
         hasher.update(b"QOMM:QUOTE:STATEMENT:v2");
         hasher.update((context.len() as u64).to_be_bytes());
@@ -353,12 +416,25 @@ impl QuoteCircuit {
     /// something the prover has to leave out.
     /// A byte context for the gate's own transcripts, distinct per maker and
     /// per test.
-    fn gate_context(context: &[u8], index: usize, what: &[u8]) -> Vec<u8> {
+    pub(crate) fn gate_context(context: &[u8], index: usize, what: &[u8]) -> Vec<u8> {
         let mut out = context.to_vec();
         out.extend_from_slice(b":mm:");
         out.extend_from_slice(&(index as u64).to_be_bytes());
         out.extend_from_slice(b":");
         out.extend_from_slice(what);
+        out
+    }
+
+    pub(crate) fn gate_range_context(context: &[u8], index: usize, what: &[u8]) -> Vec<u8> {
+        let mut out = Self::gate_context(context, index, what);
+        out.extend_from_slice(b":ge");
+        out
+    }
+
+    pub(crate) fn minimality_context(context: &[u8], index: usize) -> Vec<u8> {
+        let mut out = context.to_vec();
+        out.extend_from_slice(b":min:");
+        out.extend_from_slice(&(index as u64).to_be_bytes());
         out
     }
 
@@ -369,7 +445,7 @@ impl QuoteCircuit {
         commitment: &RistrettoPoint,
         context: &[u8],
         rng: &mut R,
-    ) -> Result<Gate, &'static str> {
+    ) -> Result<(Gate, GateWitness), &'static str> {
         let key = &self.key;
         let holds = value >= 0;
         let bit = Scalar::from(u64::from(holds));
@@ -377,7 +453,8 @@ impl QuoteCircuit {
         let c_bit = key.commit(&bit, &r_bit);
         let mut t = Transcript::new(b"qomm:quote:gate:bit");
         t.append_message(b"ctx", context);
-        let bit_proof = prove_bit(key, &mut t, &c_bit, holds, &r_bit, rng);
+        let bit_proof =
+            BitValidityProof::Disjunction(prove_bit(key, &mut t, &c_bit, holds, &r_bit, rng));
 
         let r_product = Scalar::random(rng);
         let mut t = Transcript::new(b"qomm:quote:gate:prod");
@@ -405,26 +482,46 @@ impl QuoteCircuit {
         let witness_blinding = r_product + r_product - blinding + r_bit;
         let c_witness =
             c_product + c_product - commitment + c_bit - key.commit(&Scalar::ONE, &Scalar::ZERO);
-        Ok(Gate {
-            holds,
-            blinding: r_bit,
-            commitment: c_bit,
-            bit_proof,
-            product,
-            product_commitment: c_product,
-            witness,
-            witness_blinding,
-            witness_commitment: c_witness,
-        })
+        Ok((
+            Gate {
+                commitment: c_bit,
+                bit_proof,
+                product,
+                product_commitment: c_product,
+                witness_commitment: c_witness,
+            },
+            GateWitness {
+                holds,
+                blinding: r_bit,
+                witness,
+                witness_blinding,
+            },
+        ))
     }
 
     /// The mirror of `ge_zero_bit`: one bit, one product, and the derived value
     /// the aggregated range proof has to be about.
+    fn check_bit_proof(
+        &self,
+        commitment: &RistrettoPoint,
+        proof: &BitValidityProof,
+        transcript: &mut Transcript,
+    ) -> bool {
+        match proof {
+            BitValidityProof::Disjunction(proof) => {
+                verify_bit(&self.key, transcript, commitment, proof)
+            }
+            BitValidityProof::Square(proof) => verify_product(
+                &self.key, transcript, commitment, commitment, commitment, proof,
+            ),
+        }
+    }
+
     fn check_gate(&self, base: RistrettoPoint, gate: &Gate, context: &[u8]) -> bool {
         let key = &self.key;
         let mut t = Transcript::new(b"qomm:quote:gate:bit");
         t.append_message(b"ctx", context);
-        if !verify_bit(key, &mut t, &gate.commitment, &gate.bit_proof) {
+        if !self.check_bit_proof(&gate.commitment, &gate.bit_proof, &mut t) {
             return false;
         }
         let mut t = Transcript::new(b"qomm:quote:gate:prod");
@@ -448,7 +545,7 @@ impl QuoteCircuit {
         RangeCtx::new(bits, count.next_power_of_two().max(1))
     }
 
-    fn tag(context: &[u8], index: usize, part: &str) -> Transcript {
+    pub(crate) fn tag(context: &[u8], index: usize, part: &str) -> Transcript {
         let mut t = Transcript::new(b"qomm:quote:v1");
         t.append_message(b"ctx", context);
         t.append_u64(b"mm", index as u64);
@@ -456,7 +553,7 @@ impl QuoteCircuit {
         t
     }
 
-    fn whole(context: &[u8], part: &str) -> Transcript {
+    pub(crate) fn whole(context: &[u8], part: &str) -> Transcript {
         let mut t = Transcript::new(b"qomm:quote:v1");
         t.append_message(b"ctx", context);
         t.append_message(b"part", part.as_bytes());
@@ -498,19 +595,7 @@ proof is about policies that were put on the record, and a witness without them 
 is a policy invented now");
             }
         }
-        let registry: Vec<RegisteredPolicy> = makers
-            .iter()
-            .map(|m| RegisteredPolicy {
-                mid: key.commit(&scalar(m.mid), &m.blindings.mid),
-                half: key.commit(&scalar(m.half), &m.blindings.half),
-                slope: key.commit(&scalar(m.slope), &m.blindings.slope),
-                invcoef: key.commit(&scalar(m.invcoef), &m.blindings.invcoef),
-                inv: key.commit(&scalar(m.inv), &m.blindings.inv),
-                maxqty: key.commit(&scalar(m.maxqty), &m.blindings.maxqty),
-                expiry: key.commit(&scalar(m.expiry), &m.blindings.expiry),
-                active: key.commit(&scalar(i64::from(m.active)), &m.blindings.active),
-            })
-            .collect();
+        let registry: Vec<RegisteredPolicy> = makers.iter().map(|m| m.registered(key)).collect();
 
         let r_qty = Scalar::random(rng);
         let c_qty = key.commit(&scalar(qty), &r_qty);
@@ -571,21 +656,20 @@ is a policy invented now");
                 rng,
             );
 
-            let (r_mid, r_half) = (m.blindings.mid, m.blindings.half);
+            let (r_level, r_spread) = (m.blindings.ask_level, m.blindings.spread);
             let ask = m
-                .mid
-                .checked_add(m.half)
-                .and_then(|v| v.checked_add(depth))
+                .ask_level
+                .checked_add(depth)
                 .and_then(|v| v.checked_add(skew))
                 .ok_or("ask price overflow")?;
             let bid = m
-                .mid
-                .checked_sub(m.half)
+                .ask_level
+                .checked_sub(m.spread)
                 .and_then(|v| v.checked_sub(depth))
                 .and_then(|v| v.checked_add(skew))
                 .ok_or("bid price overflow")?;
-            let r_ask = r_mid + r_half + r_depth + r_skew;
-            let r_bid = r_mid - r_half - r_depth + r_skew;
+            let r_ask = r_level + r_depth + r_skew;
+            let r_bid = r_level - r_spread - r_depth + r_skew;
 
             // Eligibility: both margins in one aggregated range proof.
             let (r_maxqty, r_expiry) = (m.blindings.maxqty, m.blindings.expiry);
@@ -607,14 +691,14 @@ is a policy invented now");
             let c_fresh = key.commit(&scalar(fresh), &r_expiry);
             let c_fresh_strict = c_fresh - key.commit(&Scalar::ONE, &Scalar::ZERO);
 
-            let fits_gate = self.ge_zero_bit(
+            let (fits_gate, fits_witness) = self.ge_zero_bit(
                 fits,
                 &r_fits,
                 &c_fits,
                 &Self::gate_context(&proof_context, index, b"fits"),
                 rng,
             )?;
-            let fresh_gate = self.ge_zero_bit(
+            let (fresh_gate, fresh_witness) = self.ge_zero_bit(
                 fresh_strict,
                 &r_expiry,
                 &c_fresh_strict,
@@ -633,34 +717,37 @@ is a policy invented now");
             let mut t = Self::tag(&proof_context, index, "eligibility");
             let (eligibility, eligibility_commitments) = ranges.prove(
                 &mut t,
-                &[fits_gate.witness as u64, fresh_gate.witness as u64],
-                &[fits_gate.witness_blinding, fresh_gate.witness_blinding],
+                &[fits_witness.witness as u64, fresh_witness.witness as u64],
+                &[
+                    fits_witness.witness_blinding,
+                    fresh_witness.witness_blinding,
+                ],
             )?;
 
             let r_active = m.blindings.active;
             let c_active = key.commit(&Scalar::from(u64::from(m.active)), &r_active);
-            let active_bit = prove_bit(
+            let active_bit = BitValidityProof::Disjunction(prove_bit(
                 key,
                 &mut Self::tag(&proof_context, index, "active"),
                 &c_active,
                 m.active,
                 &r_active,
                 rng,
-            );
+            ));
 
             // ok = fits and fresh and active, as two products of proved bits,
             // so it is a bit by construction and has no freedom left
-            let both = fits_gate.holds && fresh_gate.holds;
+            let both = fits_witness.holds && fresh_witness.holds;
             let r_both = Scalar::random(rng);
             let c_both = key.commit(&Scalar::from(u64::from(both)), &r_both);
             let conj_first = prove_product(
                 key,
                 &mut Self::tag(&proof_context, index, "ok1"),
                 &fits_gate.commitment,
-                &Scalar::from(u64::from(fits_gate.holds)),
-                &fits_gate.blinding,
-                &Scalar::from(u64::from(fresh_gate.holds)),
-                &fresh_gate.blinding,
+                &Scalar::from(u64::from(fits_witness.holds)),
+                &fits_witness.blinding,
+                &Scalar::from(u64::from(fresh_witness.holds)),
+                &fresh_witness.blinding,
                 &r_both,
                 rng,
             );
@@ -727,8 +814,10 @@ is a policy invented now");
                 depth: depth_proof,
                 skew: skew_proof,
                 gate_cost,
-                eligibility,
-                eligibility_commitments,
+                eligibility: EligibilityProof::Bulletproof {
+                    proof: Box::new(eligibility),
+                    commitments: eligibility_commitments,
+                },
                 active_bit,
                 fits_gate,
                 fresh_gate,
@@ -792,8 +881,10 @@ is a policy invented now");
                 winner_value: value,
                 maker_proofs,
                 winner_opening,
-                minimality,
-                minimality_commitments,
+                minimality: MinimalityProof::Bulletproof {
+                    proof: Box::new(minimality),
+                    commitments: minimality_commitments,
+                },
                 key_commitments,
             },
             public,
@@ -867,11 +958,6 @@ is a policy invented now");
         }
         for (index, maker) in proof.maker_proofs.iter().enumerate() {
             let c = &maker.commitments;
-            if maker.eligibility_commitments.len() != 2 {
-                return Err(Invalid::Malformed(
-                    "each eligibility proof must carry exactly two commitments",
-                ));
-            }
             if !verify_product(
                 key,
                 &mut Self::tag(&proof_context, index, "depth"),
@@ -899,24 +985,49 @@ is a policy invented now");
                 maker.fits_gate.witness_commitment.compress(),
                 maker.fresh_gate.witness_commitment.compress(),
             ];
-            if maker.eligibility_commitments[..] != expected {
-                return Err(Invalid::Eligibility(index));
+            match &maker.eligibility {
+                EligibilityProof::Bulletproof { proof, commitments } => {
+                    if commitments.len() != 2 {
+                        return Err(Invalid::Malformed(
+                            "each eligibility proof must carry exactly two commitments",
+                        ));
+                    }
+                    if commitments[..] != expected {
+                        return Err(Invalid::Eligibility(index));
+                    }
+                    let ranges = self.ranges(
+                        bp_width(self.eligibility_bits + 2)
+                            .expect("constructor keeps eligibility width within 64 bits"),
+                        2,
+                    );
+                    let mut t = Self::tag(&proof_context, index, "eligibility");
+                    if !ranges.verify(&mut t, proof, commitments) {
+                        return Err(Invalid::Eligibility(index));
+                    }
+                }
+                EligibilityProof::Threshold { fits, fresh } => {
+                    if fits.bits != self.eligibility_bits + 2
+                        || fresh.bits != self.eligibility_bits + 2
+                    {
+                        return Err(Invalid::Eligibility(index));
+                    }
+                    if !verify_threshold_range(
+                        key,
+                        &maker.fits_gate.witness_commitment,
+                        fits,
+                        &Self::gate_range_context(&proof_context, index, b"fits"),
+                    ) || !verify_threshold_range(
+                        key,
+                        &maker.fresh_gate.witness_commitment,
+                        fresh,
+                        &Self::gate_range_context(&proof_context, index, b"fresh"),
+                    ) {
+                        return Err(Invalid::Eligibility(index));
+                    }
+                }
             }
-            let ranges = self.ranges(
-                bp_width(self.eligibility_bits + 2)
-                    .expect("constructor keeps eligibility width within 64 bits"),
-                2,
-            );
-            let mut t = Self::tag(&proof_context, index, "eligibility");
-            if !ranges.verify(&mut t, &maker.eligibility, &maker.eligibility_commitments) {
-                return Err(Invalid::Eligibility(index));
-            }
-            if !verify_bit(
-                key,
-                &mut Self::tag(&proof_context, index, "active"),
-                &c.active,
-                &maker.active_bit,
-            ) {
+            let mut active_transcript = Self::tag(&proof_context, index, "active");
+            if !self.check_bit_proof(&c.active, &maker.active_bit, &mut active_transcript) {
                 return Err(Invalid::ActiveNotABit(index));
             }
             // Eligibility is the conjunction, checked rather than committed.
@@ -958,8 +1069,8 @@ is a policy invented now");
             if !verify_product(key, &mut t, &c.both, &c.active, &c.ok, second) {
                 return Err(Invalid::Eligibility(index));
             }
-            let ask = registered.mid + registered.half + c.depth + c.skew;
-            let bid = registered.mid - registered.half - c.depth + c.skew;
+            let ask = registered.ask_level + c.depth + c.skew;
+            let bid = registered.ask_level - registered.spread - c.depth + c.skew;
             let derived_cost = if public.direction == 1 { -bid } else { ask };
             if derived_cost.compress() != c.cost.compress() {
                 return Err(Invalid::Cost(index));
@@ -1002,24 +1113,52 @@ is a policy invented now");
         }
 
         let winner = proof.key_commitments[proof.winner_index];
-        let expected: Vec<CompressedRistretto> = proof
-            .key_commitments
-            .iter()
-            .map(|c| (c - winner).compress())
-            .collect();
-        let padded = expected.len().next_power_of_two();
-        let mut padded_expected = expected;
-        padded_expected.resize(padded, RistrettoPoint::identity().compress());
-        if proof.minimality_commitments != padded_expected {
-            return Err(Invalid::NotMinimal);
-        }
-        let ranges = self.ranges(
-            bp_width(self.span_bits).expect("constructor keeps span width within 64 bits"),
-            proof.key_commitments.len(),
-        );
-        let mut t = Self::whole(&proof_context, "minimality");
-        if !ranges.verify(&mut t, &proof.minimality, &proof.minimality_commitments) {
-            return Err(Invalid::NotMinimal);
+        match &proof.minimality {
+            MinimalityProof::Bulletproof {
+                proof: range_proof,
+                commitments,
+            } => {
+                let expected: Vec<CompressedRistretto> = proof
+                    .key_commitments
+                    .iter()
+                    .map(|c| (c - winner).compress())
+                    .collect();
+                let padded = expected.len().next_power_of_two();
+                let mut padded_expected = expected;
+                padded_expected.resize(padded, RistrettoPoint::identity().compress());
+                if *commitments != padded_expected {
+                    return Err(Invalid::NotMinimal);
+                }
+                let ranges = self.ranges(
+                    bp_width(self.span_bits).expect("constructor keeps span width within 64 bits"),
+                    proof.key_commitments.len(),
+                );
+                let mut t = Self::whole(&proof_context, "minimality");
+                if !ranges.verify(&mut t, range_proof, commitments) {
+                    return Err(Invalid::NotMinimal);
+                }
+            }
+            MinimalityProof::Threshold(proofs) => {
+                if proofs.len() != proof.key_commitments.len() {
+                    return Err(Invalid::Malformed(
+                        "one minimality proof is required per maker",
+                    ));
+                }
+                for (index, (commitment, range)) in
+                    proof.key_commitments.iter().zip(proofs).enumerate()
+                {
+                    if range.bits != self.span_bits
+                        || !verify_threshold_range(
+                            key,
+                            &(commitment - winner),
+                            range,
+                            &Self::minimality_context(&proof_context, index),
+                        )
+                    {
+                        return Err(Invalid::NotMinimal);
+                    }
+                }
+            }
         }
         Ok(())
     }

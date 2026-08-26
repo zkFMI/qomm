@@ -1,21 +1,23 @@
 {
- "host": "host-a",
- "group": "ed25519",
- "parties": 7,
- "threshold": 2,
- "processes": 3,
- "each_node_held": "one share of the value, its blinding and the cross term, and nothing of any other node's",
- "wall_ms": {
-  "median": 8.725313935428858,
-  "n": 9,
-  "min": 8.477558847516775,
-  "max": 9.171986021101475
- },
- "node_wait_ms": {
-  "median": 3.386514261364937
- },
- "bytes_between_nodes": {
-  "median": 288
- },
- "verified": true
+  "bytes_between_nodes": {
+    "median": 288
+  },
+  "each_node_held": "one share of the value, its blinding and the cross term, and nothing of any other node's",
+  "filesystem_foreign_private_decryptions": 0,
+  "group": "ed25519",
+  "host": "host-a",
+  "node_wait_ms": {
+    "median": 8.47545
+  },
+  "parties": 7,
+  "private_transport": "recipient-key encrypted mailbox records; recipient secret exists only in child memory",
+  "processes": 3,
+  "threshold": 2,
+  "verified": true,
+  "wall_ms": {
+    "max": 17.593718000000003,
+    "median": 13.541295999999999,
+    "min": 12.823563,
+    "n": 9
+  }
 }

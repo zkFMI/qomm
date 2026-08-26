@@ -1,7 +1,7 @@
 {
   "calibration_pairs": 7140,
   "evidence_class": "smoke_only",
-  "host": "host-c",
+  "host": "host-a",
   "limitations": [
     "Synthetic labeled controllers are not a substitute for investigation data.",
     "Threshold is calibrated on a disjoint synthetic population.",

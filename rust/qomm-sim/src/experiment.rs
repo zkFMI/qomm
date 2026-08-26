@@ -8,6 +8,7 @@ use crate::attackers::{self as atk, AttackReport};
 use crate::disclosure::{Disclosure, DpDisclosure};
 use crate::engine::{run_arm, ArmOptions, ArmResult, Probe};
 use crate::market::{build_market_makers, build_requests, ReferenceMarket, SimConfig};
+use crate::tapes::{requests_from_tape, Entities, Tape, TapeMarket};
 
 #[derive(Clone, Copy, Debug)]
 pub struct DpParams {
@@ -19,6 +20,7 @@ pub struct DpParams {
     /// known; the uncorrected arm stays reachable so the negative result can be
     /// reproduced against its own fix rather than against nothing.
     pub debias: bool,
+    pub signed_sensitivity_factor: f64,
 }
 
 impl Default for DpParams {
@@ -29,6 +31,7 @@ impl Default for DpParams {
             request_cap: 3,
             volume_cap: 300,
             debias: true,
+            signed_sensitivity_factor: 1.0,
         }
     }
 }
@@ -40,14 +43,18 @@ pub fn make_disclosure(name: &str, cfg: &SimConfig, dp: &DpParams) -> Disclosure
             min_makers: 5,
             min_lots: 800,
         },
-        "C_dp" => Disclosure::Dp(Box::new(DpDisclosure::new(
-            dp.epsilon_per_window,
-            dp.request_cap,
-            dp.volume_cap,
-            cfg.n_entities,
-            dp.epsilon_total,
-            dp.debias,
-        ))),
+        "C_dp" => {
+            let mut mechanism = DpDisclosure::new(
+                dp.epsilon_per_window,
+                dp.request_cap,
+                dp.volume_cap,
+                cfg.n_entities,
+                dp.epsilon_total,
+                dp.debias,
+            );
+            mechanism.signed_sensitivity_factor = dp.signed_sensitivity_factor;
+            Disclosure::Dp(Box::new(mechanism))
+        }
         other => panic!("no such disclosure regime: {other}"),
     }
 }
@@ -78,6 +85,7 @@ pub struct ArmRow {
     pub layer: String,
     pub result: ArmResult,
     pub attacks: Vec<AttackReport>,
+    pub tape_meta: Option<std::collections::BTreeMap<String, f64>>,
 }
 
 /// Which behavioural layer an arm runs in.
@@ -136,6 +144,68 @@ pub fn run_matrix(
                 layer: layer.as_str().to_string(),
                 result,
                 attacks,
+                tape_meta: None,
+            });
+        }
+    }
+    rows
+}
+
+/// Run the same experiment matrix against one observed tape rather than a
+/// generated order stream.
+pub fn run_matrix_with_tape(
+    cfg: &SimConfig,
+    dp: &DpParams,
+    protocols: &[&str],
+    disclosures: &[&str],
+    layer: Layer,
+    probe_per_window: usize,
+    tape: &Tape,
+    entities: Entities,
+    wallets_per_entity: usize,
+) -> Vec<ArmRow> {
+    let market = TapeMarket::new(cfg, tape, 20, 60.0, 200, cfg.seed);
+    let loaded = requests_from_tape(
+        cfg,
+        &market,
+        tape,
+        entities,
+        wallets_per_entity,
+        cfg.seed + 2,
+    );
+    let cfg = loaded.cfg;
+    let makers = build_market_makers(&cfg, cfg.seed + 1);
+    let probes = build_probes(&cfg, probe_per_window, 50);
+    let mut rows = Vec::new();
+    for protocol in protocols {
+        for name in disclosures {
+            let mut disclosure = make_disclosure(name, &cfg, dp);
+            let mut options = ArmOptions::new(protocol, cfg.seed + 5);
+            options.probes = probes.clone();
+            options.reactive = layer == Layer::Reactive;
+            let result = run_arm(
+                &cfg,
+                &market,
+                &loaded.requests,
+                &makers,
+                &mut disclosure,
+                &options,
+            );
+            let attacks = vec![
+                atk::passive_observer(&result, &cfg, 0.5, cfg.seed),
+                atk::pretrade_attributes(&result, &cfg),
+                atk::window_shift_observer(&result, &cfg),
+                atk::probing_entity(&result, probes.len()),
+                atk::colluding_wallets(&result, &cfg, 4, 4),
+                atk::external_info_observer(&result, &cfg, &market),
+            ];
+            rows.push(ArmRow {
+                protocol: (*protocol).to_string(),
+                disclosure: (*name).to_string(),
+                layer: layer.as_str().to_string(),
+                result,
+                attacks,
+                tape_meta: Some(loaded.meta.clone()),
             });
         }
     }

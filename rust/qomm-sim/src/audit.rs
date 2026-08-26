@@ -16,126 +16,8 @@
 
 use crate::disclosure::{DpDisclosure, WindowObservation};
 use crate::pyrandom::PyRandom;
-
-/// Inverse regularised incomplete beta by bisection --- no numerical dependency,
-/// and the accuracy a confidence bound needs is well inside what bisection gives.
-fn beta_ppf(alpha: f64, a: f64, b: f64) -> f64 {
-    if a <= 0.0 {
-        return 0.0;
-    }
-    if b <= 0.0 {
-        return 1.0;
-    }
-    let (mut lo, mut hi) = (0.0f64, 1.0f64);
-    for _ in 0..200 {
-        let mid = 0.5 * (lo + hi);
-        if betainc(a, b, mid) < alpha {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    0.5 * (lo + hi)
-}
-
-/// Lanczos approximation, g = 7, n = 9.
-///
-/// Agrees with CPython's `math.lgamma` to about 1e-13 relative, which shows up
-/// as a last-digit difference in `betainc` at large arguments and disappears
-/// again in `clopper_pearson`, the quantity anything actually reads --- that one
-/// matches to twelve decimals. Pulling in a special-function crate for the
-/// remaining bit would trade an audited-free dependency for nothing.
-fn ln_gamma(x: f64) -> f64 {
-    const C: [f64; 9] = [
-        0.999_999_999_999_809_9,
-        676.520_368_121_885_1,
-        -1_259.139_216_722_402_8,
-        771.323_428_777_653_1,
-        -176.615_029_162_140_6,
-        12.507_343_278_686_905,
-        -0.138_571_095_265_720_12,
-        9.984_369_578_019_572e-6,
-        1.505_632_735_149_311_6e-7,
-    ];
-    if x < 0.5 {
-        // reflection, so the series is only ever used where it converges well
-        return (std::f64::consts::PI / (std::f64::consts::PI * x).sin()).ln() - ln_gamma(1.0 - x);
-    }
-    let x = x - 1.0;
-    let mut a = C[0];
-    let t = x + 7.5;
-    for (i, c) in C.iter().enumerate().skip(1) {
-        a += c / (x + i as f64);
-    }
-    0.5 * (2.0 * std::f64::consts::PI).ln() + (x + 0.5) * t.ln() - t + a.ln()
-}
-
-/// Regularised incomplete beta via the continued fraction.
-/// Exposed so the port can be diffed against the Python it replaces.
-pub fn betainc_public(a: f64, b: f64, x: f64) -> f64 {
-    betainc(a, b, x)
-}
-
-fn betainc(a: f64, b: f64, x: f64) -> f64 {
-    if x <= 0.0 {
-        return 0.0;
-    }
-    if x >= 1.0 {
-        return 1.0;
-    }
-    let lbeta = ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b);
-    let front = (lbeta + a * x.ln() + b * (1.0 - x).ln()).exp();
-    if x < (a + 1.0) / (a + b + 2.0) {
-        front * betacf(a, b, x) / a
-    } else {
-        1.0 - (ln_gamma(a + b) - ln_gamma(a) - ln_gamma(b) + b * (1.0 - x).ln() + a * x.ln()).exp()
-            * betacf(b, a, 1.0 - x)
-            / b
-    }
-}
-
-fn betacf(a: f64, b: f64, x: f64) -> f64 {
-    const TINY: f64 = 1e-30;
-    let (qab, qap, qam) = (a + b, a + 1.0, a - 1.0);
-    let mut c = 1.0;
-    let mut d = 1.0 - qab * x / qap;
-    if d.abs() < TINY {
-        d = TINY;
-    }
-    d = 1.0 / d;
-    let mut h = d;
-    for m in 1..=200 {
-        let m = m as f64;
-        let m2 = 2.0 * m;
-        let mut aa = m * (b - m) * x / ((qam + m2) * (a + m2));
-        d = 1.0 + aa * d;
-        if d.abs() < TINY {
-            d = TINY;
-        }
-        c = 1.0 + aa / c;
-        if c.abs() < TINY {
-            c = TINY;
-        }
-        d = 1.0 / d;
-        h *= d * c;
-        aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2));
-        d = 1.0 + aa * d;
-        if d.abs() < TINY {
-            d = TINY;
-        }
-        c = 1.0 + aa / c;
-        if c.abs() < TINY {
-            c = TINY;
-        }
-        d = 1.0 / d;
-        let delta = d * c;
-        h *= delta;
-        if (delta - 1.0).abs() < 1e-12 {
-            break;
-        }
-    }
-    h
-}
+pub use qomm_measure::beta::{beta_ppf, betainc_public};
+use qomm_measure::beta::ln;
 
 pub fn clopper_pearson(k: usize, n: usize, alpha: f64) -> (f64, f64) {
     let lower = if k == 0 {
@@ -189,17 +71,23 @@ impl Field {
     }
 }
 
-fn drop_entity(obs: &WindowObservation, entity: usize) -> WindowObservation {
+pub fn drop_entity(obs: &WindowObservation, entity: usize) -> WindowObservation {
     let without = |m: &std::collections::BTreeMap<usize, i64>| {
         m.iter()
             .filter(|(k, _)| **k != entity)
             .map(|(k, v)| (*k, *v))
             .collect()
     };
+    let requests_by_entity: std::collections::BTreeMap<usize, i64> =
+        without(&obs.requests_by_entity);
+    let fills_by_entity: std::collections::BTreeMap<usize, i64> = without(&obs.fills_by_entity);
     WindowObservation {
-        requests_by_entity: without(&obs.requests_by_entity),
+        requests: requests_by_entity.values().sum(),
+        fills: fills_by_entity.values().sum(),
+        requests_by_entity,
         volume_by_entity: without(&obs.volume_by_entity),
         signed_volume_by_entity: without(&obs.signed_volume_by_entity),
+        fills_by_entity,
         ..obs.clone()
     }
 }
@@ -277,7 +165,7 @@ pub fn audit_window(obs: &WindowObservation, entity: usize, s: &AuditSettings) -
         let (_, fpr_hi) = clopper_pearson(k_out, s.trials, alpha);
         for (num, den) in [(tpr_lo, fpr_hi), (1.0 - fpr_hi, 1.0 - tpr_lo)] {
             if den > 0.0 && num > 0.0 {
-                let candidate = (num / den).ln();
+                let candidate = ln(num / den);
                 if candidate > best_eps {
                     best_eps = candidate;
                     best_threshold = t;

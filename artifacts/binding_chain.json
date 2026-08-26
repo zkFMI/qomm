@@ -1,33 +1,35 @@
 {
-  "host": "host-c",
-  "n_mm": 8,
-  "n_parties": 7,
-  "threshold": 2,
-  "prime": "7237005577332262213973186563042994240857116359379907606001950938285454250989",
-  "prime_bits": 253,
+  "circuit": {
+    "detail": "got=(99989, 5) want=(99989, 5)",
+    "global_mb": 23.551,
+    "ran": true,
+    "repeats": 3,
+    "rounds": 57,
+    "verified": true,
+    "wall_s_median": 0.164641653
+  },
+  "dealer_that_deals_what_it_did_not_commit": {
+    "caught": [
+      [
+        3,
+        8
+      ]
+    ],
+    "caught_before_computing": true,
+    "moved_party": 3,
+    "moved_position": 8
+  },
   "group": "ed25519",
   "honest": {
-    "values": 86,
-    "deal_ms": 13.9,
-    "share_checks": 602,
-    "check_ms": 104.4,
-    "check_ms_each": 0.173,
-    "failures": 0,
-    "party_file_is_the_dealt_share": true,
-    "rebuilt_request": [
-      0,
-      20,
-      0,
-      0,
-      1
-    ],
-    "range_proof_ms": 2.0,
     "band": [
-      1,
-      200
+      2,
+      400
     ],
-    "half_in_band": 21,
-    "range_verifies": true,
+    "check_ms": 88.0,
+    "check_ms_each": 0.146,
+    "deal_ms": 19.1,
+    "failures": 0,
+    "half_in_band": 42,
     "lagrange": [
       "7",
       "7237005577332262213973186563042994240857116359379907606001950938285454250968",
@@ -36,82 +38,28 @@
       "21",
       "7237005577332262213973186563042994240857116359379907606001950938285454250982",
       "1"
-    ]
-  },
-  "dealer_that_deals_what_it_did_not_commit": {
-    "moved_position": 8,
-    "moved_party": 3,
-    "caught": [
-      [
-        3,
-        8
-      ]
     ],
-    "caught_before_computing": true
+    "party_file_is_the_dealt_share": true,
+    "range_proof_ms": 3.4,
+    "range_verifies": true,
+    "rebuilt_request": [
+      0,
+      20,
+      0,
+      0,
+      1
+    ],
+    "share_checks": 602,
+    "values": 86
   },
+  "host": "host-a",
+  "n_mm": 8,
+  "n_parties": 7,
   "node_that_feeds_something_else": {
     "caught_by_this_chain": false,
-    "why": "an input the node substitutes is still a valid share of a different number, and every commitment it opens still opens. That is zk/input_check.py, which catches the node where this catches the dealer. Neither implies the other."
+    "why": "an input the node substitutes is still a valid share of a different number, and every commitment it opens still opens. That is rust/qomm-harness/src/bin/run_input_check.rs, which catches the node where this catches the dealer. Neither implies the other."
   },
-  "circuit": {
-    "ran": true,
-    "verified": true,
-    "detail": "got=(99994, 5) want=(99994, 5)",
-    "rounds": 57,
-    "global_mb": 18.6019,
-    "wall_s_median": 0.2547420000191778,
-    "repeats": 3
-  },
-  "composes_with_the_input_check": {
-    "question": "BINDING.md said the two catch different parties and compose in principle, and that they had never been run together.",
-    "answer": "they compose. All four arms verified against the cleartext reference on the same market.",
-    "arms": [
-      {
-        "inputs": "additive over the integers",
-        "field": "default",
-        "check": null,
-        "rounds": 57,
-        "global_mb": 9.3038
-      },
-      {
-        "inputs": "additive over the integers",
-        "field": "default",
-        "check": "aggregate (unsound as emitted)",
-        "rounds": 58,
-        "global_mb": 9.3101
-      },
-      {
-        "inputs": "additive over the integers",
-        "field": "default",
-        "check": "per-party",
-        "rounds": 59,
-        "global_mb": 9.4448
-      },
-      {
-        "inputs": "Shamir",
-        "field": "group order",
-        "check": null,
-        "rounds": 57,
-        "global_mb": 18.6019
-      },
-      {
-        "inputs": "Shamir",
-        "field": "group order",
-        "check": "aggregate (unsound as emitted)",
-        "rounds": 58,
-        "global_mb": 18.6145
-      },
-      {
-        "inputs": "Shamir",
-        "field": "group order",
-        "check": "per-party",
-        "rounds": 59,
-        "global_mb": 18.8838
-      }
-    ],
-    "the_check_costs": "the aggregate one round and about six kilobytes; the per-party two rounds and 0.28 MB, which is one opening a node rather than one for all of them. That is what buys naming the node instead of only detecting that somebody substituted.",
-    "what_the_pair_now_covers": "the dealer, by the share commitments, and the node, by the input check. Neither implies the other and both now run at once.",
-    "host": "host-c",
-    "note": "the first version of this table quoted the aggregate's cost under the heading `--input-check`, which was the default at the time and is not sound. Both are measured here and labelled."
-  }
+  "prime": "7237005577332262213973186563042994240857116359379907606001950938285454250989",
+  "prime_bits": 253,
+  "threshold": 2
 }

@@ -10,6 +10,47 @@ use crate::interval::RuleError;
 use crate::parse::{Cmp, Expr};
 use crate::rule::Rule;
 
+/// The proof obligations derived from one checked rule, grouped exactly as the
+/// registration audit and generated documents consume them.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ObligationPlan {
+    pub counts: BTreeMap<String, usize>,
+    pub total: usize,
+    pub range_bits: Vec<u32>,
+    pub total_bit_proofs: usize,
+    pub required_circuit_bits: u32,
+    pub output_intervals: BTreeMap<String, (i128, i128)>,
+}
+
+/// Group the compiler-derived obligations so an audit can be costed before it
+/// is proved. This mirrors `qomm_dsl.emit.obligation_plan`.
+pub fn obligation_plan(rule: &Rule) -> ObligationPlan {
+    let mut counts = BTreeMap::new();
+    let mut range_bits = Vec::new();
+    for obligation in &rule.obligations {
+        *counts.entry(obligation.kind.clone()).or_insert(0) += 1;
+        if obligation.kind == "range" {
+            range_bits.push(obligation.bits);
+        }
+    }
+    range_bits.sort_unstable();
+    let total_bit_proofs = range_bits.iter().map(|bits| *bits as usize).sum::<usize>()
+        + counts.get("bit").copied().unwrap_or(0);
+    let output_intervals = rule
+        .intervals
+        .iter()
+        .map(|(name, interval)| (name.clone(), (interval.lo, interval.hi)))
+        .collect();
+    ObligationPlan {
+        counts,
+        total: rule.obligations.len(),
+        range_bits,
+        total_bit_proofs,
+        required_circuit_bits: rule.required_bits(),
+        output_intervals,
+    }
+}
+
 /// One MP-SPDZ expression per output, over the declared columns.
 ///
 /// MP-SPDZ works on secret vectors, so every declared name is one column and the

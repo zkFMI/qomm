@@ -6,7 +6,7 @@
 //! source, the declared bounds and the emitted circuit, but not the values.
 //! Swapping a parameter keeps the digest; swapping the rule does not.
 //!
-//! That covers the rule and stops there, which is the half that was missing.
+//! That covers the rule and stops there, which is the part that was missing.
 //! What the computing nodes execute is not a rule --- it is a program emitted
 //! from one and then compiled --- so a node holding the approved digest can still
 //! compile something else and the registry would never know. A second digest

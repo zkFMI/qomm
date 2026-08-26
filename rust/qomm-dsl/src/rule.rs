@@ -49,7 +49,7 @@ pub struct Declaration {
 /// rather than written down beside it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Obligation {
-    /// product | range | bit | opening
+    /// product | range | bit | equality
     pub kind: String,
     pub target: String,
     pub detail: String,
@@ -175,7 +175,7 @@ fn is_identifier(text: &str) -> bool {
         && chars.all(|c| c.is_alphanumeric() || c == '_')
 }
 
-/// `half[1,200] slope[0,16]` — a name is only accepted with a range, so a rule
+/// `spread[2,400] slope[0,16]` — a name is only accepted with a range, so a rule
 /// cannot declare something whose width the checker would have to guess.
 fn parse_declarations(
     role: Role,
@@ -204,7 +204,7 @@ fn parse_declarations(
         let remainder = rest[end..].trim_start();
         if !remainder.starts_with('[') {
             return Err(RuleError(format!(
-                "line {lineno}: '{name}' needs a range, e.g. half[1,200]"
+                "line {lineno}: '{name}' needs a range, e.g. spread[2,400]"
             )));
         }
         let close = remainder
@@ -322,10 +322,10 @@ impl<'a> Analyser<'a> {
                      declared parameters, state and inputs"
             ))
         })?;
-        Ok((
-            declaration.interval,
-            u32::from(declaration.role.is_secret()),
-        ))
+        // Inputs are committed with fresh blindings too, so they contribute
+        // degree exactly like parameters and state. Treating them as public to
+        // the proof cost model drops every input-times-secret obligation.
+        Ok((declaration.interval, 1))
     }
 
     /// Addition and subtraction are free: no proof, and no round in the circuit.
@@ -351,8 +351,9 @@ impl<'a> Analyser<'a> {
         Ok((ia.times(ib), degree))
     }
 
-    /// A comparison costs a range proof and a bit proof, or --- for equality ---
-    /// an opening and a bit.
+    /// A total comparison costs a bit, a product and a range proof. Equality is
+    /// a zero test: one product sends the difference to zero and another proves
+    /// it invertible when the result bit is zero.
     fn comparison(
         &mut self,
         node: &Expr,
@@ -361,10 +362,19 @@ impl<'a> Analyser<'a> {
         b: &Expr,
     ) -> Result<(Interval, u32), RuleError> {
         let ((ia, _), (ib, _)) = (self.visit(a)?, self.visit(b)?);
+        self.note("bit", format!("result of {}", node.render()), 0);
         if matches!(op, Cmp::Eq | Cmp::Ne) {
             self.note(
-                "opening",
-                format!("{} decided by opening a difference", node.render()),
+                "product",
+                format!("{}: the bit sends the difference to zero", node.render()),
+                0,
+            );
+            self.note(
+                "product",
+                format!(
+                    "{}: the difference is invertible when the bit is 0",
+                    node.render()
+                ),
                 0,
             );
         } else {
@@ -373,9 +383,17 @@ impl<'a> Analyser<'a> {
             } else {
                 ib.minus(ia)
             };
-            self.note("range", node.render(), difference.width_bits());
+            self.note(
+                "product",
+                format!("{}: the bit against the difference", node.render()),
+                0,
+            );
+            self.note(
+                "range",
+                node.render(),
+                difference.minus(Interval::point(1)).width_bits() + 1,
+            );
         }
-        self.note("bit", format!("result of {}", node.render()), 0);
         Ok((Interval::new(0, 1)?, 0))
     }
 

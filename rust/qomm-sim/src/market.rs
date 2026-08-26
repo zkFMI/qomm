@@ -32,15 +32,8 @@ pub fn size_bucket(size: i64) -> usize {
     SIZE_BUCKETS.len() - 1
 }
 
-/// Python's `round` is half-to-even and Rust's is half-away-from-zero. Every
-/// place the original rounds, this is what it meant.
-pub fn py_round(v: f64) -> i64 {
-    let floor = v.floor();
-    let diff = v - floor;
-    let round_up = diff > 0.5 || (diff == 0.5 && (floor as i64) % 2 != 0);
-    let n = if round_up { floor + 1.0 } else { floor };
-    n as i64
-}
+pub use qomm_measure::pyround::py_round;
+
 
 #[derive(Clone, Copy, Debug)]
 pub struct SimConfig {
@@ -146,6 +139,18 @@ impl MarketMaker {
 pub struct ReferenceMarket {
     pub mid: Vec<i64>,
     pub phi: Vec<f64>,
+}
+
+/// The simulation and its external-information attacker need only a public
+/// reference-price path. Generated and observed tape markets both provide it.
+pub trait PricePath {
+    fn mid(&self) -> &[i64];
+}
+
+impl PricePath for ReferenceMarket {
+    fn mid(&self) -> &[i64] {
+        &self.mid
+    }
 }
 
 impl ReferenceMarket {

@@ -176,16 +176,17 @@
     "slots": 6,
     "trials": 3
   },
+  "host": "host-a",
   "indistinguishability": {
     "all_identical": true,
     "cover": {
       "mb": [
-        17.9016
+        22.2045
       ],
-      "median_s": 1.3195758329238743,
+      "median_s": 1.639010981,
       "n": 3,
       "rounds": [
-        287
+        286
       ]
     },
     "identical": {
@@ -196,347 +197,425 @@
     },
     "real": {
       "mb": [
-        17.9016
+        22.2045
       ],
-      "median_s": 1.3187372731044888,
+      "median_s": 1.649327293,
       "n": 3,
       "rounds": [
-        287
+        286
       ]
     },
     "rows": [
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.20389097603037953,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.286224176,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 1,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.98214,
+        "party0_median": 1.112532,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.98214,
-            "wall_seconds": 1.3185522188432515
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.112532,
+            "wall_seconds": 1.7118977640000002
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.997416,
-            "wall_seconds": 1.368728179950267
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.121542,
+            "wall_seconds": 1.739147101
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.952689,
-            "wall_seconds": 1.3187372731044888
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.081507,
+            "wall_seconds": 1.689805496
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(99990, 5) want=(99990, 5)",
-        "wall_median": 1.3187372731044888,
-        "wall_min": 1.3185522188432515
+        "verify_detail": "steps=5 first=(99976, 5) want=(99976, 5)",
+        "wall_median": 1.7118977640000002,
+        "wall_min": 1.689805496
       },
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.20612621796317399,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.284402051,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 1,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.983415,
+        "party0_median": 1.040517,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 1.00753,
-            "wall_seconds": 1.3194198079872876
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.045888,
+            "wall_seconds": 1.631134702
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.983415,
-            "wall_seconds": 1.3688594889827073
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.008507,
+            "wall_seconds": 1.617847468
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.946216,
-            "wall_seconds": 1.3183382169809192
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.040517,
+            "wall_seconds": 1.626723906
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(99932, 7) want=(99932, 7)",
-        "wall_median": 1.3194198079872876,
-        "wall_min": 1.3183382169809192
+        "verify_detail": "steps=5 first=(99918, 7) want=(99918, 7)",
+        "wall_median": 1.626723906,
+        "wall_min": 1.617847468
       },
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.2035174930933863,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.284886364,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 1,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.959517,
+        "party0_median": 1.049369,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.975317,
-            "wall_seconds": 1.2689156150445342
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.071205,
+            "wall_seconds": 1.6607818650000001
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.959517,
-            "wall_seconds": 1.3186404469888657
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.049369,
+            "wall_seconds": 1.649327293
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.943429,
-            "wall_seconds": 1.3189162930939347
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.037227,
+            "wall_seconds": 1.628006229
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(100000, 15) want=(100000, 15)",
-        "wall_median": 1.3186404469888657,
-        "wall_min": 1.2689156150445342
+        "verify_detail": "steps=5 first=(99974, 15) want=(99974, 15)",
+        "wall_median": 1.649327293,
+        "wall_min": 1.628006229
       },
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.2028250729199499,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.279802367,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 0,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.958477,
+        "party0_median": 1.072282,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.995608,
-            "wall_seconds": 1.3189092299435288
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.021436,
+            "wall_seconds": 1.6076392149999998
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.958477,
-            "wall_seconds": 1.3202447188086808
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.072282,
+            "wall_seconds": 1.657685066
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.955758,
-            "wall_seconds": 1.32001753593795
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.10684,
+            "wall_seconds": 1.6805264869999998
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(99990, 5) want=(99990, 5)",
-        "wall_median": 1.32001753593795,
-        "wall_min": 1.3189092299435288
+        "verify_detail": "steps=5 first=(99976, 5) want=(99976, 5)",
+        "wall_median": 1.657685066,
+        "wall_min": 1.6076392149999998
       },
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.20323778688907623,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.287524073,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 0,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.986912,
+        "party0_median": 1.048401,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 1.01528,
-            "wall_seconds": 1.3195758329238743
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.034176,
+            "wall_seconds": 1.60946955
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.951811,
-            "wall_seconds": 1.3188330009579659
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.048401,
+            "wall_seconds": 1.639010981
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.986912,
-            "wall_seconds": 1.3690733399707824
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.057757,
+            "wall_seconds": 1.64839889
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(99932, 7) want=(99932, 7)",
-        "wall_median": 1.3195758329238743,
-        "wall_min": 1.3188330009579659
+        "verify_detail": "steps=5 first=(99918, 7) want=(99918, 7)",
+        "wall_median": 1.639010981,
+        "wall_min": 1.60946955
       },
       {
         "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
         "bit_length": 31,
+        "check_mode": "per-party",
         "circuit": {
-          "compile_seconds": 0.20690725394524634,
-          "integer_bits": 28280,
-          "integer_opens": 405,
-          "integer_triples": 18600,
-          "vm_rounds": 247
+          "compile_seconds": 0.284058251,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
         },
         "delay_ms": 1.0,
         "disclose": "none",
         "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
         "host": "host-a",
+        "input_check": false,
         "is_real": 0,
-        "measured_mb": 17.9016,
-        "measured_rounds": 287,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
         "mode": "rfs",
+        "n_assets": 1,
         "n_mm": 16,
         "n_parties": 7,
+        "n_requests": 1,
         "padded_mm": 16,
-        "party0_median": 0.952063,
+        "party0_median": 1.040787,
+        "prime": null,
         "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
         "repeats": 3,
         "rfs_steps": 5,
         "samples": [
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.948508,
-            "wall_seconds": 1.2685538998339325
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.040787,
+            "wall_seconds": 1.628314005
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.952063,
-            "wall_seconds": 1.3184919189661741
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.047902,
+            "wall_seconds": 1.668467857
           },
           {
-            "global_mb": 110.892,
-            "party0_mb": 17.9016,
-            "party0_rounds": 287,
-            "party0_seconds": 0.969174,
-            "wall_seconds": 1.319750502007082
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.017465,
+            "wall_seconds": 1.630439508
           }
         ],
         "tag": "",
         "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
         "verified": true,
-        "verify_detail": "steps=5 first=(100000, 15) want=(100000, 15)",
-        "wall_median": 1.3184919189661741,
-        "wall_min": 1.2685538998339325
+        "verify_detail": "steps=5 first=(99974, 15) want=(99974, 15)",
+        "wall_median": 1.630439508,
+        "wall_min": 1.628314005
       }
     ],
-    "timing_gap_s": 0.0008385598193854094,
-    "timing_spread_s": 0.0015256169717758894
+    "timing_gap_s": 0.01031631200000005,
+    "timing_spread_s": 0.0851738580000001
   }
 }

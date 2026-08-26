@@ -17,10 +17,11 @@
 
 use std::collections::{BTreeMap, VecDeque};
 
-use crate::market::{py_round, Request, SimConfig};
+use crate::market::{py_round, PricePath, Request, SimConfig};
 use crate::pyrandom::PyRandom;
 
 pub const SIZE_CEILING: i64 = 100_000;
+pub const SECONDS_PER_BLOCK: usize = 12;
 
 /// One market's history, already on the simulator's step grid.
 #[derive(Clone, Debug)]
@@ -30,6 +31,9 @@ pub struct Tape {
     pub rows: Vec<TapeRow>,
     pub source: String,
     pub meta: BTreeMap<String, f64>,
+    /// Non-numeric provenance fields kept separate so the simulation core can
+    /// continue treating numerical tape metadata uniformly.
+    pub meta_text: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug)]
@@ -57,6 +61,7 @@ impl Tape {
 /// informedness is assigned by draw among the requests that agreed, at a rate
 /// reproducing the estimated share, which is the structure the generated arm has.
 pub struct TapeMarket {
+    pub cfg: SimConfig,
     pub mid: Vec<i64>,
     pub phi: Vec<f64>,
     pub source: String,
@@ -66,6 +71,7 @@ pub struct TapeMarket {
     pub informed_flags: Vec<bool>,
     pub edge: i64,
     pub measured_phi: Option<f64>,
+    pub meta: BTreeMap<String, f64>,
 }
 
 impl TapeMarket {
@@ -152,6 +158,7 @@ impl TapeMarket {
         let measured_phi = median(&phi);
 
         TapeMarket {
+            cfg: *cfg,
             mid,
             phi,
             source: tape.source.clone(),
@@ -161,12 +168,19 @@ impl TapeMarket {
             informed_flags,
             edge,
             measured_phi,
+            meta: tape.meta.clone(),
         }
     }
 
     pub fn move_over(&self, step: usize, horizon: usize) -> i64 {
         let end = (step + horizon).min(self.mid.len() - 1);
         self.mid[end] - self.mid[step]
+    }
+}
+
+impl PricePath for TapeMarket {
+    fn mid(&self) -> &[i64] {
+        &self.mid
     }
 }
 
@@ -204,16 +218,33 @@ pub fn rescale_sizes(raw: &[f64], target_median: i64, ceiling: i64) -> Vec<i64> 
 }
 
 /// What the entity column of a tape means.
+///
+/// UniswapX carries a real swapper address per request, so PerAddress is the
+/// truth there rather than a setting, and it is the least favourable one for
+/// the per-entity contribution cap: with one wallet each there is nothing for
+/// the cap to collapse.
+///
+/// A Bybit tape carries no identities at all --- `load_bybit` synthesises
+/// `taker:{i}`, one per fill --- so neither variant is measured there.
+/// PerAddress asserts that no firm ever trades twice; RoundRobin(n) asserts a
+/// firm count and an even split. The default is PerAddress because it is the
+/// identity assignment, applying no grouping rather than an invented one, and
+/// because the conclusion turns out not to depend on the choice.
+///
+/// That last clause was measured. On LTCUSDT2021-06-15 at one seed, 411
+/// requests, the passive observer's AUC against the baseline protocols rises
+/// with the linkage parameter in both settings, slightly faster per address
+/// (0.6382 vs 0.6172 at rho=0.25, 0.7886 vs 0.7344 at rho=0.5, 1.0000 at
+/// rho=1 either way), while `qomm_rfq` holds at exactly 0.5000 at every rho in
+/// both. The paired DP-effect intervals include zero in both settings at six
+/// seeds. The ordering that carries the result is the same either way.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Entities {
-    /// UniswapX carries a real address per request, so an entity is an address
-    /// holding one wallet. That is the *least* favourable setting for a
-    /// per-entity cap --- with one wallet each there is nothing for it to
-    /// collapse --- and saying so is the point.
+    /// One entity per observed address, holding one wallet.
     PerAddress,
-    /// A Bybit tape has no identities, so entities are dealt round-robin rather
-    /// than drawn, which keeps the assignment from smuggling a second generated
-    /// distribution in on top of the real arrivals.
+    /// Observed addresses dealt round-robin into `n` synthetic entities, which
+    /// keeps the assignment from smuggling a second generated distribution in
+    /// on top of the real arrivals.
     RoundRobin(usize),
 }
 
@@ -314,6 +345,396 @@ pub fn requests_from_tape(
     }
 }
 
+#[derive(Clone, Debug)]
+struct JsonLeg {
+    token: String,
+    amount: u128,
+    outgoing: bool,
+}
+
+#[derive(Clone, Debug)]
+struct JsonFill {
+    block: usize,
+    log_index: usize,
+    filler: String,
+    swapper: String,
+    legs: Vec<JsonLeg>,
+}
+
+fn json_field_start<'a>(text: &'a str, key: &str) -> Result<&'a str, String> {
+    let needle = format!("\"{key}\"");
+    let after_key = text
+        .find(&needle)
+        .map(|index| &text[index + needle.len()..])
+        .ok_or_else(|| format!("missing JSON field '{key}'"))?;
+    let colon = after_key
+        .find(':')
+        .ok_or_else(|| format!("missing ':' after JSON field '{key}'"))?;
+    Ok(after_key[colon + 1..].trim_start())
+}
+
+/// A JSON integer, saturating at `u128::MAX` and saying when it did.
+///
+/// Python's integers are unbounded and four of the 150,000 UniswapX fills carry
+/// an `amount` that is not: the largest is 58 digits, `1.0e57`, against a
+/// `u128::MAX` of about `3.4e38`. Those are not trades --- they are a token
+/// whose decimals make the number meaningless --- and refusing the whole tape
+/// over four of them is worse than reading them as the largest number there is.
+///
+/// Saturating cannot move the measurement: `rescale_sizes` takes its factor from
+/// the *median* of the positive sizes and then clamps to a ceiling, so a value
+/// far above the ceiling and a value further above it produce the same lot.
+/// That is the argument for saturating rather than failing, and it is why the
+/// count is returned rather than swallowed --- an argument that stops being true
+/// if the rescaling ever stops being median-based.
+fn json_u128_saturating(text: &str, key: &str) -> Result<(u128, bool), String> {
+    let value = json_field_start(text, key)?;
+    let end = value
+        .find(|character: char| !character.is_ascii_digit())
+        .unwrap_or(value.len());
+    let digits = &value[..end];
+    if digits.is_empty() {
+        return Err(format!("JSON field '{key}' is not a non-negative integer"));
+    }
+    match digits.parse::<u128>() {
+        Ok(parsed) => Ok((parsed, false)),
+        Err(_) => Ok((u128::MAX, true)),
+    }
+}
+
+fn json_u128(text: &str, key: &str) -> Result<u128, String> {
+    json_u128_saturating(text, key).map(|(value, _)| value)
+}
+
+fn json_bool(text: &str, key: &str) -> Result<bool, String> {
+    let value = json_field_start(text, key)?;
+    if value.starts_with("true") {
+        Ok(true)
+    } else if value.starts_with("false") {
+        Ok(false)
+    } else {
+        Err(format!("JSON field '{key}' is not a boolean"))
+    }
+}
+
+fn json_string(text: &str, key: &str) -> Result<String, String> {
+    let value = json_field_start(text, key)?;
+    if !value.starts_with('"') {
+        return Err(format!("JSON field '{key}' is not a string"));
+    }
+    let mut escaped = false;
+    let mut out = String::new();
+    for character in value[1..].chars() {
+        if escaped {
+            out.push(match character {
+                'n' => '\n',
+                'r' => '\r',
+                't' => '\t',
+                other => other,
+            });
+            escaped = false;
+        } else if character == '\\' {
+            escaped = true;
+        } else if character == '"' {
+            return Ok(out);
+        } else {
+            out.push(character);
+        }
+    }
+    Err(format!("unterminated JSON string field '{key}'"))
+}
+
+fn json_array_objects<'a>(text: &'a str, key: &str) -> Result<Vec<&'a str>, String> {
+    let value = json_field_start(text, key)?;
+    if !value.starts_with('[') {
+        return Err(format!("JSON field '{key}' is not an array"));
+    }
+    let mut objects = Vec::new();
+    let (mut depth, mut start) = (0usize, None);
+    let (mut in_string, mut escaped) = (false, false);
+    for (index, byte) in value.as_bytes().iter().enumerate().skip(1) {
+        let character = *byte as char;
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if character == '\\' {
+                escaped = true;
+            } else if character == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+        match character {
+            '"' => in_string = true,
+            '{' => {
+                if depth == 0 {
+                    start = Some(index);
+                }
+                depth += 1;
+            }
+            '}' => {
+                if depth == 0 {
+                    return Err(format!("unbalanced object in JSON field '{key}'"));
+                }
+                depth -= 1;
+                if depth == 0 {
+                    objects.push(&value[start.unwrap()..=index]);
+                    start = None;
+                }
+            }
+            ']' if depth == 0 => return Ok(objects),
+            _ => {}
+        }
+    }
+    Err(format!("unterminated JSON array field '{key}'"))
+}
+
+fn readable_legs(fill: &JsonFill) -> Option<(JsonLeg, JsonLeg)> {
+    let outgoing = fill
+        .legs
+        .iter()
+        .filter(|leg| leg.outgoing && leg.amount > 0)
+        .max_by_key(|leg| leg.amount)?;
+    let incoming = fill
+        .legs
+        .iter()
+        .filter(|leg| !leg.outgoing && leg.amount > 0)
+        .max_by_key(|leg| leg.amount)?;
+    Some((outgoing.clone(), incoming.clone()))
+}
+
+fn price_path(
+    prices: &[(usize, f64)],
+    total_steps: usize,
+    cfg: &SimConfig,
+    ceiling: i64,
+) -> Result<Vec<i64>, String> {
+    let mut by_step: BTreeMap<usize, Vec<f64>> = BTreeMap::new();
+    for (step, price) in prices {
+        by_step.entry(*step).or_default().push(*price);
+    }
+    let first_step = *by_step.keys().next().ok_or("no prices in selected pair")?;
+    let first = median(&by_step[&first_step]).ok_or("no first price")?;
+    let mut mid = Vec::with_capacity(total_steps + 1);
+    let mut last = cfg.ref_mid0;
+    for step in 0..=total_steps {
+        if let Some(values) = by_step.get(&step) {
+            last = py_round(cfg.ref_mid0 as f64 * median(values).unwrap() / first);
+        }
+        mid.push(last.clamp(1, ceiling));
+    }
+    Ok(mid)
+}
+
+/// UniswapX fill records from the collector's JSON-lines `--amounts` pass.
+///
+/// The parser is deliberately limited to that published schema, but it still
+/// parses fields by name rather than depending on JSON object order.
+#[allow(clippy::too_many_arguments)]
+pub fn load_uniswapx(
+    text: &str,
+    cfg: &SimConfig,
+    name: &str,
+    steps: Option<usize>,
+    step_blocks: usize,
+    min_requests_per_entity: usize,
+    pair: Option<(&str, &str)>,
+) -> Result<Tape, String> {
+    if step_blocks == 0 {
+        return Err("step_blocks must be positive".to_string());
+    }
+    let mut fills = Vec::new();
+    let mut saturated_amounts = 0usize;
+    for (line_number, line) in text.lines().enumerate() {
+        if line.trim().is_empty() || line.contains("\"checkpoint\"") {
+            continue;
+        }
+        let leg_objects = match json_array_objects(line, "legs") {
+            Ok(objects) if !objects.is_empty() => objects,
+            Ok(_) => continue,
+            Err(error) => return Err(format!("{name}: line {}: {error}", line_number + 1)),
+        };
+        let legs = leg_objects
+            .into_iter()
+            .map(|object| {
+                let (amount, saturated) = json_u128_saturating(object, "amount")?;
+                if saturated {
+                    saturated_amounts += 1;
+                }
+                Ok(JsonLeg {
+                    token: json_string(object, "token")?,
+                    amount,
+                    outgoing: json_bool(object, "out")?,
+                })
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        fills.push(JsonFill {
+            block: json_u128(line, "block")? as usize,
+            log_index: json_u128(line, "log_index")? as usize,
+            filler: json_string(line, "filler")?,
+            swapper: json_string(line, "swapper")?,
+            legs,
+        });
+    }
+    if fills.is_empty() {
+        return Err(format!(
+            "{name} has no fills with decoded legs; run the --amounts pass"
+        ));
+    }
+    fills.sort_by_key(|fill| (fill.block, fill.log_index));
+
+    let mut pair_order: Vec<(String, String)> = Vec::new();
+    let mut pair_counts: BTreeMap<(String, String), usize> = BTreeMap::new();
+    for fill in &fills {
+        if let Some((sold, bought)) = readable_legs(fill) {
+            let key = if sold.token <= bought.token {
+                (sold.token, bought.token)
+            } else {
+                (bought.token, sold.token)
+            };
+            if !pair_counts.contains_key(&key) {
+                pair_order.push(key.clone());
+            }
+            *pair_counts.entry(key).or_insert(0) += 1;
+        }
+    }
+    if pair_counts.is_empty() {
+        return Err(format!("{name} has no fill with both legs readable"));
+    }
+    let chosen = match pair {
+        Some((left, right)) if left == right => {
+            return Err(format!("a pair needs two distinct tokens, got {left}"))
+        }
+        Some((left, right)) if left <= right => (left.to_string(), right.to_string()),
+        Some((left, right)) => (right.to_string(), left.to_string()),
+        None => {
+            let mut ordered = pair_order.into_iter();
+            let mut best = ordered.next().unwrap();
+            for candidate in ordered {
+                if pair_counts[&candidate] > pair_counts[&best] {
+                    best = candidate;
+                }
+            }
+            best
+        }
+    };
+    let (quote, base) = (&chosen.0, &chosen.1);
+
+    let kept: Vec<(&JsonFill, JsonLeg, JsonLeg)> = fills
+        .iter()
+        .filter_map(|fill| {
+            let (sold, bought) = readable_legs(fill)?;
+            let key = if sold.token <= bought.token {
+                (sold.token.clone(), bought.token.clone())
+            } else {
+                (bought.token.clone(), sold.token.clone())
+            };
+            (key == chosen).then_some((fill, sold, bought))
+        })
+        .collect();
+    if kept.is_empty() {
+        return Err(format!("no fills on the requested pair in {name}"));
+    }
+    let base_block = kept[0].0.block;
+    let span = kept[kept.len() - 1].0.block - base_block;
+    let total_steps = steps.unwrap_or_else(|| (span / step_blocks).max(1));
+
+    let mut raw_sizes = Vec::new();
+    let mut raw_rows = Vec::new();
+    let mut prices = Vec::new();
+    for (fill, sold, bought) in kept {
+        let step = (fill.block - base_block) / step_blocks;
+        if step > total_steps {
+            break;
+        }
+        let base_amount = if sold.token == *base {
+            sold.amount
+        } else {
+            bought.amount
+        };
+        let quote_amount = if sold.token == *quote {
+            sold.amount
+        } else {
+            bought.amount
+        };
+        let direction = u8::from(bought.token != *base);
+        raw_sizes.push(base_amount as f64);
+        prices.push((step, quote_amount as f64 / (base_amount.max(1) as f64)));
+        raw_rows.push((step, fill.swapper.clone(), direction, fill.filler.clone()));
+    }
+    let sizes = rescale_sizes(&raw_sizes, 40, SIZE_CEILING);
+    let mid = price_path(&prices, total_steps, cfg, (1 << 20) - 1)?;
+    let mut per_entity: BTreeMap<String, usize> = BTreeMap::new();
+    let mut winners: BTreeMap<String, usize> = BTreeMap::new();
+    for (_, address, _, filler) in &raw_rows {
+        *per_entity.entry(address.clone()).or_insert(0) += 1;
+        *winners.entry(filler.clone()).or_insert(0) += 1;
+    }
+    let rows: Vec<TapeRow> = raw_rows
+        .into_iter()
+        .zip(sizes.iter().copied())
+        .filter(|((_, address, _, _), _)| per_entity[address] >= min_requests_per_entity)
+        .map(|((step, address, direction, _), size)| TapeRow {
+            step,
+            address,
+            size,
+            direction,
+        })
+        .collect();
+    let pair_total: usize = pair_counts.values().sum();
+    let meta = [
+        ("fills".to_string(), fills.len() as f64),
+        ("on_pair".to_string(), pair_counts[&chosen] as f64),
+        ("used".to_string(), rows.len() as f64),
+        ("pairs_available".to_string(), pair_counts.len() as f64),
+        (
+            "pair_share".to_string(),
+            pair_counts[&chosen] as f64 / pair_total.max(1) as f64,
+        ),
+        ("blocks".to_string(), span as f64),
+        ("step_blocks".to_string(), step_blocks as f64),
+        (
+            "seconds_per_step".to_string(),
+            (step_blocks * SECONDS_PER_BLOCK) as f64,
+        ),
+        ("distinct_swappers".to_string(), per_entity.len() as f64),
+        ("distinct_fillers".to_string(), winners.len() as f64),
+        (
+            "sizes_at_ceiling".to_string(),
+            sizes.iter().filter(|size| **size >= SIZE_CEILING).count() as f64,
+        ),
+        (
+            "sizes_over_largest_bucket".to_string(),
+            sizes.iter().filter(|size| **size > 400).count() as f64,
+        ),
+        // Four of the 150,000 fills carry an `amount` that does not fit in 128
+        // bits --- the largest is 58 digits. Python's integers are unbounded and
+        // read them; this reads them as `u128::MAX`. It is recorded rather than
+        // absorbed because the argument that it cannot matter --- the rescaling
+        // takes its factor from the median and clamps to a ceiling --- is an
+        // argument about today's rescaling, and a reader should be able to see
+        // the number the argument is about.
+        (
+            "amounts_saturated_at_u128".to_string(),
+            saturated_amounts as f64,
+        ),
+    ]
+    .into_iter()
+    .collect();
+    Ok(Tape {
+        mid,
+        rows,
+        source: format!("uniswapx:{name}"),
+        meta,
+        meta_text: [
+            ("pair_quote".to_string(), quote.clone()),
+            ("pair_base".to_string(), base.clone()),
+        ]
+        .into_iter()
+        .collect(),
+    })
+}
+
 /// One symbol-day from the Bybit public trading archive.
 ///
 /// Timestamp resolution changes with the era --- tenths of a millisecond before
@@ -325,6 +746,19 @@ pub fn load_bybit(
     name: &str,
     steps: Option<usize>,
     step_ms: Option<u64>,
+    max_rows: Option<usize>,
+) -> Result<Tape, String> {
+    load_bybit_slice(text, cfg, name, steps, step_ms, 0, max_rows)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn load_bybit_slice(
+    text: &str,
+    cfg: &SimConfig,
+    name: &str,
+    steps: Option<usize>,
+    step_ms: Option<u64>,
+    start_row: usize,
     max_rows: Option<usize>,
 ) -> Result<Tape, String> {
     let step_ms = step_ms.unwrap_or(cfg.step_ms);
@@ -346,7 +780,10 @@ pub fn load_bybit(
     );
 
     let mut trades: Vec<(f64, f64, f64, u8)> = Vec::new();
-    for line in lines {
+    for (index, line) in lines.enumerate() {
+        if index < start_row {
+            continue;
+        }
         let parts: Vec<&str> = line.split(',').collect();
         if parts.len() <= price_at {
             continue;
@@ -446,5 +883,6 @@ pub fn load_bybit(
         rows,
         source: format!("bybit:{name}"),
         meta,
+        meta_text: BTreeMap::new(),
     })
 }

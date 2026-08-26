@@ -4,7 +4,7 @@
       "active_client_bytes": [
         2121
       ],
-      "added_latency_ms": 0,
+      "added_latency_ms": 0.0,
       "batch_sizes_at_node": [
         12
       ],
@@ -21,7 +21,7 @@
       "idle_client_bytes": [
         2121
       ],
-      "link_ms": 8.7,
+      "link_ms": 0.0,
       "linkage_advantage": 0.0,
       "linkage_auc": 0.5,
       "linkage_base_rate": 0.30625,
@@ -29,15 +29,23 @@
       "slot_phases_ms": [
         17.493
       ],
-      "slot_wall_median_ms": 36.247291951440275,
-      "slot_wall_median_s": 0.03610502096125856,
+      "slot_wall_median_ms": 27.841824000000003,
+      "slot_wall_s": {
+        "max": 0.028076959,
+        "mean": 0.027839193825000004,
+        "median": 0.0278348255,
+        "min": 0.027729786,
+        "n": 40,
+        "rsd": 0.0025490474203875187,
+        "sd": 0.0000709634252052844
+      },
       "traffic_identical": true
     },
     {
       "active_client_bytes": [
         2121
       ],
-      "added_latency_ms": 29.627216032291482,
+      "added_latency_ms": 20.927216032291483,
       "batch_sizes_at_node": [
         12
       ],
@@ -54,7 +62,7 @@
       "idle_client_bytes": [
         2121
       ],
-      "link_ms": 8.7,
+      "link_ms": 0.0,
       "linkage_advantage": 0.0,
       "linkage_auc": 0.5,
       "linkage_base_rate": 0.30625,
@@ -63,15 +71,23 @@
         17.493,
         20.927
       ],
-      "slot_wall_median_ms": 75.96583396662027,
-      "slot_wall_median_s": 0.07595164596568793,
+      "slot_wall_median_ms": 49.252233,
+      "slot_wall_s": {
+        "max": 0.049453184,
+        "mean": 0.04927073655,
+        "median": 0.049248451,
+        "min": 0.049132194,
+        "n": 40,
+        "rsd": 0.0019475878021071966,
+        "sd": 0.00009595908550561722
+      },
       "traffic_identical": true
     },
     {
       "active_client_bytes": [
         2121
       ],
-      "added_latency_ms": 57.87237843012887,
+      "added_latency_ms": 40.47237843012887,
       "batch_sizes_at_node": [
         12
       ],
@@ -88,7 +104,7 @@
       "idle_client_bytes": [
         2121
       ],
-      "link_ms": 8.7,
+      "link_ms": 0.0,
       "linkage_advantage": 0.0,
       "linkage_auc": 0.5,
       "linkage_base_rate": 0.30625,
@@ -98,8 +114,16 @@
         20.927,
         19.545
       ],
-      "slot_wall_median_ms": 108.41233399696648,
-      "slot_wall_median_s": 0.10814441699767485,
+      "slot_wall_median_ms": 69.27772999999999,
+      "slot_wall_s": {
+        "max": 0.069498172,
+        "mean": 0.06928826135,
+        "median": 0.06927599400000001,
+        "min": 0.068997952,
+        "n": 40,
+        "rsd": 0.0015149849804796107,
+        "sd": 0.00010497067526879592
+      },
       "traffic_identical": true
     }
   ],
@@ -111,10 +135,11 @@
       2,
       3
     ],
-    "link_ms": 8.7,
+    "link_ms": 0.0,
     "nodes": 7,
     "seed": 11,
     "slot_ms": 25.0,
     "slots": 40
-  }
+  },
+  "host": "host-a"
 }

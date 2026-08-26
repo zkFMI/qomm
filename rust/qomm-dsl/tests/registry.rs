@@ -26,6 +26,23 @@ fn the_digest_covers_the_form_and_not_the_values() {
 }
 
 #[test]
+fn the_rule_digest_ignores_comments_and_spacing() {
+    let approved = compile_rule(RULE, "policy").unwrap();
+    let formatted = compile_rule(&format!("# a note\n\n{RULE}"), "policy").unwrap();
+    assert_eq!(rule_digest(&approved), rule_digest(&formatted));
+}
+
+#[test]
+fn the_approved_rule_records_the_required_width() {
+    let mut registry = RuleRegistry::default();
+    let approved = registry.approve(RULE, "policy").unwrap();
+    assert_eq!(
+        approved.required_bits,
+        compile_rule(RULE, "policy").unwrap().required_bits()
+    );
+}
+
+#[test]
 fn a_substituted_rule_is_rejected_against_the_approved_digest() {
     let mut registry = RuleRegistry::default();
     let approved = registry.approve(RULE, "policy").unwrap();

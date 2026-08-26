@@ -223,7 +223,7 @@
     "steps": 6000
   },
   "evidence_class": "smoke_only",
-  "host": "host-c",
+  "host": "host-a",
   "limitations": [
     "Synthetic smoke run; no production promotion is permitted.",
     "Behavioral responses and disclosure are disabled to isolate request routing.",

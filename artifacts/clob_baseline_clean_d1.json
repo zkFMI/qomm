@@ -1,6 +1,6 @@
 {
   "circuit": {
-    "compile_seconds": 1.2933501990046352,
+    "compile_seconds": 1.358737155,
     "integer_bits": 186480,
     "integer_opens": 1838,
     "integer_triples": 174636,
@@ -9,50 +9,50 @@
   "delay_ms": 1.0,
   "fixture": "continuous_clob_7 (9 orders, MAX_FILLS=4)",
   "host": "host-a",
-  "measured_mb": 143.187,
+  "measured_mb": 178.102,
   "measured_rounds": 3500,
   "n_parties": 7,
-  "party0_median": 10.4615,
+  "party0_median": 9.38834,
   "repeats": 5,
   "samples": [
     {
-      "global_mb": 888.385,
-      "party0_mb": 143.187,
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
       "party0_rounds": 3500,
-      "party0_seconds": 10.4615,
-      "wall_seconds": 10.799382562981918
+      "party0_seconds": 10.6742,
+      "wall_seconds": 11.119127443
     },
     {
-      "global_mb": 888.385,
-      "party0_mb": 143.187,
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
       "party0_rounds": 3500,
-      "party0_seconds": 10.5597,
-      "wall_seconds": 10.942461707862094
+      "party0_seconds": 9.38834,
+      "wall_seconds": 9.77147215
     },
     {
-      "global_mb": 888.385,
-      "party0_mb": 143.187,
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
       "party0_rounds": 3500,
-      "party0_seconds": 10.4482,
-      "wall_seconds": 10.841583266155794
+      "party0_seconds": 9.27801,
+      "wall_seconds": 9.657544517
     },
     {
-      "global_mb": 888.385,
-      "party0_mb": 143.187,
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
       "party0_rounds": 3500,
-      "party0_seconds": 10.385,
-      "wall_seconds": 10.791345990030095
+      "party0_seconds": 9.38255,
+      "wall_seconds": 9.772703791
     },
     {
-      "global_mb": 888.385,
-      "party0_mb": 143.187,
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
       "party0_rounds": 3500,
-      "party0_seconds": 10.5386,
-      "wall_seconds": 10.896479960065335
+      "party0_seconds": 9.43302,
+      "wall_seconds": 9.814100491
     }
   ],
   "threshold": 2,
   "verified": true,
   "verify_detail": "got=(5, 7) want=(5, 7)",
-  "wall_median": 10.841583266155794
+  "wall_median": 9.772703791
 }
