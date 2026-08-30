@@ -7,7 +7,7 @@
 | [`SOURCE_CODE_GUIDE.md`](SOURCE_CODE_GUIDE.md) | QOMM・DeFMI・zkPIの実行経路、秘密境界、状態遷移、障害時動作を端から端まで解説 |
 | [`MPC_ZKPI_DEFMI_FLOW.md`](MPC_ZKPI_DEFMI_FLOW.md) | Maker/Taker事前承認、保証枠、同時RFQ、共同zkPI、口座を名指ししないDeFMI/AvalancheのDvPを、実装済みと外部未了に分けて解説 |
 | [`SOURCE_FILE_INDEX.md`](SOURCE_FILE_INDEX.md) | 2026-08-29時点の第一者ソースをファイル単位で列挙し、責務・試験・変更時の影響先を対応づける |
-| [`NON_OTC_USE_CASES.md`](NON_OTC_USE_CASES.md) | OTC外でQOMMの差分が残る用途を先行研究と制度資料から比較し、保険・電力・企業調達の優先順位と論文化条件を整理 |
+| [`DEFMI_ZKPI_USE_CASES.md`](DEFMI_ZKPI_USE_CASES.md) | QOMMを前提にせず、DeFMIとzkPIをファンド、担保、国際決済、証券、登記などへ使う方法、既存実証との差、実装順を整理 |
 
 ## Slide decks
 
