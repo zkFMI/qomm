@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_multi_asset.py`.
-
 use qomm_harness::{parse_value, write_pretty_json, HarnessResult};
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -255,7 +253,7 @@ fn value(raw: &[OsString], index: &mut usize, name: &str) -> HarnessResult<OsStr
 fn get(value: &Value, key: &str) -> String {
     value
         .get(key)
-        .map_or_else(|| "None".into(), qomm_harness::py_display)
+        .map_or_else(|| "None".into(), qomm_harness::value_display)
 }
 
 fn py_bool(value: bool) -> &'static str {

@@ -15,16 +15,20 @@ fn room_with_seats() -> Room {
 fn node_is_not_told_price_order_mask_or_any_policy() {
     let mut room = room_with_seats();
     let result = room.run_round().unwrap();
-    let blob = serde_json::to_string(&room.view("n", &DemoConfig::default(), 0.0)).unwrap();
+    let view = room.view("n", &DemoConfig::default(), 0.0);
+    let blob = serde_json::to_string(&view).unwrap();
     assert!(result.outcome.price.is_some());
     assert!(!blob.contains(&result.outcome.price.unwrap().to_string()));
     assert!(!blob.contains(&format!("\"qty\":{}", result.request.qty)));
     assert!(!blob.contains(&result.mask.to_string()));
     assert!(!blob.contains("\"policy\""));
+    assert!(!blob.contains("\"portfolio\""));
+    assert!(!blob.contains("cash_available"));
+    assert_eq!(view["node"]["custody"], false);
 }
 
 #[test]
-fn maker_receives_only_own_policy_and_fill_only_after_taker_announces() {
+fn maker_receives_only_own_policy_and_is_filled_automatically_after_match() {
     let mut room = room_with_seats();
     room.set_policy(2, &json!({"ask_level": 7, "spread": 33}))
         .unwrap();
@@ -40,21 +44,24 @@ fn maker_receives_only_own_policy_and_fill_only_after_taker_announces() {
     room.claim("m", "maker:0", "");
     room.claim("t", "taker", "");
     for maker in 0..8 {
+        room.set_forced_manual(&format!("maker:{maker}"), true);
         room.set_policy(
             maker,
             &json!({"active": if maker == 0 {1} else {0}, "asset": 0, "maxqty": 500}),
         )
         .unwrap();
     }
-    room.set_request(&json!({"asset":0,"qty":100,"is_real":1}))
+    room.set_request(&json!({"asset":0,"qty":100,"is_real":1,"limit_price":100_000}))
         .unwrap();
-    let result = room.run_round().unwrap();
+    let result = room.play_round().unwrap();
     assert_eq!(result.outcome.winner, Some(0));
-    assert!(room.view("m", &DemoConfig::default(), 0.0)["maker"]["fill"].is_null());
-    room.announce();
     assert_eq!(
         room.view("m", &DemoConfig::default(), 0.0)["maker"]["fill"]["price"],
         result.outcome.price.unwrap()
+    );
+    assert_eq!(
+        room.view("m", &DemoConfig::default(), 0.0)["maker"]["settlement"]["status"],
+        "settled"
     );
 }
 
@@ -126,7 +133,9 @@ fn seat_cannot_be_taken_twice_and_second_claim_releases_first() {
 #[test]
 fn automatic_real_fill_moves_the_book_and_cover_does_not() {
     let mut room = Room::new(2, 9, 2, true, 12).unwrap();
+    room.set_forced_manual("taker", true);
     for maker in 0..2 {
+        room.set_forced_manual(&format!("maker:{maker}"), true);
         room.set_policy(
             maker,
             &json!({
@@ -139,21 +148,194 @@ fn automatic_real_fill_moves_the_book_and_cover_does_not() {
         )
         .unwrap();
     }
-    room.set_request(&json!({"asset":0,"qty":80,"direction":0,"is_real":1}))
+    room.set_request(&json!({"asset":0,"qty":80,"direction":0,"is_real":1,"limit_price":100_000}))
         .unwrap();
-    let result = room.run_round().unwrap();
+    let maker_cash_before = room.maker_portfolios[0].cash_total().unwrap();
+    let taker_inventory_before = room.taker_portfolio.inventory_total(0).unwrap();
+    let result = room.play_round().unwrap();
     assert_eq!(result.outcome.winner, Some(0));
-    room.settle_last();
     assert_eq!(room.policies[0].inv, 10);
-    assert!(room.last.as_ref().unwrap().announced);
+    assert!(room.last.as_ref().unwrap().settled);
+    let cash = 80 * result.outcome.price.unwrap();
+    assert_eq!(
+        room.maker_portfolios[0].cash_total().unwrap(),
+        maker_cash_before + cash
+    );
+    assert_eq!(
+        room.taker_portfolio.inventory_total(0).unwrap(),
+        taker_inventory_before + 80
+    );
 
     room.policies[0].inv = 0;
     room.set_request(&json!({"asset":0,"qty":80,"direction":0,"is_real":0}))
         .unwrap();
-    room.run_round().unwrap();
-    room.settle_last();
+    let maker_before_cover = room.maker_portfolios[0].clone();
+    let taker_before_cover = room.taker_portfolio.clone();
+    room.play_round().unwrap();
     assert_eq!(room.policies[0].inv, 0);
-    assert!(!room.last.as_ref().unwrap().announced);
+    assert!(!room.last.as_ref().unwrap().settled);
+    assert_eq!(room.maker_portfolios[0], maker_before_cover);
+    assert_eq!(room.taker_portfolio, taker_before_cover);
+    assert_eq!(room.settlements.last().unwrap().status, "cover");
+}
+
+#[test]
+fn price_limit_releases_the_taker_hold_and_insufficient_cash_refuses_submission() {
+    let mut room = Room::new(1, 9, 2, true, 27).unwrap();
+    room.set_forced_manual("taker", true);
+    room.set_forced_manual("maker:0", true);
+    room.set_policy(
+        0,
+        &json!({"active":1,"asset":0,"ask_level":0,"slope":0,"invcoef":0,"maxqty":500}),
+    )
+    .unwrap();
+    room.set_request(&json!({"asset":0,"qty":10,"direction":0,"is_real":1,"limit_price":1}))
+        .unwrap();
+    let before = room.taker_portfolio.clone();
+    room.play_round().unwrap();
+    assert_eq!(room.settlements.last().unwrap().status, "released");
+    assert_eq!(room.taker_portfolio, before);
+    assert!(room.taker_reservation.is_none());
+
+    room.taker_portfolio.cash_available = 5;
+    room.set_request(&json!({"asset":0,"qty":10,"direction":0,"is_real":1,"limit_price":100}))
+        .unwrap();
+    let error = room.play_round().unwrap_err();
+    assert!(error.contains("signed limit needs"));
+    assert_eq!(room.taker_portfolio.cash_available, 5);
+    assert_eq!(room.taker_portfolio.cash_reserved, 0);
+}
+
+#[test]
+fn a_round_is_replayed_as_phases_and_settles_at_the_settle_phase() {
+    let mut room = Room::new(2, 9, 2, true, 21).unwrap();
+    room.set_forced_manual("taker", true);
+    for maker in 0..2 {
+        room.set_forced_manual(&format!("maker:{maker}"), true);
+        room.set_policy(
+            maker,
+            &json!({"active": 1, "asset": 0, "ask_level": 0, "inv": 0, "maxqty": 500}),
+        )
+        .unwrap();
+    }
+    room.set_request(&json!({"asset":0,"qty":50,"direction":0,"is_real":1,"limit_price":100_000}))
+        .unwrap();
+    let cash_before = room.taker_portfolio.cash_available;
+    assert_eq!(room.view("x", &DemoConfig::default(), 0.0)["phase"], "idle");
+
+    let phases = room.begin_round().unwrap();
+    assert_eq!(
+        phases
+            .iter()
+            .map(|phase| phase.name.as_str())
+            .collect::<Vec<_>>(),
+        ["deal", "check", "reduce", "open"]
+    );
+    assert!(room.busy);
+    assert_eq!(room.phase, "deal");
+    assert_eq!(phases[0].fields["values"], 5 + 2 * 10);
+    assert_eq!(phases[0].fields["nodes"], 9);
+    assert_eq!(phases[2].fields["degree"], 4);
+    assert_eq!(phases[2].fields["products"], 4);
+    // two products per policy, plus the final opening
+    assert_eq!(phases[2].fields["reductions"], 5);
+    assert_eq!(
+        phases[3].fields["masked_key"],
+        room.last.as_ref().unwrap().masked_key.to_string()
+    );
+    // The reserve is taken, and nothing has settled yet while phases are shown.
+    assert!(room.taker_portfolio.cash_reserved > 0);
+    assert_eq!(
+        room.taker_portfolio.cash_available,
+        cash_before - room.taker_portfolio.cash_reserved
+    );
+    assert!(room.settlements.is_empty());
+    assert_eq!(
+        room.begin_round().unwrap_err(),
+        "a round is already in progress"
+    );
+
+    for phase in &phases[1..] {
+        room.set_phase(phase);
+        let view = room.view("x", &DemoConfig::default(), 0.0);
+        assert_eq!(view["phase"], phase.name);
+        assert_eq!(view["busy"], true);
+        assert_eq!(view["phase_fields"], json!(phase.fields));
+    }
+
+    room.finish_round().unwrap();
+    assert_eq!(room.phase, "settle");
+    assert_eq!(room.phase_fields["status"], "settled");
+    assert_eq!(
+        room.phase_fields["state_root"],
+        room.settlements.last().unwrap().state_root
+    );
+    assert_eq!(room.taker_portfolio.cash_reserved, 0);
+    assert!(room.busy);
+
+    room.end_round();
+    assert_eq!(room.phase, "done");
+    assert!(!room.busy);
+    let view = room.view("x", &DemoConfig::default(), 0.0);
+    assert_eq!(view["phase_fields"]["number"], 1);
+    assert_eq!(view["busy"], false);
+}
+
+#[test]
+fn phase_replay_stops_where_the_round_stopped() {
+    let mut room = Room::new(2, 9, 2, true, 22).unwrap();
+    room.set_behaviour(3, "offline").unwrap();
+    let absent = room.run_round().unwrap();
+    let phases = room.phases_of(&absent);
+    assert_eq!(
+        phases
+            .iter()
+            .map(|phase| phase.name.as_str())
+            .collect::<Vec<_>>(),
+        ["deal", "check"]
+    );
+    assert_eq!(phases[1].fields["why"], "absent");
+
+    room.set_behaviour(3, "lie_input").unwrap();
+    let refused = room.run_round().unwrap();
+    let phases = room.phases_of(&refused);
+    assert_eq!(
+        phases
+            .iter()
+            .map(|phase| phase.name.as_str())
+            .collect::<Vec<_>>(),
+        ["deal", "check"]
+    );
+    assert_eq!(phases[1].fields["rejected"], json!([3]));
+
+    room.set_behaviour(3, LIE_PRODUCT).unwrap();
+    let corrected = room.run_round().unwrap();
+    let phases = room.phases_of(&corrected);
+    assert_eq!(
+        phases
+            .iter()
+            .map(|phase| phase.name.as_str())
+            .collect::<Vec<_>>(),
+        ["deal", "check", "reduce", "open"]
+    );
+    assert_eq!(phases[2].fields["named"], json!([3]));
+    assert!(phases[2].note.contains("named node 3"));
+
+    room.configure_input_check(false).unwrap();
+    room.set_behaviour(3, "honest").unwrap();
+    let unchecked = room.run_round().unwrap();
+    let phases = room.phases_of(&unchecked);
+    assert_eq!(phases[1].fields["skipped"], true);
+
+    // Phase fields are broadcast to every seat, so they must carry nothing a
+    // node may not know: no price, no quantity, no winner.
+    room.claim("n", "node:4", "");
+    let mut room_with_phase = room;
+    room_with_phase.set_phase(&phases[3]);
+    let blob =
+        serde_json::to_string(&room_with_phase.view("n", &DemoConfig::default(), 0.0)).unwrap();
+    assert!(!blob.contains(&format!("\"qty\":{}", unchecked.request.qty)));
+    assert!(!blob.contains(&unchecked.outcome.price.unwrap().to_string()));
 }
 
 #[test]

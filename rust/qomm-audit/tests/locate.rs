@@ -9,7 +9,7 @@ fn corrupt(shares: &mut [Scalar], culprits: &[usize]) {
 }
 
 #[test]
-fn deployment_capacity_boundaries_match_the_python_audit() {
+fn deployment_capacity_boundaries_match_the_locked_audit() {
     assert_eq!(capacity(7, 2), 2);
     assert_eq!(capacity(7, 4), 1);
     assert_eq!(capacity(5, 2), 1);

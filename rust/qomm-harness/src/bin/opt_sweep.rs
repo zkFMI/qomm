@@ -1,5 +1,3 @@
-//! Rust port of `scripts/opt_sweep.py`.
-
 use qomm_harness::{parse_value, HarnessResult};
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -90,7 +88,7 @@ fn run_main() -> HarnessResult<()> {
         println!(
             "[{index}/{total}] M={} d={}ms bits={} arity={} eda={} {} -> rounds={} mb={} median={} ok={}",
             job.n_mm,
-            qomm_harness::py_display(&json!(job.delay_ms)),
+            qomm_harness::value_display(&json!(job.delay_ms)),
             job.bit_length,
             job.argmin_arity,
             job.edabit,
@@ -168,7 +166,7 @@ fn tail(text: &str, chars: usize) -> String {
 fn get(value: &Value, key: &str) -> String {
     value
         .get(key)
-        .map_or_else(|| "None".into(), qomm_harness::py_display)
+        .map_or_else(|| "None".into(), qomm_harness::value_display)
 }
 
 fn parse_args() -> HarnessResult<Options> {

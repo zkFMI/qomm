@@ -119,8 +119,8 @@ traffic on the sending side only and the discrepancy has **not been isolated**,
 so it is a bad model and not a finding about the protocol. What survives is the
 measurement.
 
-A verifiable Python model of the same decode, with tests covering the capacity
-boundaries, is `qomm_audit/locate.py`.
+A native verification model of the same decode covers the capacity boundaries
+in the QOMM audit tests.
 
 --- /dev/null
 +++ Protocols/RobustDecode.h

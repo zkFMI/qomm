@@ -1,38 +1,42 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>QOMM demo</title>
-<link rel="stylesheet" href="/demo.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'">
+  <title>QOMM</title>
+  <link rel="stylesheet" href="/demo.css?v=20260830c">
 </head>
 <body>
 <header>
-  <span class="title" data-s="title">QOMM</span>
+  <h1 class="title" data-s="title">QOMM</h1>
   <span class="sub" data-s="subtitle"></span>
-  <span class="badge engine" id="engine">sim</span>
-  <span class="badge" id="roundno">--</span>
+  <span class="badge engine" id="engineBadge">--</span>
+  <span class="badge" id="roundNum">#--</span>
   <span class="badge" id="countdown"></span>
   <span class="spacer"></span>
-  <span class="badge seat hide" id="seatbadge"></span>
-  <button id="leave" class="hide" data-s="leave">seat</button>
-  <button id="lang">EN</button>
+  <span class="badge seat hide" id="seatBadge"></span>
+  <button type="button" id="btn-leave" class="hide" data-s="leave"></button>
+  <button type="button" id="btn-lang" aria-label="language">EN</button>
 </header>
+
+<div id="errorbar" class="error-banner hide" role="alert" aria-live="assertive"></div>
 
 <main>
   <!-- lobby ------------------------------------------------------------- -->
-  <section id="lobby">
+  <section id="lobby" aria-labelledby="lobby-title">
     <div class="card">
-      <h2 data-s="lobbyTitle"></h2>
+      <h2 id="lobby-title" data-s="lobbyTitle"></h2>
       <p class="why" data-s="lobbyWhy"></p>
       <div class="row">
-        <label data-s="yourName"></label>
-        <input type="text" id="name" maxlength="24" placeholder="">
-        <button class="go ghost" id="watch" data-s="watch"></button>
+        <label for="pname" data-s="yourName"></label>
+        <input type="text" id="pname" maxlength="24" autocomplete="nickname" placeholder="">
+        <button type="button" class="go ghost" id="btn-watch" data-s="watch"></button>
       </div>
-      <h3 style="font-size:.8rem;color:var(--gray);margin:.7rem 0 .3rem"
-          data-s="theSeats"></h3>
-      <div class="lobby-grid" id="lobbygrid"></div>
+      <h3 class="subhead" data-s="theSeats"></h3>
+      <div class="lobby-grid" id="lobby-grid" role="group" aria-labelledby="lobby-title" aria-busy="true">
+        <p class="empty" data-s="connecting"></p>
+      </div>
     </div>
     <div class="card">
       <h2 data-s="whatIsThis"></h2>
@@ -40,11 +44,53 @@
     </div>
   </section>
 
-  <!-- shared round strip -------------------------------------------------- -->
+  <!-- stage ------------------------------------------------------------- -->
   <section id="stage" class="hide">
-    <div class="phases" id="phases"></div>
-    <div class="phase-note" id="phasenote"></div>
+    <!-- where the round is: a live diagram, not a list of steps -->
+    <div class="card graph-card">
+      <div class="phase-strip" id="phase-strip" role="list" aria-label="phase"></div>
+      <p class="phase-caption" id="phase-caption" aria-live="polite"></p>
+      <div id="network-graph" role="group" data-s-aria="graphAria">
+        <svg id="network-svg" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#CBD5E1"></path>
+            </marker>
+            <marker id="arrow-flow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke"></path>
+            </marker>
+            <marker id="arrow-done" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#5A7CB4"></path>
+            </marker>
+          </defs>
+          <g id="graph-edges"></g>
+          <g id="graph-particles"></g>
+          <g id="graph-labels"></g>
+        </svg>
+        <div id="network-nodes"></div>
+      </div>
+      <p id="graph-empty" class="graph-empty hide"></p>
+      <div id="graph-legend" class="graph-legend"></div>
+    </div>
 
+    <!-- balances: what this seat owns, always on screen ------------------- -->
+    <div id="portfolio-strip" class="portfolio-strip hide" aria-live="polite"></div>
+
+    <!-- chat: plain-language control of the same messages the form sends -- -->
+    <div id="chat-panel" class="card chat-panel hide">
+      <h2 data-s="chatTitle"></h2>
+      <p class="why" id="chat-why"></p>
+      <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+      <div id="chat-preview" class="chat-preview hide" aria-live="polite"></div>
+      <div class="chat-input-row">
+        <label for="chat-input" class="sr-only" data-s="chatTitle"></label>
+        <input type="text" id="chat-input" autocomplete="off" placeholder="" data-s-placeholder="chatPlaceholder">
+        <button type="button" id="chat-send" class="go" data-s="chatSend"></button>
+      </div>
+      <div id="chat-hints" class="chat-hints"></div>
+    </div>
+
+    <!-- role panel ------------------------------------------------------- -->
     <div id="panel"></div>
 
     <div class="grid two">
@@ -52,25 +98,25 @@
         <h2 data-s="publicTitle"></h2>
         <p class="why" data-s="publicWhy"></p>
         <div id="publicbody"></div>
+        <h3 class="subhead" data-s="historyTitle"></h3>
+        <div id="history" class="history-list"></div>
       </div>
       <div class="card">
         <h2 data-s="seatsTitle"></h2>
         <p class="why" data-s="seatsWhy"></p>
         <div class="seatmap" id="seatmap"></div>
-        <div id="operator" class="hide" style="margin-top:.7rem"></div>
+        <h3 class="subhead" data-s="noticesTitle"></h3>
+        <div class="notices" id="notices" role="log" aria-live="polite"></div>
       </div>
-    </div>
-
-    <div class="card">
-      <h2 data-s="noticesTitle"></h2>
-      <div class="notices" id="notices"></div>
     </div>
   </section>
 </main>
+
 <footer>
   <span data-s="footer"></span>
-  <span id="conn"></span>
+  <span id="conn" aria-live="polite"></span>
 </footer>
-<script src="/demo.js"></script>
+
+<script src="/demo.js?v=20260830c"></script>
 </body>
 </html>

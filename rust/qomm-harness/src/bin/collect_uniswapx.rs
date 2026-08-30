@@ -1,5 +1,3 @@
-//! Rust port of `scripts/collect_uniswapx.py`.
-
 use qomm_harness::{next_value, parse_value, HarnessResult};
 use qomm_transport::ethereum_rpc::RpcClient;
 use serde_json::{json, Value};
@@ -48,7 +46,6 @@ fn run_main() -> HarnessResult<()> {
         head.as_str()
             .ok_or("eth_blockNumber returned a non-string result")?,
     )?;
-    // Python's `or` treats an explicitly supplied zero as false here.
     let end = options.to_block.filter(|value| *value != 0).unwrap_or(head);
     if !options.months.is_finite() {
         return Err("--months must be finite".into());
@@ -203,7 +200,7 @@ fn decode_amounts(
             rows.push(row);
         }
     }
-    rows = python_tail_slice(rows, limit)?;
+    rows = signed_tail_slice(rows, limit)?;
     if let Some(done) = resume_point(out)? {
         let mut remaining = Vec::with_capacity(rows.len());
         for row in rows {
@@ -230,7 +227,6 @@ fn decode_amounts(
                 .and_then(Value::as_array)
                 .cloned()
                 .unwrap_or_default();
-            // The Python implementation deliberately retains only the most
             // recently encountered transaction in this cache.
             seen_tx = Some((transaction.clone(), logs));
         }
@@ -359,7 +355,7 @@ fn resume_point(path: &Path) -> HarnessResult<Option<i128>> {
     ))
 }
 
-fn python_tail_slice(mut rows: Vec<Value>, limit: i128) -> HarnessResult<Vec<Value>> {
+fn signed_tail_slice(mut rows: Vec<Value>, limit: i128) -> HarnessResult<Vec<Value>> {
     if limit == 0 {
         return Ok(rows);
     }
@@ -563,12 +559,12 @@ mod tests {
     }
 
     #[test]
-    fn python_negative_limit_and_remainder_match() {
+    fn signed_negative_limit_and_remainder_match() {
         let rows = (0..5)
-            .map(|value| json_integer(value))
+            .map(json_integer)
             .collect::<Result<Vec<_>, _>>()
             .unwrap();
-        assert_eq!(python_tail_slice(rows, -2).unwrap().len(), 3);
+        assert_eq!(signed_tail_slice(rows, -2).unwrap().len(), 3);
         assert_eq!(py_remainder(-1, 50_000), 49_999);
         assert_eq!(py_remainder(1, -50_000), -49_999);
     }

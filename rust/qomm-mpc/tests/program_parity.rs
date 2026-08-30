@@ -86,38 +86,41 @@ const CASES: [Case; 6] = [
     },
 ];
 
-// Recovered from the last exported tree that carried `mp_spdz/gen_qomm.py`,
-// after the live parity test had established byte equality for this matrix.
-const RETIRED_GENERATOR_PROGRAM_CONTRACT: [(&str, usize, &str); 6] = [
+// Versioned generator contract. V4 added all four pre-signed Taker fields to
+// the input-consistency check. V5 removes stale implementation-language prose
+// from the generated source without changing its circuit semantics. V6 emits
+// the approved policy DSL as executable pricing code. V7 gates RFQ output and
+// persisted winner witnesses with the secret real/cover bit.
+const GENERATOR_V7_PROGRAM_CONTRACT: [(&str, usize, &str); 6] = [
     (
         "rfq_4_anchored_all_off",
-        9_453,
-        "e819ccf03070e4bcb3bdc4bbb3d96d4575ce65bd2cb417f9ee68d320cf2e5723",
+        9_596,
+        "f21a46fd9db11d62d5b32f92e8ee06485e242b9ea0978f1e5596cd733e824452",
     ),
     (
         "rfq_16_none_all_on_shamir",
-        18_160,
-        "ac9fc3119a150d7e02e034e3976dc7b545b6d925c2a6793ae882dcbcc983c102",
+        18_854,
+        "45faa13d7ec42b52824429940aaddee70ba9993f8c7a1e5a783c0c3e3de09f08",
     ),
     (
         "rfm_4_none_input_shamir",
-        11_447,
-        "b7dd6eecefbf5ebe2641f88e875cfad919b4aa59d086897e7d2eb1a2e17a2dc3",
+        11_341,
+        "d4a91be0267b59bc41262dc1257e738df85391e4b872e99d80d9c6e985cf7560",
     ),
     (
         "rfm_16_anchored_binding_audit",
-        11_975,
-        "f9299d7b3ff14dde5774d0b1d36c4e73a1c42721e83d953de613063ea8628710",
+        12_512,
+        "782b5b83c142e522e2c28411595592a80640c0e82156a9cb34868c0df8fb26f3",
     ),
     (
         "rfs_4_anchored_binding",
-        11_813,
-        "50036fbcb57362761475773e654100a5e8b29c0811cf4c2d2d0a3e9262533d17",
+        12_350,
+        "c865d64982a6397856d369d7a204f636875c8bd73bd2337c6bcc544c74db88ac",
     ),
     (
         "rfs_16_none_input_audit_shamir",
-        12_440,
-        "546183460d6931344763dccb2ed05bffe71a9bf852dee75da7739db418888bc5",
+        12_334,
+        "719d2ba38570c85305903c84dda4548058031cde242f548ac2e06f92e28c44fc",
     ),
 ];
 
@@ -197,12 +200,13 @@ fn output_options(program: &Path, inputs: &Path, reference: &Path) -> [String; 6
 }
 
 #[test]
-fn rust_cli_matches_the_retired_generator_program_contract() {
+fn rust_cli_matches_the_versioned_generator_program_contract() {
     let directory = TestDir::new();
     let rust_generator = env!("CARGO_BIN_EXE_qomm-gen");
 
+    let mut mismatches = Vec::new();
     for (case, (contract_name, expected_bytes, expected_sha256)) in
-        CASES.into_iter().zip(RETIRED_GENERATOR_PROGRAM_CONTRACT)
+        CASES.into_iter().zip(GENERATOR_V7_PROGRAM_CONTRACT)
     {
         assert_eq!(case.name, contract_name);
         let rust_program = directory.0.join(format!("{}.mpc", case.name));
@@ -223,17 +227,18 @@ fn rust_cli_matches_the_retired_generator_program_contract() {
         assert_success(&format!("Rust case {}", case.name), rust);
 
         let bytes = fs::read(&rust_program).unwrap();
-        assert_eq!(
-            bytes.len(),
-            expected_bytes,
-            "case {} changed byte length",
-            case.name
-        );
-        assert_eq!(
-            hex::encode(Sha256::digest(&bytes)),
-            expected_sha256,
-            "case {} changed bytes",
-            case.name
-        );
+        let digest = hex::encode(Sha256::digest(&bytes));
+        if bytes.len() != expected_bytes || digest != expected_sha256 {
+            mismatches.push(format!(
+                "{}: expected ({expected_bytes}, {expected_sha256}), actual ({}, {digest})",
+                case.name,
+                bytes.len()
+            ));
+        }
     }
+    assert!(
+        mismatches.is_empty(),
+        "versioned program contract changed:\n{}",
+        mismatches.join("\n")
+    );
 }

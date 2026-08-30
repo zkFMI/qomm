@@ -2,12 +2,12 @@
 
 use qomm_harness::{next_value, parse_value, write_pretty_json, HarnessResult};
 use qomm_sim::attackers::{passive_observer, pretrade_attributes};
+use qomm_sim::deterministic_random::DeterministicRng;
 use qomm_sim::disclosure::Disclosure;
 use qomm_sim::engine::{run_arm, ArmOptions, ArmResult, ProbeResult};
 use qomm_sim::experiment::build_probes;
 use qomm_sim::fsum::{fsum, nsum};
 use qomm_sim::market::{build_market_makers, ReferenceMarket, Request, SimConfig, SIZE_BUCKETS};
-use qomm_sim::pyrandom::PyRandom;
 use serde_json::{json, Map, Value};
 use std::path::PathBuf;
 
@@ -32,7 +32,6 @@ fn pearson(xs: &[f64], ys: &[f64]) -> Option<f64> {
     // statistics.fmean is math.fsum and one division.
     let xbar = fsum(xs.iter().copied()) / xs.len() as f64;
     let ybar = fsum(ys.iter().copied()) / ys.len() as f64;
-    // These three are Python builtin sum(), which uses Neumaier
     // compensation and is deliberately distinct from fmean/fsum.
     let numerator = nsum(xs.iter().zip(ys).map(|(x, y)| (x - xbar) * (y - ybar)));
     let xden = nsum(xs.iter().map(|x| (x - xbar).powi(2)));
@@ -101,25 +100,25 @@ fn fmean_optional(values: impl IntoIterator<Item = Option<f64>>) -> Option<f64> 
     (!finite.is_empty()).then(|| fsum(finite.iter().copied()) / finite.len() as f64)
 }
 
-/// Python calls SimConfig with only six keyword overrides. Start with the
 /// library default and change exactly those fields; copying the other current
 /// values here would silently diverge when the library default moves.
 fn config(steps: usize, n_mm: usize, seed: u64) -> SimConfig {
-    let mut cfg = SimConfig::default();
-    cfg.steps = steps;
-    cfg.n_mm = n_mm;
-    cfg.n_entities = 24;
-    cfg.arrival_rate = 0.15;
-    cfg.window_steps = 200.max(steps / 8);
-    cfg.seed = seed;
-    cfg
+    SimConfig {
+        steps,
+        n_mm,
+        n_entities: 24,
+        arrival_rate: 0.15,
+        window_steps: 200.max(steps / 8),
+        seed,
+        ..SimConfig::default()
+    }
 }
 
 /// `qomm_sim.market.build_requests` ported at the call boundary so the current
-/// CPython builtin-sum semantics are explicit. All other market defaults and
+/// Compensated-sum semantics are explicit. All other market defaults and
 /// algorithms remain owned by qomm-sim.
 fn build_requests_exact(cfg: &SimConfig, market: &ReferenceMarket, seed: u64) -> Vec<Request> {
-    let mut rng = PyRandom::new(seed);
+    let mut rng = DeterministicRng::new(seed);
     let raw = (0..cfg.n_entities)
         .map(|_| rng.paretovariate(1.6))
         .collect::<Vec<_>>();

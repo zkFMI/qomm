@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_maker_updates.py`.
-
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use ed25519_dalek::{Signer, SigningKey, Verifier};
@@ -39,7 +37,9 @@ fn main() {
 fn run_main() -> HarnessResult<()> {
     let options = parse_args()?;
     if options.group != "ed25519" {
-        return Err("the Rust port supports the repository's ed25519 measurement group".into());
+        return Err(
+            "the native harness supports the repository's ed25519 measurement group".into(),
+        );
     }
     if options.repeats == 0 || options.makers == 0 {
         return Err("--repeats and --makers must be positive".into());

@@ -17,8 +17,9 @@ without one is shown.
 
     taker       sends the order. It is split before it leaves the page, and no
                 node is handed the whole of it. This seat alone gets a price.
-    maker       leaves a price policy. It never sees the order, and does not
-                learn that it won until the taker tells it.
+    maker       leaves a price policy and pre-reserves its maximum inventory
+                and cash exposure. It never sees the order; after a match it
+                receives only its own fill and updated balances.
     node        computes. It holds shares and nothing else. It can also cheat,
                 and what happens then splits three ways.
 
@@ -32,6 +33,16 @@ market with people in it. Hand a seat out by pasting its link:
 
 The observer seat is the screen at the front of the room. It shows everything
 and says on every frame that it is a view no deployment has.
+
+The Rust server also keeps a small in-memory settlement ledger for the demo.
+The taker reserves cash or inventory when sending a request. Each maker reserves
+the maximum cash and inventory needed by its current policy before requests are
+accepted. A successful match settles both legs atomically without asking either
+side for another signature. Cover traffic, a price-limit failure, an aborted
+round, or no eligible maker leaves custody unchanged and releases the taker's
+hold. This ledger is an explanatory model with conservation checks; the
+authoritative product path is the Avalanche QOMM VM described below, not this
+in-memory room.
 
 The page follows the browser's language, and `?lang=en` or `?lang=ja` overrides
 it.
@@ -122,17 +133,63 @@ A projection can only delete.
 | the order | its own | never | never | yes |
 | a policy | never | its own | never | all |
 | the mask | its own | never | never | yes |
-| the price and the winner | yes | only if it won, and only when told | never | yes |
+| own cash and inventory | yes | yes | no custody role | all demo balances |
+| own pre-trade reserve | yes | yes | no custody role | all demo reserves |
+| the price and the winner | yes | only its own winning fill | never | yes |
 | the opened key | yes | yes | yes | yes |
 | shares | never | never | its own | --- |
 | a node's chosen behaviour | never | never | its own | all |
 | who was named, and how many openings were corrected | yes | yes | yes | yes |
 
 The opened key is `best_key + mask`: it packs the price and the winning maker
-together and it is uniform to anyone without the taker's mask. So the makers do
-not learn who won either, and somebody has to tell them. In the demo that is the
-taker pressing a button, which is the honest shape of it and is worth watching
-happen rather than being told about.
+together and it is uniform to anyone without the taker's mask. The Rust room
+uses the verified result internally to settle the already-authorised reserves;
+only the winning maker receives its own fill. There is no post-match taker
+button or signature that can be withheld to turn the request into a free probe.
+
+## What the page shows
+
+The page is one diagram and what hangs off it. The diagram has a node for the
+taker, one for every maker, one for every computing node, and one each for
+matching, result checking and the explanatory settlement ledger; the edges are
+the paths a value can take. The graph states directly that its ledger is the
+in-memory Rust model and does not submit to the live L1. The real product path
+uses the zkPI verifier and DeFMI/Avalanche custom VM exercised by
+`run-full-qomm-l1.sh`. Which edges are moving is decided by `phase` in the view
+the server pushes, and nothing else:
+
+    deal      the order and the policies, split, travel to every node
+    check     each node's pieces are checked against the dealing records
+    reduce    the nodes multiply on split values and the openings are decoded
+    open      the keyed result goes back to the taker (everyone sees it)
+    settle    verification, then the ledger moves both pre-reserved legs
+    done      the round is over; the traversed paths stay marked
+
+The room computes the round in one go and then broadcasts these phases one
+after another, `--step-ms` apart, so the pauses are pacing for the room and
+not protocol time --- the view reports what the arithmetic took separately.
+Settlement is the one step that moves balances, and it happens exactly when
+the `settle` phase is shown. A second request to start a round while one is
+being shown is refused, not queued.
+
+Each seat's diagram is its own projection. A maker's page draws the taker
+node with "order not visible"; a node's page draws every other node's edges
+faint and its own in colour; only the taker (and the observer) sees the
+winning maker's edge light up at settlement. The strip under the diagram is
+the seat's own balances --- available, reserved, total --- and it says so when
+a number moves and why (reserve, settle, release). The node seat's strip says
+that a node holds neither inventory nor cash.
+
+The taker and maker seats also have a chat. A sentence such as
+`Buy 100 units of USD/JPY` or `set the maximum quantity to 300` is turned, by a fixed
+set of rules in `qomm_demo/static/demo.js`, into the same `request` or
+`policy` message the panel's controls send; the page shows the interpretation
+--- and the reserve it implies --- and sends nothing until it is confirmed.
+
+`node --test qomm_demo/tests/*.test.mjs` checks that the page's ids and the
+script agree, that the chat rules are deterministic, and that every seat
+renders every phase of a round the Rust server actually sent (the fixtures
+under `qomm_demo/tests/fixtures/` were recorded from it).
 
 ## Options worth knowing
 

@@ -19,11 +19,12 @@ is inside is here.
 
 What it does
 ------------
-Declares a weak `qomm_after_run` and calls it, if defined, with the machine
-still alive. A stock build defines nothing, the symbol is null, the branch is
+Declares an initially-null callback and calls it, if an embedder registered it,
+with the machine still alive. A stock build registers nothing, the branch is
 not taken, and the binary behaves exactly as before --- which is the property
 that matters: the numbers this yields have to be numbers about stock MP-SPDZ,
-not about a fork of it.
+not about a fork of it. The callback avoids the platform-specific linker rules
+for undefined weak symbols in normal party binaries.
 
 The temporary is given a name. That is the only change to the run itself, and
 it extends the machine's life to the end of the block rather than the end of
@@ -38,14 +39,20 @@ and would probably prefer a registered callback over a weak symbol.
 
 --- a/Processor/OnlineMachine.hpp
 +++ b/Processor/OnlineMachine.hpp
-@@ -182,6 +182,11 @@
+@@ -182,6 +182,16 @@
      }
  }
  
-+// Null unless an embedder defines it, which no stock build does. Offered the
++// Null unless an embedder registers it, which no stock build does. Offered the
 +// machine while it is still alive, so a caller can read what the run cost
-+// without parsing what the run printed.
-+extern "C" void qomm_after_run(const BaseMachine*) __attribute__((weak));
++// without parsing what the run printed. A callback avoids platform-specific
++// treatment of undefined weak symbols in otherwise ordinary party binaries.
++using QommAfterRun = void (*)(const BaseMachine*);
++inline QommAfterRun& qomm_after_run_callback()
++{
++    static QommAfterRun callback = nullptr;
++    return callback;
++}
 +
  template<class T, class U>
  int OnlineMachine::run_with_error()
@@ -58,8 +65,8 @@ and would probably prefer a registered callback over a weak symbol.
 -                online_opts.progname);
 +        Machine<T, U> machine(playerNames, use_encryption, online_opts);
 +        machine.run(online_opts.progname);
-+        if (qomm_after_run)
-+            qomm_after_run(&machine);
++        if (qomm_after_run_callback())
++            qomm_after_run_callback()(&machine);
  
          if (online_opts.verbose)
            {

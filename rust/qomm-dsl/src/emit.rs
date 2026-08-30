@@ -59,20 +59,55 @@ pub fn obligation_plan(rule: &Rule) -> ObligationPlan {
 pub fn to_mpc(rule: &Rule) -> BTreeMap<String, String> {
     rule.outputs
         .iter()
-        .map(|(name, tree)| (name.clone(), mpc(tree)))
+        .map(|(name, tree)| {
+            (
+                name.clone(),
+                mpc(tree, None).expect("a checked rule only contains declared names"),
+            )
+        })
         .collect()
 }
 
-fn mpc(node: &Expr) -> String {
-    match node {
+/// Emit the same checked rule into an existing MPC function.
+///
+/// The ordinary emitter names a declaration `col_<name>`.  The QOMM product
+/// circuit already has vector-valued locals such as `qty_v` and
+/// `tile_makers(inv_vec)`, so it supplies those exact bindings here.  The
+/// expression tree is still emitted from the checked DSL; callers cannot
+/// substitute a handwritten price formula after approval.
+pub fn to_mpc_with_bindings(
+    rule: &Rule,
+    bindings: &BTreeMap<String, String>,
+) -> Result<BTreeMap<String, String>, RuleError> {
+    for name in rule.declarations.keys() {
+        if !bindings.contains_key(name) {
+            return Err(RuleError(format!(
+                "the MPC binding for declared value '{name}' is missing"
+            )));
+        }
+    }
+    rule.outputs
+        .iter()
+        .map(|(name, tree)| Ok((name.clone(), mpc(tree, Some(bindings))?)))
+        .collect()
+}
+
+fn mpc(node: &Expr, bindings: Option<&BTreeMap<String, String>>) -> Result<String, RuleError> {
+    Ok(match node {
         Expr::Const(v) => format!("sint({v})"),
-        Expr::Name(n) => format!("col_{n}"),
-        Expr::Neg(e) => format!("(-{})", mpc(e)),
-        Expr::Add(a, b) => format!("({} + {})", mpc(a), mpc(b)),
-        Expr::Sub(a, b) => format!("({} - {})", mpc(a), mpc(b)),
-        Expr::Mul(a, b) => format!("({} * {})", mpc(a), mpc(b)),
+        Expr::Name(n) => match bindings {
+            Some(bindings) => bindings
+                .get(n)
+                .cloned()
+                .ok_or_else(|| RuleError(format!("the MPC binding for '{n}' is missing")))?,
+            None => format!("col_{n}"),
+        },
+        Expr::Neg(e) => format!("(-{})", mpc(e, bindings)?),
+        Expr::Add(a, b) => format!("({} + {})", mpc(a, bindings)?, mpc(b, bindings)?),
+        Expr::Sub(a, b) => format!("({} - {})", mpc(a, bindings)?, mpc(b, bindings)?),
+        Expr::Mul(a, b) => format!("({} * {})", mpc(a, bindings)?, mpc(b, bindings)?),
         Expr::Compare(a, op, b) => {
-            let (l, r) = (mpc(a), mpc(b));
+            let (l, r) = (mpc(a, bindings)?, mpc(b, bindings)?);
             match op {
                 Cmp::Lt => format!("({l}).__lt__({r})"),
                 Cmp::Le => format!("({l}).__le__({r})"),
@@ -85,11 +120,17 @@ fn mpc(node: &Expr) -> String {
         // A conjunction is a product of bits, which is one multiplication each
         // and so one round layer --- the reason 'or' is not in the language.
         Expr::And(parts) => {
-            let joined: Vec<String> = parts.iter().map(mpc).collect();
+            let joined: Vec<String> = parts
+                .iter()
+                .map(|part| mpc(part, bindings))
+                .collect::<Result<_, _>>()?;
             format!("({})", joined.join(" * "))
         }
         Expr::Call(name, args) => {
-            let rendered: Vec<String> = args.iter().map(mpc).collect();
+            let rendered: Vec<String> = args
+                .iter()
+                .map(|argument| mpc(argument, bindings))
+                .collect::<Result<_, _>>()?;
             match (name.as_str(), rendered.as_slice()) {
                 ("min", [a, b]) => format!("(({a}).__lt__({b}).if_else({a}, {b}))"),
                 ("max", [a, b]) => format!("(({a}).__lt__({b}).if_else({b}, {a}))"),
@@ -102,7 +143,7 @@ fn mpc(node: &Expr) -> String {
                 _ => format!("/* unreachable: {name} */"),
             }
         }
-    }
+    })
 }
 
 /// Evaluate the rule in the clear. Every circuit run is checked against this,

@@ -14,6 +14,7 @@ merlin.workspace = true
 sha2.workspace = true
 rand_core.workspace = true
 ed25519-dalek.workspace = true
+serde.workspace = true
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["getrandom"] }

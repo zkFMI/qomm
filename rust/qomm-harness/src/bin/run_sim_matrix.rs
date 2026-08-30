@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_sim_matrix.py`.
-
 use qomm_harness::smallsample::mean_ci;
 use qomm_harness::{median, sum_mean, write_pretty_json, HarnessResult};
 use qomm_sim::attackers::{self as atk, AttackReport};
@@ -250,7 +248,7 @@ fn one_cell(job: &Job) -> HarnessResult<Value> {
         }
         (
             loaded.cfg,
-            LabMarket::Tape(tape_market),
+            LabMarket::Tape(Box::new(tape_market)),
             loaded.requests,
             Some(Value::Object(meta)),
         )
@@ -274,7 +272,7 @@ fn one_cell(job: &Job) -> HarnessResult<Value> {
         &mut disclosure,
         &arm_options,
     );
-    let attacks = vec![
+    let attacks = [
         atk::passive_observer(&result, &cfg, 0.5, cfg.seed),
         atk::pretrade_attributes(&result, &cfg),
         atk::window_shift_observer(&result, &cfg),

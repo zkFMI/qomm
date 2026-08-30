@@ -17,6 +17,7 @@
 //! a checkout, and a workspace that will not compile without one is worse than
 //! one that says so.
 
+pub mod compiler;
 pub mod inputs;
 pub mod persistence;
 pub mod program;

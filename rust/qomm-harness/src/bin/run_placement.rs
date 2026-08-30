@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_placement.py`.
-
 use qomm_harness::{
     median, parse_value, timing_summary, unique_temp_dir, write_pretty_json, HarnessResult,
 };
@@ -47,7 +45,6 @@ fn run_main() -> HarnessResult<()> {
                 )
             });
             walls.push(wall.ok_or("run_qomm returned no wall timing")?);
-            // Keep the Python producer's legacy lookup exactly. `run_qomm`
             // calls this `measured_rounds`, so the artifact records exact null.
             rounds.push(payload.get("party_rounds").cloned().unwrap_or(Value::Null));
             verified.push(payload["verified"].as_bool().unwrap_or(false));
@@ -63,8 +60,8 @@ fn run_main() -> HarnessResult<()> {
             "  {:10} {}  rounds {}  verified={}",
             row["placement"].as_str().unwrap_or_default(),
             render_seconds(&row["wall_s"]),
-            qomm_harness::py_display(&row["rounds"]["exact"]),
-            qomm_harness::py_display(&row["verified"]),
+            qomm_harness::value_display(&row["rounds"]["exact"]),
+            qomm_harness::value_display(&row["verified"]),
         );
         rows.push(row);
     }

@@ -161,8 +161,8 @@ reason: the check was taken **over the integers**, so the opening had to avoid
 reducing in the MPC field *and* in the group.
 
 Writing the security proof found that the coefficients were also being fixed
-before a node chose what to feed, which made the check unsound
-(`artifacts/coefficient_timing_flaw.json`). The correction --- draw the
+before a node chose what to feed, which made the check unsound. The correction
+measured in `artifacts/input_check.json` --- draw the
 challenge after the input phase, take its powers, work **modulo the MPC prime**
 --- fixes the soundness and **deletes the budget at the same time**. Nothing has
 to avoid reducing when both sides are modulo `p`, and the mask becomes one
@@ -255,8 +255,7 @@ both arms verified against the cleartext reference:
 | ratio | same | **1.00x** | **1.9994x** |
 
 **Rounds do not move and traffic is the element width and nothing else**, which
-is what section 2 measured on `host-a` and what was predicted in
-`artifacts/binding_chain_prediction.json` before any of this was written. Wall
+is what the current Rust binding-chain run measures. Wall
 clock is not comparable to section 2's 1.07x: that was at 15 ms of simulated
 delay, where round trips dominate; at zero delay on a laptop the field width
 shows through and the same pair is 0.197 s against 0.315 s.
@@ -417,9 +416,9 @@ is what makes the comparison mean anything. `host-a`, n=30, 167 inputs:
 
 | | prove | verify | proof |
 |---|---:|---:|---:|
-| Pedersen (ed25519) | 18.64 ms | 15.48 ms | 5,440 B |
-| **VOLE-in-the-Head** | **73.06 ms** | **69.94 ms** | **45,616 B** |
-| ratio | **3.93x** | **4.52x** | **8.39x** |
+| Pedersen (ristretto255) | 9.83 ms | 5.25 ms | 5,440 B |
+| **VOLE-in-the-Head** | **57.83 ms** | **58.92 ms** | **45,616 B** |
+| ratio | **5.88x** | **11.16x** | **8.39x** |
 
 **So the 113x was not an advantage over Pedersen. It was the price of not being
 checkable.** A designated-verifier VOLE commitment is a field multiply, and a
@@ -533,15 +532,18 @@ the policy. VOLEitH commitments cannot be, so a policy would have to be
 recommitted per quote or carried forward through delayed openings, and neither
 is free.
 
-### The caveat on the clock, stated as a bound
+### Where the clock goes
 
-Pedersen runs on libsodium through PyNaCl, which is C. VOLEitH runs on
-`hashlib`, also C, with the field arithmetic in CPython. Measured on the same
-host: **the XOF output alone is 30.4 ms of the 73.06**, and the XOF plus the
-packing is 54.3 ms. So a compiled implementation that made everything except the
-PRG free would still land near 30 ms, and the honest reading of the 3.93x is
-**somewhere between 1.6x and 3.9x, with the language accounting for at most the
-difference**. The byte counts have no such caveat.
+Both arms are compiled and run on the same host, so the ratio is not an
+artefact of one side being interpreted. It is still not purely the transform's
+price: `curve25519-dalek` is audited and heavily tuned, and the field
+arithmetic on the VOLEitH side is ours. How much of the 5.88x is implementation
+rather than transform is unmeasured.
+
+What is measured is where the time goes. Generating the PRG stream --- 17.8 MB
+across 4,096 leaves --- is **34.2 ms of XOF output**, and the XOF plus the
+packing that follows it is **396 ms**. The expansion, not the group, is the
+cost, and it is the part a faster hash would move.
 
 ---
 
@@ -646,8 +648,8 @@ attempts. A one-shot assembly becomes an interactive protocol.
 needs a **short** witness. Shamir shares are uniform in `Z_q`, Lagrange
 coefficients are arbitrary elements of it, and the combination is literally
 
-```python
-z_value = sum(coefficients[p] * partials[p][0] for p in partials) % order
+```
+z = sum over parties of (lagrange_coefficient * partial_share)  mod order
 ```
 
 --- short things multiplied by large things and reduced. **Shortness does not
@@ -667,9 +669,8 @@ known constructions are heavier and need more rounds.
 ### 6.3 What the signatures cost, which is size and not speed
 
 ML-DSA signs about as fast as Ed25519 in optimised implementations. The bytes
-land on the maker update path. Sizes are the standard's, checked against an
-implementation; **no timing is claimed**, because the only implementation
-available here is pure Python.
+land on the maker update path. Sizes are the standard's; **no timing is claimed**, because there is no
+ML-DSA implementation in this repository to time.
 
 | signature | one full policy update | vs now | 10 updates/s, 16 makers |
 |---|---:|---:|---:|
@@ -791,8 +792,8 @@ predictions that landed is advertising a discipline rather than reporting one.
 | compiling with `-F` instead of `-P` gives 2--6x traffic and 1.0--1.4x rounds | **2.00x and 1.00x** | landed |
 | VOLE-in-the-Head co-paths cost `repeats*(depth*16 + 32)` = 2,560 B | **2,560 B** | landed exactly |
 | VOLE-in-the-Head proof is 5--7 kB at 167 inputs | **45,616 B** | 7x too small |
-| it proves in 8--20 ms and verifies in 8--20 | **73.06 and 69.94 ms** | 4x too fast |
-| **the transform lands within 0.5--1.5x of Pedersen** | **3.93x and 4.52x** | **direction right, number wrong** |
+| it proves in 8--20 ms and verifies in 8--20 | **57.83 and 58.92 ms** | 3x too fast |
+| **the transform lands within 0.5--1.5x of Pedersen** | **5.88x and 11.16x** | **direction right, number wrong** |
 | its proof is within 1.5x of Pedersen's | 8.39x | wrong |
 | the one-time property is a real constraint and not a detail | it is; `OneTimeError` | landed |
 

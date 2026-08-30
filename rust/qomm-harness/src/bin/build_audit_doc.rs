@@ -1,12 +1,10 @@
-//! Rust port of `scripts/build_audit_doc.py`.
 //!
 //! The Markdown is deliberately assembled with the same line boundaries and
-//! formatting as the Python generator. `AUDIT.md` is a publication artifact,
 //! so even whitespace is part of this binary's compatibility contract.
 
 use qomm_dsl::{compile_rule, obligation_plan, Rule};
 use qomm_harness::{
-    comma_i64, measurement_value, one, py_display, render_measurement, repo_root, HarnessResult,
+    comma_i64, measurement_value, one, render_measurement, repo_root, value_display, HarnessResult,
 };
 use qomm_proofs::rule_audit::RuleProver;
 use rand::rngs::OsRng;
@@ -61,7 +59,6 @@ fn integer(value: &Value) -> HarnessResult<i64> {
 /// Ask the Rust proof implementation to build the derived audit, then report
 /// the compiler obligations. The prover internally aggregates and rewrites
 /// some steps, while this document intentionally exposes the source-level
-/// `obligation_plan` contract used by the Python generator.
 fn proof_plan(rule: &Rule, context: &[u8]) -> HarnessResult<BTreeMap<String, usize>> {
     let bindings = rule
         .declarations
@@ -142,14 +139,14 @@ fn run() -> HarnessResult<()> {
     d.push("|---|---:|---:|---:|");
     d.push(format!(
         "| real slot | {} | {} MB | {} s |",
-        py_display(one(&ind["real"]["rounds"])),
-        py_display(one(&ind["real"]["mb"])),
+        value_display(one(&ind["real"]["rounds"])),
+        value_display(one(&ind["real"]["mb"])),
         f(&ind["real"]["median_s"], 4)?
     ));
     d.push(format!(
         "| cover slot | {} | {} MB | {} s |\n",
-        py_display(one(&ind["cover"]["rounds"])),
-        py_display(one(&ind["cover"]["mb"])),
+        value_display(one(&ind["cover"]["rounds"])),
+        value_display(one(&ind["cover"]["mb"])),
         f(&ind["cover"]["median_s"], 4)?
     ));
     d.push(format!(
@@ -157,7 +154,7 @@ fn run() -> HarnessResult<()> {
             "Compiler statistics, runtime round count and bytes sent all agree ({}). The wall-clock ",
             "gap of {} s is smaller than the {} s spread seen when the same condition is repeated.\n"
         ),
-        py_display(&ind["all_identical"]),
+        value_display(&ind["all_identical"]),
         f(&ind["timing_gap_s"], 4)?,
         f(&ind["timing_spread_s"], 4)?
     ));
@@ -179,9 +176,9 @@ fn run() -> HarnessResult<()> {
     ));
     d.push(format!(
         "### Fault injection ({} nodes, {} slots, quorum {})\n",
-        py_display(&drill["nodes"]),
-        py_display(&drill["slots"]),
-        py_display(&drill["quorum"])
+        value_display(&drill["nodes"]),
+        value_display(&drill["slots"]),
+        value_display(&drill["quorum"])
     ));
     d.push("| fault injected | node | slot |");
     d.push("|---|---:|---:|");
@@ -191,15 +188,15 @@ fn run() -> HarnessResult<()> {
     {
         d.push(format!(
             "| {} | {} | {} |",
-            py_display(&item["fault"]),
-            py_display(&item["node"]),
-            py_display(&item["slot"])
+            value_display(&item["fault"]),
+            value_display(&item["node"]),
+            value_display(&item["slot"])
         ));
     }
     d.push("");
     d.push(format!(
         "- all detected: **{}**, missed **{}**",
-        py_display(&drill["detected_all_injected"]),
+        value_display(&drill["detected_all_injected"]),
         drill["missed"].as_array().map_or(0, Vec::len)
     ));
     d.push(format!(
@@ -223,9 +220,9 @@ fn run() -> HarnessResult<()> {
     {
         d.push(format!(
             "| {} | {} | {} | {} | {} |",
-            py_display(&row["node"]),
-            py_display(&row["slot"]),
-            py_display(&row["fault"]),
+            value_display(&row["node"]),
+            value_display(&row["slot"]),
+            value_display(&row["fault"]),
             comma_i64(integer(&row["amount"])?),
             comma_i64(integer(&row["remaining_bond"])?),
         ));
@@ -258,10 +255,10 @@ fn run() -> HarnessResult<()> {
     for row in hops {
         d.push(format!(
             "| {} | {} B | {} | {} | {} ms |",
-            py_display(&row["hops"]),
-            py_display(one(&row["bytes_per_client_slot"])),
+            value_display(&row["hops"]),
+            value_display(one(&row["bytes_per_client_slot"])),
             f(&row["linkage_auc"], 3)?,
-            py_display(&row["single_relay_recovers_request"]),
+            value_display(&row["single_relay_recovers_request"]),
             f(&row["slot_wall_median_ms"], 1)?
         ));
     }
@@ -272,9 +269,9 @@ fn run() -> HarnessResult<()> {
             "A user who sent an order ({} B) and one who did not ({} B) send the same amount. The ",
             "batch a node sees is {} regardless of how active anyone was.\n"
         ),
-        py_display(one(&first["active_client_bytes"])),
-        py_display(one(&first["idle_client_bytes"])),
-        py_display(&first["batch_sizes_at_node"])
+        value_display(one(&first["active_client_bytes"])),
+        value_display(one(&first["idle_client_bytes"])),
+        value_display(&first["batch_sizes_at_node"])
     ));
     d.push(concat!(
         "**Boundary**: hops after the first are implemented as in-process hand-offs, so a real ",
@@ -316,10 +313,10 @@ fn run() -> HarnessResult<()> {
     {
         d.push(format!(
             "| {} | {} ms | {} ms | {} |",
-            py_display(&row["makers"]),
+            value_display(&row["makers"]),
             render_measurement(&row["prove"], 0)?,
             render_measurement(&row["verify"], 0)?,
-            py_display(&row["matches_cleartext"])
+            value_display(&row["matches_cleartext"])
         ));
     }
     d.push(concat!(
@@ -337,8 +334,8 @@ fn run() -> HarnessResult<()> {
         let prefix: String = reason.chars().take(52).collect();
         d.push(format!(
             "| {} | **{}** | {} |",
-            py_display(&row["control"]),
-            py_display(&row["rejected"]),
+            value_display(&row["control"]),
+            value_display(&row["rejected"]),
             prefix
         ));
     }
@@ -357,10 +354,10 @@ fn run() -> HarnessResult<()> {
     for row in quote["joint"].as_array().ok_or("joint is not an array")? {
         d.push(format!(
             "| {} | {} ms | {} | {} |",
-            py_display(&row["size"]),
+            value_display(&row["size"]),
             render_measurement(&row["assemble"], 3)?,
-            py_display(&row["verified_by_ordinary_verifier"]),
-            py_display(&row["no_node_holds_witness"])
+            value_display(&row["verified_by_ordinary_verifier"]),
+            value_display(&row["no_node_holds_witness"])
         ));
     }
     d.push(concat!(
@@ -427,9 +424,9 @@ fn run() -> HarnessResult<()> {
     ));
     d.push(concat!(
         "The instructions are `+ - *`, comparison, `and`, and `min` `max` `clamp` `signed`. There ",
-        "is no division, no loop, no indexing and no attribute access. The surface is a subset of ",
-        "Python expressions parsed with the standard `ast`, and **only the permitted node types ",
-        "pass**. The allowlist is itself the safety argument.\n"
+        "is no division, no loop, no indexing and no attribute access. The grammar is written ",
+        "out rather than borrowed from a host language, so **the subset is what the parser ",
+        "accepts and nothing else**.\n"
     ));
     d.push("### What the checker derives, with no proof involved\n");
     d.push("| derived | anchored | **absolute (what is proved)** |");
@@ -514,9 +511,9 @@ fn run() -> HarnessResult<()> {
     {
         d.push(format!(
             "| {} | {} | {} MB | {} s |",
-            py_display(&row["n_assets"]),
-            py_display(&row["measured_rounds"]),
-            py_display(&row["measured_mb"]),
+            value_display(&row["n_assets"]),
+            value_display(&row["measured_rounds"]),
+            value_display(&row["measured_mb"]),
             f(&row["wall_median"], 3)?
         ));
     }
@@ -533,12 +530,12 @@ fn run() -> HarnessResult<()> {
     d.push("|---:|---|---|---:|---:|---|");
     d.push(format!(
         "| {} | {} | {} | {} s | {} | {} |",
-        py_display(&ob["assets_probed"]),
-        py_display(&ob["rounds"]),
-        py_display(&ob["megabytes"]),
+        value_display(&ob["assets_probed"]),
+        value_display(&ob["rounds"]),
+        value_display(&ob["megabytes"]),
         f(&ob["timing_gap_s"], 4)?,
-        py_display(&ob["distinct_answers"]),
-        py_display(&ob["all_verified"])
+        value_display(&ob["distinct_answers"]),
+        value_display(&ob["all_verified"])
     ));
     d.push("");
     d.push(format!(
@@ -547,8 +544,8 @@ fn run() -> HarnessResult<()> {
             "market while the trace does not. The {} s spread comes from one outlying sample and ",
             "is the same size as the run-to-run variation seen in other sweeps.\n"
         ),
-        py_display(&ob["identical_rounds"]),
-        py_display(&ob["identical_bytes"]),
+        value_display(&ob["identical_rounds"]),
+        value_display(&ob["identical_bytes"]),
         f(&ob["timing_gap_s"], 4)?
     ));
     d.push(concat!(
@@ -581,7 +578,7 @@ fn run() -> HarnessResult<()> {
                 render_measurement(&row["proof"], 0)?,
                 render_measurement(&row["settle"], 0)?,
                 render_measurement(&row["total"], 0)?,
-                py_display(&row["audited_rfs_met"])
+                value_display(&row["audited_rfs_met"])
             ));
         }
         let proofs = rows
@@ -627,7 +624,7 @@ fn run() -> HarnessResult<()> {
         d.push(format!(
             concat!("Response time is dominated by `rounds x RTT`. So: can the rounds come down? ",
                 "Compiling the circuit one layer at a time decomposes where they go ({} makers, {} bits).\n"),
-            py_display(&stages["n_mm"]), py_display(&stages["bit_length"])
+            value_display(&stages["n_mm"]), value_display(&stages["bit_length"])
         ));
         d.push("| stage | rounds | increment | share |");
         d.push("|---|---:|---:|---:|");
@@ -638,7 +635,7 @@ fn run() -> HarnessResult<()> {
             let increment = if row.get("increment").is_none_or(Value::is_null) {
                 "—".into()
             } else {
-                format!("+{}", py_display(&row["increment"]))
+                format!("+{}", value_display(&row["increment"]))
             };
             let share = if row.get("share_of_rounds").is_none_or(Value::is_null) {
                 "—".into()
@@ -647,8 +644,8 @@ fn run() -> HarnessResult<()> {
             };
             d.push(format!(
                 "| {} | {} | {increment} | {share} |",
-                py_display(&row["description"]),
-                py_display(&row["rounds"])
+                value_display(&row["description"]),
+                value_display(&row["rounds"])
             ));
         }
         let stage = |name: &str| stage_rows.iter().find(|row| row["stage"] == name);
@@ -680,17 +677,17 @@ fn run() -> HarnessResult<()> {
             {
                 d.push(format!(
                     "| {} | {} | {} | {:.0}% | {:.3} MB |",
-                    py_display(&section["protocol"]),
-                    py_display(&channel["channel"]),
-                    py_display(&channel["rounds"]),
+                    value_display(&section["protocol"]),
+                    value_display(&channel["channel"]),
+                    value_display(&channel["rounds"]),
                     num(&channel["share_of_rounds"])? * 100.0,
                     num(&channel["bytes"])? / 1e6
                 ));
             }
             d.push(format!(
                 "| {} | *total* | {} | 100% | {:.3} MB |",
-                py_display(&section["protocol"]),
-                py_display(&section["rounds"]),
+                value_display(&section["protocol"]),
+                value_display(&section["rounds"]),
                 num(&section["sent"])? / 1e6
             ));
         }
@@ -703,12 +700,12 @@ fn run() -> HarnessResult<()> {
                 rows.iter()
                     .max_by_key(|r| r["rounds"].as_i64().unwrap_or(0))
             })
-            .map(|r| py_display(&r["rounds"]))
+            .map(|r| value_display(&r["rounds"]))
             .ok_or("missing channel")?;
         d.push(format!(concat!("The opening channel --- the comparison chain --- is **{} rounds under both protocols**. ",
             "Dropping malicious security takes rounds out of everything else ({} to {}) and cuts bytes by **{:.2}x**. ",
             "The security model is paid in bandwidth; the latency is owed to depth either way.\n"),
-            chain, py_display(&malicious["rounds"]), py_display(&semi["rounds"]),
+            chain, value_display(&malicious["rounds"]), value_display(&semi["rounds"]),
             num(&malicious["sent"])? / num(&semi["sent"])?));
     }
 
@@ -719,8 +716,8 @@ fn run() -> HarnessResult<()> {
         for row in rounds["batch"].as_array().ok_or("batch is not an array")? {
             d.push(format!(
                 "| preprocessing batch {} | {} rounds, {:.2} MB, {:.3} s |",
-                py_display(&row["batch_size"]),
-                py_display(&row["measured_rounds"]),
+                value_display(&row["batch_size"]),
+                value_display(&row["measured_rounds"]),
                 num(&row["measured_mb"])?,
                 num(&row["wall_median"])?
             ));
@@ -789,8 +786,8 @@ fn run() -> HarnessResult<()> {
             for row in gates {
                 d.push(format!(
                     "| {} | {} | {:.3} MB | {:.3} s |",
-                    py_display(&row["label"]),
-                    py_display(&row["measured_rounds"]),
+                    value_display(&row["label"]),
+                    value_display(&row["measured_rounds"]),
                     num(&row["measured_mb"])?,
                     num(&row["wall_median"])?
                 ));
@@ -811,7 +808,7 @@ fn run() -> HarnessResult<()> {
             d.push(format!(concat!("Making the market each maker serves public turns the asset check into a **public index** into a secret one-hot vector, and the equality test disappears. ",
                 "Expiry and the active flag are already proved by the registration audit, so the circuit need not pay for them twice. Together the traffic falls **{:.0}%**, ",
                 "but these are amounts of work inside the same layer, so **the rounds move only from {} to {}**.\n"),
-                100.0 * (base_mb - best_mb) / base_mb, py_display(&gates[0]["measured_rounds"]), min_rounds));
+                100.0 * (base_mb - best_mb) / base_mb, value_display(&gates[0]["measured_rounds"]), min_rounds));
             d.push("### What did work: more requests in one job\n");
             d.push(concat!("Rounds are **a property of the job, not of the request**. Sharing the same comparison layers across Q requests divides the rounds per quote by Q. ",
                 "That fits the fixed-cadence slot design exactly.\n"));
@@ -828,8 +825,8 @@ fn run() -> HarnessResult<()> {
             for row in &verified {
                 d.push(format!(
                     "| {} | {} | {:.1} | {:.1} MB | {:.3} s | **{:.0} ms** |",
-                    py_display(&row["n_requests"]),
-                    py_display(&row["measured_rounds"]),
+                    value_display(&row["n_requests"]),
+                    value_display(&row["measured_rounds"]),
                     num(&row["rounds_per_quote"])?,
                     num(&row["measured_mb"])?,
                     num(&row["wall_median"])?,
@@ -839,7 +836,7 @@ fn run() -> HarnessResult<()> {
             if let (Some(first), Some(last)) = (verified.first(), verified.last()) {
                 d.push("");
                 d.push(format!(concat!("**From Q=1 to Q={}, the rounds per quote go from {:.0} to {:.1}, a factor of {:.1}, and the time per quote from ",
-                    "{:.0} ms to {:.0} ms, a factor of {:.1}.**"), py_display(&last["n_requests"]),
+                    "{:.0} ms to {:.0} ms, a factor of {:.1}.**"), value_display(&last["n_requests"]),
                     num(&first["rounds_per_quote"])?, num(&last["rounds_per_quote"])?,
                     num(&first["rounds_per_quote"])? / num(&last["rounds_per_quote"] )?,
                     num(&first["ms_per_quote"])?, num(&last["ms_per_quote"])?,
@@ -847,7 +844,7 @@ fn run() -> HarnessResult<()> {
                 d.push("Even at 15 ms one way (30 ms RTT), 32 requests together reach about 0.28 s each.\n");
                 d.push(format!(concat!("**Boundary**: this is throughput, not one user's wait. The Q={} job itself takes {:.1} s. A user's wait is capped by the slot period, ",
                     "so Q is chosen to match the arrival rate: at three arrivals a second, a one-second slot fills naturally at Q=3.\n"),
-                    py_display(&last["n_requests"]), num(&last["wall_median"])?));
+                    value_display(&last["n_requests"]), num(&last["wall_median"])?));
             }
         }
     }

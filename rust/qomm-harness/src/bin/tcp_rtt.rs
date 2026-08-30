@@ -40,7 +40,6 @@ fn main() -> HarnessResult<()> {
         return Err("usage: tcp_rtt HOST PORT [ATTEMPTS]".into());
     }
 
-    // socket.socket() defaults to AF_INET in Python, so do not silently switch
     // to an IPv6 address when a hostname resolves to both families.
     let address = resolve_ipv4(&host, port)?;
     let timeout = Duration::from_secs(5);

@@ -241,20 +241,22 @@ impl DemoServer {
         let next_round = Arc::clone(&self.next_round);
         thread::spawn(move || loop {
             thread::sleep(Duration::from_millis(500));
-            let run = {
+            // A person in the taker seat decides when to ask; the clock only
+            // moves the room while nobody is doing that, and never while a
+            // round is still being shown.
+            let due = {
                 let config = config.lock().expect("demo config lock").clone();
                 let room = room.lock().expect("demo room lock");
                 config.auto_rounds
+                    && !room.busy
                     && room.seats[TAKER].mode() != "manual"
                     && Instant::now() >= *next_round.lock().expect("next round lock")
             };
-            if run {
-                let _ = room.lock().expect("demo room lock").play_round();
-                let seconds = config.lock().expect("demo config lock").round_seconds;
-                *next_round.lock().expect("next round lock") =
-                    Instant::now() + Duration::from_secs_f64(seconds);
+            if due {
+                let _ = play_round(&room, &config, &connections, &next_round);
+            } else {
+                broadcast(&room, &config, &connections, &next_round);
             }
-            broadcast(&room, &config, &connections, &next_round);
         });
     }
 
@@ -392,6 +394,8 @@ impl DemoServer {
             .sessions
             .get(session)
             .is_some_and(|seat| seat == OBSERVER);
+        let mut action_error = None;
+        let mut wants_round = false;
         match kind {
             "claim" => {
                 let (ok, reason) = room.claim(
@@ -413,32 +417,34 @@ impl DemoServer {
             }
             "release" => room.release(session),
             "policy" if seat.as_ref().is_some_and(|(kind, _)| kind == MAKER) => {
-                let _ = room.set_policy(
+                if let Err(error) = room.set_policy(
                     seat.as_ref().expect("maker seat").1,
                     message.get("values").unwrap_or(&Value::Null),
-                );
+                ) {
+                    action_error = Some(error);
+                }
             }
             "behaviour" if seat.as_ref().is_some_and(|(kind, _)| kind == NODE) => {
-                let _ = room.set_behaviour(
+                if let Err(error) = room.set_behaviour(
                     seat.as_ref().expect("node seat").1,
                     message
                         .get("value")
                         .and_then(Value::as_str)
                         .unwrap_or(HONEST),
-                );
+                ) {
+                    action_error = Some(error);
+                }
             }
             "request" if seat.as_ref().is_some_and(|(kind, _)| kind == TAKER) => {
-                let _ = room.set_request(message.get("values").unwrap_or(&Value::Null));
+                if let Err(error) = room.set_request(message.get("values").unwrap_or(&Value::Null))
+                {
+                    action_error = Some(error);
+                }
             }
             "submit" if seat.as_ref().is_some_and(|(kind, _)| kind == TAKER) => {
-                let _ = room.play_round();
-                self.reset_deadline();
+                wants_round = true;
             }
-            "submit_any" if watching => {
-                let _ = room.play_round();
-                self.reset_deadline();
-            }
-            "announce" if seat.as_ref().is_some_and(|(kind, _)| kind == TAKER) => room.announce(),
+            "submit_any" if watching => wants_round = true,
             "force" => room.set_forced_manual(
                 message.get("seat").and_then(Value::as_str).unwrap_or(""),
                 message
@@ -463,7 +469,9 @@ impl DemoServer {
                     config.auto_rounds = value;
                 }
                 if let Some(value) = values.get("input_check").and_then(Value::as_bool) {
-                    let _ = room.configure_input_check(value);
+                    if let Err(error) = room.configure_input_check(value) {
+                        action_error = Some(error);
+                    }
                 }
                 drop(config);
                 self.reset_deadline();
@@ -471,6 +479,30 @@ impl DemoServer {
             _ => {}
         }
         drop(room);
+        if wants_round {
+            // The round holds the room lock only while it computes and while
+            // it moves between phases, so every connection keeps being served
+            // the phase it is at.
+            if let Err(error) = play_round(
+                &self.room,
+                &self.config,
+                &self.connections,
+                &self.next_round,
+            ) {
+                action_error = Some(error);
+            }
+        }
+        if let Some(reason) = action_error {
+            let payload = serde_json::to_vec(&json!({
+                "type": "refused",
+                "reason": reason,
+            }))
+            .unwrap_or_default();
+            let _ = writer
+                .lock()
+                .expect("demo writer lock")
+                .write_all(&server_frame(TEXT, &payload));
+        }
         self.broadcast();
     }
 }
@@ -488,6 +520,47 @@ fn read_headers(stream: &mut TcpStream) -> Result<Vec<u8>, String> {
         }
     }
     Err("HTTP headers exceeded 64 KiB".into())
+}
+
+/// One round, then a walk through what it did, slowly enough to watch.
+///
+/// The round is computed first and the phases are a replay of it.  Pausing
+/// between real steps instead would make the pauses look like protocol time,
+/// and they are not: the arithmetic takes milliseconds and the view reports
+/// that separately from the pacing.  Each phase is broadcast to every
+/// connection before the pause, and settlement --- the only step that moves
+/// balances --- happens exactly when the `settle` phase is shown.
+fn play_round(
+    room: &Arc<Mutex<Room>>,
+    config: &Arc<Mutex<DemoConfig>>,
+    connections: &Connections,
+    next_round: &Arc<Mutex<Instant>>,
+) -> Result<(), String> {
+    let phases = room.lock().expect("demo room lock").begin_round()?;
+    let pause = || {
+        let step_ms = config.lock().expect("demo config lock").step_ms;
+        if step_ms > 0 {
+            thread::sleep(Duration::from_millis(step_ms));
+        }
+    };
+    for (index, phase) in phases.iter().enumerate() {
+        if index > 0 {
+            room.lock().expect("demo room lock").set_phase(phase);
+        }
+        broadcast(room, config, connections, next_round);
+        pause();
+    }
+    let settled = room.lock().expect("demo room lock").finish_round();
+    if settled.is_ok() {
+        broadcast(room, config, connections, next_round);
+        pause();
+        room.lock().expect("demo room lock").end_round();
+    }
+    let seconds = config.lock().expect("demo config lock").round_seconds;
+    *next_round.lock().expect("next round lock") =
+        Instant::now() + Duration::from_secs_f64(seconds);
+    broadcast(room, config, connections, next_round);
+    settled
 }
 
 fn broadcast(

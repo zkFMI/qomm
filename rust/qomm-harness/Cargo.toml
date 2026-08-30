@@ -22,6 +22,7 @@ rand.workspace = true
 rand_core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+regex.workspace = true
 hex.workspace = true
 sha2.workspace = true
 
@@ -82,16 +83,20 @@ name = "run_circuit_bound_proof"
 path = "src/bin/run_circuit_bound_proof.rs"
 
 [[bin]]
-name = "run_clob_baseline"
-path = "src/bin/run_clob_baseline.rs"
-
-[[bin]]
 name = "run_disclosure_ceiling"
 path = "src/bin/run_disclosure_ceiling.rs"
 
 [[bin]]
 name = "run_distributed_assembly"
 path = "src/bin/run_distributed_assembly.rs"
+
+[[bin]]
+name = "run_distributed_dp"
+path = "src/bin/run_distributed_dp.rs"
+
+[[bin]]
+name = "run_distributed_publication"
+path = "src/bin/run_distributed_publication.rs"
 
 [[bin]]
 name = "run_dp_audit"
@@ -112,6 +117,10 @@ path = "src/bin/run_identity.rs"
 [[bin]]
 name = "run_input_check"
 path = "src/bin/run_input_check.rs"
+
+[[bin]]
+name = "run_locate"
+path = "src/bin/run_locate.rs"
 
 [[bin]]
 name = "run_maker_updates"
@@ -136,6 +145,10 @@ path = "src/bin/run_placement.rs"
 [[bin]]
 name = "run_probe_budget"
 path = "src/bin/run_probe_budget.rs"
+
+[[bin]]
+name = "run_price_conditionals"
+path = "src/bin/run_price_conditionals.rs"
 
 [[bin]]
 name = "run_qomm"
@@ -184,6 +197,10 @@ path = "src/bin/run_threshold_assembly.rs"
 [[bin]]
 name = "run_transport"
 path = "src/bin/run_transport.rs"
+
+[[bin]]
+name = "rust_only_guard"
+path = "src/bin/rust_only_guard.rs"
 
 [[bin]]
 name = "scrub_artifacts"

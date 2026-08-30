@@ -2,8 +2,8 @@
 
 use qomm_harness::{next_value, parse_value, write_pretty_json, HarnessResult};
 use qomm_sim::attackers::{auc, tpr_at_fpr};
+use qomm_sim::deterministic_random::DeterministicRng;
 use qomm_sim::fsum::nsum;
-use qomm_sim::pyrandom::PyRandom;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
@@ -103,7 +103,6 @@ impl BehaviorScreen {
                 0.80,
             )?,
         ];
-        // Python's builtin sum() uses Neumaier compensation. This is not
         // statistics.fmean/math.fsum, so preserve the distinction explicitly.
         let raw = nsum(
             [0.25, 0.20, 0.20, 0.10, 0.10, 0.15]
@@ -218,12 +217,16 @@ fn scalar_similarity(left: f64, right: f64, scale: f64) -> HarnessResult<f64> {
     Ok((-(left - right).abs() / scale).exp())
 }
 
-fn noisy_histogram(rng: &mut PyRandom, base: &[u64], events: u64, entity_noise: f64) -> Vec<f64> {
+fn noisy_histogram(
+    rng: &mut DeterministicRng,
+    base: &[u64],
+    events: u64,
+    entity_noise: f64,
+) -> Vec<f64> {
     let weights = base
         .iter()
         .map(|value| ((*value as f64) * rng.gauss(0.0, entity_noise).exp()).max(0.01))
         .collect::<Vec<_>>();
-    // This is Python sum(), not math.fsum/statistics.fmean.
     let total = nsum(weights.iter().copied());
     let mut cumulative = Vec::with_capacity(weights.len());
     let mut running = 0.0;
@@ -250,7 +253,7 @@ type Population = (
 );
 
 fn population(seed: u64, controllers: usize) -> Population {
-    let mut rng = PyRandom::new(seed);
+    let mut rng = DeterministicRng::new(seed);
     let mut profiles = Vec::new();
     let mut controller_by_credential = BTreeMap::new();
     let mut kyc_by_credential = BTreeMap::new();
@@ -476,7 +479,7 @@ fn execute() -> HarnessResult<()> {
     write_pretty_json(Some(&out), &payload)?;
     println!(
         "{}",
-        python_compact_metrics(
+        compact_metrics_json(
             payload
                 .get("metrics")
                 .ok_or("payload has no metrics object")?
@@ -485,7 +488,7 @@ fn execute() -> HarnessResult<()> {
     Ok(())
 }
 
-fn python_compact_metrics(value: &Value) -> HarnessResult<String> {
+fn compact_metrics_json(value: &Value) -> HarnessResult<String> {
     let metrics = value.as_object().ok_or("metrics is not an object")?;
     Ok(format!(
         "{{\"false_positive_rate\": {}, \"pair_auc\": {}, \"review_candidates\": {}, \"review_precision\": {}, \"threshold_tpr\": {}, \"tpr_at_1pct_fpr\": {}}}",

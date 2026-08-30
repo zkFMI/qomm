@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_rounds.py`.
-
 use qomm_harness::{parse_value, write_pretty_json, HarnessResult};
 use serde_json::{json, Map, Value};
 use std::ffi::OsString;
@@ -153,7 +151,7 @@ fn tail(text: &str, chars: usize) -> String {
 fn get(value: &Value, key: &str) -> String {
     value
         .get(key)
-        .map_or_else(|| "None".into(), qomm_harness::py_display)
+        .map_or_else(|| "None".into(), qomm_harness::value_display)
 }
 
 fn parse_args() -> HarnessResult<Options> {

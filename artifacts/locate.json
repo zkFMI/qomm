@@ -1,148 +1,124 @@
 {
-  "host": "host-c (pure arithmetic; no timing claim depends on the machine)",
-  "question": "On the Shamir side, is it known who cheated --- and can it be audited? Asked because ACCOUNTABILITY.md places this deployment on the first rung of five and says nobody is named.",
-  "what_the_engine_does_today": {
-    "source": "Protocols/MaliciousShamirMC.hpp reconstructs from t+1 shares, reconstructs from every longer prefix, and throws on disagreement",
-    "measured_on_host_a": [
-      {
-        "corrupted_party": 3,
-        "message": "Fatal error at fp2000-0:3 (MULS): inconsistent Shamir secret sharing"
-      },
-      {
-        "corrupted_party": 1,
-        "message": "Fatal error at fp2000-0:3 (MULS): inconsistent Shamir secret sharing",
-        "note": "IDENTICAL. The 3 is the instruction offset, not the party --- which is why corrupting party 1 prints the same 3."
-      },
-      {
-        "corrupted_party": 5,
-        "message": "Fatal error in communication: read_some: stream truncated",
-        "note": "WORSE THAN NOTHING. The other parties see a dropped connection, so the obvious attribution --- whose link died --- points at whichever process exited first rather than at the party whose data was bad."
-      },
-      {
-        "corrupted_party": 6,
-        "message": "Fatal error in communication: read_some: stream truncated"
-      }
-    ],
-    "method": "flip one byte in Player-Data/7-MSpT2-128/Triples-MSpT2-P<n>, run with -F, restore. Four runs, four parties.",
-    "conclusion": "The transcript carries no party information at all, and the attribution a reader would reach for is actively misleading."
+  "claim_boundary": [
+    "At degree t, zero through two malformed shares are corrected and named exactly; three are refused.",
+    "Before degree reduction at degree 2t, one malformed product share is attributable; two are refused.",
+    "A valid sharing of a substituted input is not a malformed codeword and must be caught by transport binding and the circuit input check."
+  ],
+  "communication": {
+    "attribution_shares": 7,
+    "extra_rounds": 0,
+    "extra_share_traffic_fraction": 0.4,
+    "ordinary_opening_shares": 5
   },
-  "what_is_available_instead": {
-    "why": "Shamir shares of a degree-d secret are an RS[n, d+1] codeword. At n=7 and degree 2 that is RS[7,3], distance 5, so Berlekamp-Welch corrects floor(4/2) = 2 errors --- exactly T --- and the recovered polynomial names every share that does not lie on it.",
-    "implementation": "qomm_audit/locate.py, 26 tests",
-    "grid": {
-      "degree_t": {
-        "capacity": 2,
-        "rows": [
-          {
-            "wrong_shares": 0,
-            "recovered": 300,
-            "named_exactly": 300,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 1,
-            "recovered": 300,
-            "named_exactly": 300,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 2,
-            "recovered": 300,
-            "named_exactly": 300,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 3,
-            "recovered": 0,
-            "named_exactly": 0,
-            "trials": 300
-          }
-        ]
-      },
-      "degree_2t_product": {
-        "capacity": 1,
-        "rows": [
-          {
-            "wrong_shares": 0,
-            "recovered": 300,
-            "named_exactly": 300,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 1,
-            "recovered": 300,
-            "named_exactly": 300,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 2,
-            "recovered": 0,
-            "named_exactly": 0,
-            "trials": 300
-          },
-          {
-            "wrong_shares": 3,
-            "recovered": 0,
-            "named_exactly": 0,
-            "trials": 300
-          }
-        ]
-      }
+  "deployment": {
+    "degree_2t_capacity": 1,
+    "degree_t_capacity": 2,
+    "parties": 7,
+    "threshold": 2
+  },
+  "grid": {
+    "degree_2t_product": {
+      "capacity": 1,
+      "degree": 4,
+      "rows": [
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 0
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 1
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 2
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 3
+        }
+      ]
     },
-    "timing_us": {
-      "plain_lagrange_3_of_7": {
-        "n": 200,
-        "mean": 22.164349356899038,
-        "sd": 4.192213805132131,
-        "median": 20.625011529773474,
-        "min": 19.875005818903446,
-        "max": 68.20799899287522,
-        "rsd": 0.18914220027971324
-      },
-      "locate_no_errors": {
-        "n": 200,
-        "mean": 23.22519983863458,
-        "sd": 1.3161652824499581,
-        "median": 22.916996385902166,
-        "min": 22.332998923957348,
-        "max": 35.416975151747465,
-        "rsd": 0.05666970754157076
-      },
-      "locate_one_error": {
-        "n": 200,
-        "mean": 91.5387955319602,
-        "sd": 7.14245454051204,
-        "median": 88.37549830786884,
-        "min": 85.95798863098025,
-        "max": 134.62500646710396,
-        "rsd": 0.07802652961517607
-      },
-      "locate_two_errors": {
-        "n": 200,
-        "mean": 215.1841888553463,
-        "sd": 23.31373521395016,
-        "median": 208.14550225622952,
-        "min": 198.70899268426,
-        "max": 387.2920060530305,
-        "rsd": 0.1083431609820664
-      }
+    "degree_t": {
+      "capacity": 2,
+      "degree": 2,
+      "rows": [
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 0
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 1
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 2
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 3
+        }
+      ]
     }
   },
-  "what_it_costs": {
-    "traffic": "MP-SPDZ opens from 2t+1 = 5 of seven shares. RS[5,3] has distance 3 and locates one error, not two. Naming T = 2 needs all n, which is 40 percent more per opening.",
-    "compute": "tens to a few hundred microseconds per opening, in CPython",
-    "rounds": "none. The decode is local on data already received."
-  },
-  "the_limits": [
-    "PRODUCTS ARE WEAKER. A product before degree reduction is degree 2t, RS[7,5], distance 3, so one liar is nameable and two are not. Measured: 300/300 at one, 0/300 at two.",
-    "THREE LIARS ARE UNRESOLVABLE and the decoder says so rather than guessing. 0/300 recovered at three wrong shares, and no name is produced. That is the correct behaviour: a decoder that named somebody at three would be worse than one that gave up.",
-    "AND IT CANNOT SEE A SUBSTITUTED INPUT. This is the half that matters. secret_input() sums one additive share per party, so a party that feeds a different number is offering a valid sharing of a different value. Nothing is inconsistent and there is nothing to decode. Locating that costs n openings and n masks instead of one --- the masks being what forced the 164-bit field."
-  ],
-  "predictions_made_before_writing_it": {
-    "locate exactly 2 at degree-t and fail at 3": "landed: 300/300 at 0,1,2 and 0/300 at 3",
-    "locate 1 at degree-2t": "landed: 300/300 at 1, 0/300 at 2",
-    "under 100 microseconds per decode": "landed, barely",
-    "40 percent more opening traffic": "arithmetic, unchanged",
-    "cannot locate a substituted input": "holds by construction"
+  "host": "host-c",
+  "implementation": "rust/qomm-zk/src/shamir.rs, re-exported by rust/qomm-audit/src/locate.rs",
+  "question": "Which malformed Shamir shares can be attributed without guessing?",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "schema": "qomm-share-attribution-v1",
+  "timing_us": {
+    "locate_no_errors": {
+      "max": 83.334,
+      "mean": 62.257884999999995,
+      "median": 59.6875,
+      "min": 58.584,
+      "n": 200,
+      "rsd": 0.07389460008509255,
+      "sd": 4.6005215142186815
+    },
+    "locate_one_error": {
+      "max": 486.959,
+      "mean": 144.593155,
+      "median": 137.5625,
+      "min": 132.625,
+      "n": 200,
+      "rsd": 0.20080460158029717,
+      "sd": 29.03497088101315
+    },
+    "locate_two_errors": {
+      "max": 397.875,
+      "mean": 235.746925,
+      "median": 229.542,
+      "min": 222.792,
+      "n": 200,
+      "rsd": 0.081613637226725,
+      "sd": 19.240164014265947
+    },
+    "plain_lagrange_3_of_7": {
+      "max": 44.458,
+      "mean": 28.862080000000002,
+      "median": 28.375,
+      "min": 27.833,
+      "n": 200,
+      "rsd": 0.06558038092585843,
+      "sd": 1.8927862007126002
+    }
   }
 }

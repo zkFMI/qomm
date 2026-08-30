@@ -78,8 +78,9 @@ template struct StatsAccess<&BaseMachine::comm_stats>;
 ///
 /// The machine is a temporary deep inside MP-SPDZ and is destroyed the moment
 /// its run returns, so the statistics have to be copied out from inside rather
-/// than read from outside. `qomm_after_run` below is the weak hook the patched
-/// engine calls while the machine is still alive; everything else is stock.
+/// than read from outside. `capture_after_run` below is registered with the
+/// patched engine, which calls it while the machine is still alive; everything
+/// else is stock.
 struct Captured {
     bool seen = false;
     unsigned long long rounds = 0;
@@ -95,7 +96,7 @@ Captured captured;
 
 }  // namespace
 
-extern "C" void qomm_after_run(const BaseMachine* machine) {
+void capture_after_run(const BaseMachine* machine) {
     captured = Captured{};
     if (!machine) return;
     const NamedCommStats& stats = comm_stats_of(*machine);
@@ -127,6 +128,7 @@ QommRun run_honest_majority(int argc, const char** argv,
     QommRun out{};
     if (written) *written = 0;
     captured = Captured{};
+    qomm_after_run_callback() = capture_after_run;
     try {
         ShamirMachineSpec<Share>(argc, argv);
     } catch (std::exception& e) {

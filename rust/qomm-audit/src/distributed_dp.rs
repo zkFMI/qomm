@@ -29,8 +29,137 @@ impl DpMechanism {
         })
     }
 
+    /// A bound on the total-variation distance between the cells this mechanism
+    /// actually releases and the exact truncated two-sided geometric.
+    ///
+    /// It is *not* `(2s+1)/2^64`, which is what an earlier version returned.
+    /// That is the cost of flooring the endpoints alone, and it is not the
+    /// binding term: `thresholds` accumulates the cumulative distribution in
+    /// `f64`, whose resolution near one is `2^-53` rather than `2^-64`, so the
+    /// endpoints inherit an error four thousand times coarser than the grid
+    /// they are floored onto. Measured against exact arithmetic, the real
+    /// distance runs 2.4e-16 to 6.7e-16 over supports 8 to 32 at epsilon 1,
+    /// against an old bound of 9.2e-19 to 3.5e-18 --- so the old value was not
+    /// conservative, it was wrong by about 250x.
+    ///
+    /// Derivation of what is returned. Accumulating `2s+1` terms whose partial
+    /// sums never exceed one leaves an absolute error in `cumulative` of at
+    /// most `(2s+1) * 2^-53`. Each endpoint is that, floored onto a `2^-64`
+    /// grid, so it carries at most `(2s+1) * 2^-53 + 2^-64`. A cell is a
+    /// difference of two endpoints and `2s+1` cells are summed and halved, so
+    /// the distance is at most `(2s+1)^2 * 2^-53 + (2s+1) * 2^-64`, and
+    /// `((2s+1)^2 + 1) / 2^53` covers both terms for every support this type
+    /// admits. `rounding_delta_is_a_bound_and_the_old_one_was_not` checks it
+    /// against the distance computed in exact rationals.
+    ///
+    /// None of this is the `delta` a certificate should carry. That is
+    /// `privacy_delta`, which the truncation dominates --- by twelve orders of
+    /// magnitude at support 8, eight at 16, and only tenfold by 32, since one
+    /// decays as `alpha^support` while this grows with the cell count.
     pub fn rounding_delta(&self) -> (u64, u128) {
-        (2 * (2 * u64::from(self.support) + 1), U64_SPACE)
+        let cells = 2 * u64::from(self.support) + 1;
+        (cells * cells + 1, 1_u128 << 53)
+    }
+
+    /// The `delta` this mechanism needs to be `(epsilon, delta)`-differentially
+    /// private, because it truncates. This is what a certificate has to carry.
+    ///
+    /// The support is finite and the tails are folded onto the endpoints, so
+    /// two adjacent inputs produce releases whose supports are offset by the
+    /// sensitivity. At the edges one assigns mass where the other assigns none,
+    /// and no `epsilon` bounds that ratio.
+    ///
+    /// It is computed here rather than given in closed form, and the reason is
+    /// that the closed forms are wrong. Naming the folded tail understates it by
+    /// `e^epsilon`, because the endpoint cell carries the folded tail *and* the
+    /// point at the support. Naming the endpoint cell understates it whenever
+    /// the sensitivity exceeds one, because then the supports are offset by more
+    /// than one cell and several cells escape --- at `epsilon = 0.5`,
+    /// sensitivity 3 and support 24 the endpoint cell is `0.0099` against a true
+    /// `delta` about twice that. And both ignore that the folded endpoints carry
+    /// far more mass than the geometric ratio allows, so cells near an edge can
+    /// exceed `e^epsilon` without being outside the support at all.
+    ///
+    /// So this returns the hockey-stick divergence at `e^epsilon`, maximised
+    /// over every shift the sensitivity permits, over the cells the mechanism
+    /// actually releases rather than over the ideal law it approximates.
+    pub fn privacy_delta(&self) -> Result<f64, String> {
+        let cells = self.released_cells()?;
+        let epsilon = self.epsilon_micros as f64 / 1_000_000.0;
+        let ratio = epsilon.exp();
+        let width = cells.len() as i64;
+        let sensitivity = self.sensitivity.min(u64::MAX / 2) as i64;
+        let mut worst = 0.0_f64;
+        for shift in 1..=sensitivity {
+            for direction in [shift, -shift] {
+                let mut divergence = 0.0;
+                for (index, probability) in cells.iter().enumerate() {
+                    let other = index as i64 - direction;
+                    let neighbour = if (0..width).contains(&other) {
+                        cells[other as usize]
+                    } else {
+                        0.0
+                    };
+                    // `ratio` overflows to infinity once epsilon passes
+                    // ln(f64::MAX), and `infinity * 0.0` is NaN, which
+                    // `f64::max` silently resolves to the other operand. That
+                    // turned every escaping cell into a zero contribution and
+                    // returned delta 0 where the true delta was 1. The neighbour
+                    // being absent is the case that matters most, so it is
+                    // written out rather than left to arithmetic.
+                    let scaled = if neighbour == 0.0 {
+                        0.0
+                    } else {
+                        ratio * neighbour
+                    };
+                    divergence += (probability - scaled).max(0.0);
+                }
+                worst = worst.max(divergence);
+            }
+        }
+        Ok(worst)
+    }
+
+    /// `privacy_delta` as the rational a `PublicationStatement` carries.
+    ///
+    /// A statement used to bind `rounding_delta`, which is the distance between
+    /// the released cells and the law they approximate --- not a privacy
+    /// parameter at all, and ten orders of magnitude smaller than one at
+    /// support 8. A certificate that understates its own `delta` by ten orders
+    /// is worse than one that carries none.
+    pub fn certificate_delta(&self) -> Result<(u64, u128), String> {
+        let delta = self.privacy_delta()?;
+        let denominator = 1_u128 << 53;
+        let numerator = (delta * denominator as f64).ceil();
+        if !numerator.is_finite() || numerator < 0.0 {
+            return Err(format!("delta is not a probability: {delta}"));
+        }
+        if numerator >= denominator as f64 {
+            // A delta at or near one is not a rounding problem. It means the
+            // sensitivity has shifted the support clear of itself, or nearly,
+            // so adjacent inputs are all but distinguishable and the mechanism
+            // provides no guarantee to certify. Refusing is the right answer:
+            // a statement cannot express it, and should not pretend to.
+            return Err(format!(
+                "delta {delta} leaves no guarantee to certify: support {} is too \
+                 narrow for sensitivity {} at this epsilon",
+                self.support, self.sensitivity
+            ));
+        }
+        Ok((numerator as u64, denominator))
+    }
+
+    /// The cell probabilities as released: differences of the quantised
+    /// endpoints, not the `f64` law they were derived from.
+    pub fn released_cells(&self) -> Result<Vec<f64>, String> {
+        let endpoints = self.thresholds()?;
+        let mut previous = 0_u128;
+        let mut cells = Vec::with_capacity(endpoints.len());
+        for endpoint in endpoints {
+            cells.push((endpoint - previous) as f64 / U64_SPACE as f64);
+            previous = endpoint;
+        }
+        Ok(cells)
     }
 
     pub fn digest(&self) -> [u8; 32] {
@@ -111,7 +240,7 @@ impl DpMechanism {
                 .chars()
                 .all(|character| character == '_' || character.is_ascii_alphanumeric())
         {
-            return Err("output label must be a Python identifier".into());
+            return Err("output label must be an ASCII identifier".into());
         }
         let thresholds = self.thresholds()?;
         let comparisons = thresholds[..thresholds.len() - 1]

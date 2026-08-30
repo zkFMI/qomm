@@ -1,6 +1,5 @@
 //! The execution-binding adapter over the native threshold proof crates.
 //!
-//! Python carried a second VSS implementation here. Rust already has the
 //! production implementation in `qomm-proofs::threshold_sigma`; this module
 //! deliberately builds on that one so the commitment, the node share, and the
 //! threshold proof all refer to the same bytes.

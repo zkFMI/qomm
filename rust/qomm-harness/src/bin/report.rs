@@ -1,5 +1,3 @@
-//! Rust port of `scripts/report.py`.
-
 use qomm_harness::HarnessResult;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -11,7 +9,6 @@ use std::path::{Path, PathBuf};
 struct Options {
     artifacts: PathBuf,
     sweep: String,
-    clob_prefix: String,
 }
 
 fn main() {
@@ -39,16 +36,6 @@ fn run_main() -> HarnessResult<()> {
         rows.len()
     )?;
 
-    let mut clob: BTreeMap<i64, Value> = BTreeMap::new();
-    for delay in [0i64, 1, 5, 15] {
-        for prefix in [&options.clob_prefix[..], "clob_baseline_d"] {
-            let path = options.artifacts.join(format!("{prefix}{delay}.json"));
-            if path.exists() {
-                clob.insert(delay, serde_json::from_slice(&fs::read(path)?)?);
-                break;
-            }
-        }
-    }
     writeln!(
         out,
         "## MPC quote latency, 7 parties, malicious Shamir (N=7, T=2)\n"
@@ -64,44 +51,6 @@ fn run_main() -> HarnessResult<()> {
         writeln!(out, "### RFQ + threshold disclosure (arm B)\n")?;
         writeln!(out, "{}\n", sweep_table(&rows, "rfq", "threshold"))?;
     }
-    if !clob.is_empty() {
-        writeln!(out, "## Same-host control: existing 9-order CLOB circuit\n")?;
-        writeln!(
-            out,
-            "| one-way delay | rounds | median [s] | sent (MB/party) |"
-        )?;
-        writeln!(out, "|---:|---:|---:|---:|")?;
-        for (delay, row) in &clob {
-            writeln!(
-                out,
-                "| {delay} ms | {} | {:.3} | {} |",
-                display(&row["measured_rounds"]),
-                number(&row["wall_median"]),
-                display(&row["measured_mb"]),
-            )?;
-        }
-        writeln!(out)?;
-        writeln!(
-            out,
-            "## Speed-up over the CLOB circuit at equal delay (M=16, RFQ)\n"
-        )?;
-        writeln!(out, "| one-way delay | CLOB [s] | QOMM [s] | ratio |")?;
-        writeln!(out, "|---:|---:|---:|---:|")?;
-        for (delay, base_row) in &clob {
-            let Some(row) = pick(&rows, "rfq", 16, *delay as f64, "none") else {
-                continue;
-            };
-            let qomm = number(&row["wall_median"]);
-            let base = number(&base_row["wall_median"]);
-            writeln!(
-                out,
-                "| {delay} ms | {base:.3} | {qomm:.3} | {:.1}x |",
-                base / qomm
-            )?;
-        }
-        writeln!(out)?;
-    }
-
     let cross = options.artifacts.join("host-b/host_b_sweep.jsonl");
     if cross.exists() {
         let other = load_sweep(&cross)?;
@@ -148,7 +97,7 @@ fn run_main() -> HarnessResult<()> {
         writeln!(out)?;
     }
 
-    let predictions = check_predictions(&rows, &clob);
+    let predictions = check_predictions(&rows);
     writeln!(out, "## Verdict on the preregistered predictions\n")?;
     writeln!(out, "| # | prediction | measured | verdict |")?;
     writeln!(out, "|---|---|---|---|")?;
@@ -368,8 +317,7 @@ fn round_scaling(rows: &[Value], mode: &str) -> Option<Value> {
 }
 
 fn fit(xs: &[f64], ys: &[f64]) -> (f64, f64, f64) {
-    // Every sum here is Python's builtin `sum` over floats, which has carried a
-    // Neumaier compensation term since CPython 3.12. A naive fold lands one
+    // The locked metric contract uses a Neumaier compensation term. A naive fold lands one
     // unit in the last place away and the difference reaches the reported R^2.
     use qomm_sim::fsum::nsum;
     let n = xs.len() as f64;
@@ -396,7 +344,7 @@ fn fit(xs: &[f64], ys: &[f64]) -> (f64, f64, f64) {
     )
 }
 
-fn check_predictions(rows: &[Value], clob: &BTreeMap<i64, Value>) -> Vec<Value> {
+fn check_predictions(rows: &[Value]) -> Vec<Value> {
     let mut output = Vec::new();
     if let (Some(small), Some(large)) = (
         pick(rows, "rfq", 4, 0.0, "none"),
@@ -410,24 +358,6 @@ fn check_predictions(rows: &[Value], clob: &BTreeMap<i64, Value>) -> Vec<Value> 
             "verdict": if ratio < 4.0 {"PASS"} else {"FAIL"},
             "note": "linear would be 16x; how well the log model actually fits is judged separately by R^2",
         }));
-    }
-    if !clob.is_empty() {
-        let ratios = clob
-            .iter()
-            .filter_map(|(delay, base)| {
-                let row = pick(rows, "rfq", 16, *delay as f64, "none")?;
-                Some(number(&base["wall_median"]) / number(&row["wall_median"]))
-            })
-            .collect::<Vec<_>>();
-        if !ratios.is_empty() {
-            output.push(json!({
-                "id": "B",
-                "claim": "at equal delay, an order of magnitude faster than the existing CLOB circuit",
-                "evidence": format!("ratio {}", ratios.iter().map(|ratio| format!("{ratio:.1}x")).collect::<Vec<_>>().join(", ")),
-                "verdict": if ratios.iter().copied().min_by(f64::total_cmp).unwrap() >= 10.0 {"PASS"} else {"PARTIAL"},
-                "note": "controlled: same host, same protocol, same threshold",
-            }));
-        }
     }
     if let Some(wide) = pick(rows, "rfq", 16, 15.0, "none") {
         output.push(json!({
@@ -505,7 +435,7 @@ fn check_predictions(rows: &[Value], clob: &BTreeMap<i64, Value>) -> Vec<Value> 
             "claim": "adding threshold disclosure costs a constant number of rounds and under +10% in time",
             "evidence": format!(
                 "round increments {}, time increments {}",
-                python_number_list(&increments),
+                number_list(&increments),
                 overheads.iter().map(|value| format!("{:+.1}%", value * 100.0)).collect::<Vec<_>>().join(", "),
             ),
             "verdict": if overheads.iter().copied().max_by(f64::total_cmp).unwrap() > 0.10 {"PARTIAL"} else {"PASS"},
@@ -745,7 +675,7 @@ fn measured_display(value: &Value) -> String {
     )
 }
 
-fn python_number_list(values: &[f64]) -> String {
+fn number_list(values: &[f64]) -> String {
     format!(
         "[{}]",
         values
@@ -772,7 +702,6 @@ fn parse_args() -> HarnessResult<Options> {
     let mut options = Options {
         artifacts: PathBuf::from("artifacts"),
         sweep: "qomm_sweep_clean.jsonl".into(),
-        clob_prefix: "clob_baseline_clean_d".into(),
     };
     let raw = std::env::args_os().skip(1).collect::<Vec<_>>();
     let mut index = 0;
@@ -783,11 +712,6 @@ fn parse_args() -> HarnessResult<Options> {
             }
             "--sweep" => {
                 options.sweep = value(&raw, &mut index, "--sweep")?
-                    .to_string_lossy()
-                    .into_owned()
-            }
-            "--clob-prefix" => {
-                options.clob_prefix = value(&raw, &mut index, "--clob-prefix")?
                     .to_string_lossy()
                     .into_owned()
             }

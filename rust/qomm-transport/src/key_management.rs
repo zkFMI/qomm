@@ -14,7 +14,7 @@ use openssl::x509::extension::{
     AuthorityKeyIdentifier, BasicConstraints, ExtendedKeyUsage, KeyUsage, SubjectAlternativeName,
     SubjectKeyIdentifier,
 };
-use openssl::x509::{X509NameBuilder, X509};
+use openssl::x509::{X509NameBuilder, X509Req, X509};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -24,7 +24,7 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 
 pub const MAGIC: &[u8; 8] = b"QOMMKEY1";
@@ -165,10 +165,10 @@ impl PublicManifest {
     }
 }
 
-struct FileLock(File);
+pub(crate) struct FileLock(File);
 
 impl FileLock {
-    fn acquire(path: &Path) -> Result<Self, String> {
+    pub(crate) fn acquire(path: &Path) -> Result<Self, String> {
         let lock_path = PathBuf::from(format!("{}.lock", path.display()));
         let file = OpenOptions::new()
             .read(true)
@@ -176,9 +176,16 @@ impl FileLock {
             .create(true)
             .truncate(false)
             .mode(0o600)
+            .custom_flags(libc::O_NOFOLLOW | libc::O_CLOEXEC)
             .open(lock_path)
             .map_err(|error| error.to_string())?;
-        fs::set_permissions(path_with_lock(path), fs::Permissions::from_mode(0o600))
+        let metadata = file.metadata().map_err(|error| error.to_string())?;
+        // SAFETY: geteuid has no preconditions and reveals no secret.
+        let effective_uid = unsafe { libc::geteuid() };
+        if !metadata.is_file() || metadata.uid() != effective_uid {
+            return Err("state lock must be a regular file owned by the service user".into());
+        }
+        file.set_permissions(fs::Permissions::from_mode(0o600))
             .map_err(|error| error.to_string())?;
         // SAFETY: flock receives a live descriptor owned by this guard.
         if unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) } != 0 {
@@ -188,10 +195,6 @@ impl FileLock {
     }
 }
 
-fn path_with_lock(path: &Path) -> PathBuf {
-    PathBuf::from(format!("{}.lock", path.display()))
-}
-
 impl Drop for FileLock {
     fn drop(&mut self) {
         // SAFETY: the descriptor stays valid until after this drop body.
@@ -199,18 +202,23 @@ impl Drop for FileLock {
     }
 }
 
-fn derive(passphrase: &[u8], salt: &[u8]) -> Result<[u8; 32], String> {
+pub(crate) fn derive_secret_key(passphrase: &[u8], salt: &[u8]) -> Result<[u8; 32], String> {
     let mut key = [0_u8; 32];
     openssl::pkcs5::scrypt(passphrase, salt, 1 << 15, 8, 1, 64 * 1024 * 1024, &mut key)
         .map_err(|error| error.to_string())?;
     Ok(key)
 }
 
-fn encrypt(key: &[u8; 32], nonce: &[u8; 12], clear: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn encrypt_authenticated(
+    key: &[u8; 32],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    clear: &[u8],
+) -> Result<Vec<u8>, String> {
     let cipher = Cipher::aes_256_gcm();
     let mut crypter =
         Crypter::new(cipher, Mode::Encrypt, key, Some(nonce)).map_err(|e| e.to_string())?;
-    crypter.aad_update(AAD).map_err(|e| e.to_string())?;
+    crypter.aad_update(aad).map_err(|e| e.to_string())?;
     let mut out = vec![0_u8; clear.len() + cipher.block_size()];
     let mut written = crypter.update(clear, &mut out).map_err(|e| e.to_string())?;
     written += crypter
@@ -223,7 +231,12 @@ fn encrypt(key: &[u8; 32], nonce: &[u8; 12], clear: &[u8]) -> Result<Vec<u8>, St
     Ok(out)
 }
 
-fn decrypt(key: &[u8; 32], nonce: &[u8; 12], encrypted: &[u8]) -> Result<Vec<u8>, String> {
+pub(crate) fn decrypt_authenticated(
+    key: &[u8; 32],
+    nonce: &[u8; 12],
+    aad: &[u8],
+    encrypted: &[u8],
+) -> Result<Vec<u8>, String> {
     if encrypted.len() < 16 {
         return Err("key-store authentication failed".into());
     }
@@ -231,7 +244,7 @@ fn decrypt(key: &[u8; 32], nonce: &[u8; 12], encrypted: &[u8]) -> Result<Vec<u8>
     let cipher = Cipher::aes_256_gcm();
     let mut crypter =
         Crypter::new(cipher, Mode::Decrypt, key, Some(nonce)).map_err(|e| e.to_string())?;
-    crypter.aad_update(AAD).map_err(|e| e.to_string())?;
+    crypter.aad_update(aad).map_err(|e| e.to_string())?;
     crypter.set_tag(tag).map_err(|e| e.to_string())?;
     let mut out = vec![0_u8; ciphertext.len() + cipher.block_size()];
     let mut written = crypter
@@ -306,7 +319,12 @@ impl EncryptedKeyStore {
         at += SALT_BYTES;
         let nonce: &[u8; NONCE_BYTES] = raw[at..at + NONCE_BYTES].try_into().expect("fixed nonce");
         at += NONCE_BYTES;
-        let clear = decrypt(&derive(&self.passphrase, salt)?, nonce, &raw[at..])?;
+        let clear = decrypt_authenticated(
+            &derive_secret_key(&self.passphrase, salt)?,
+            nonce,
+            AAD,
+            &raw[at..],
+        )?;
         let data: StoreData = serde_json::from_slice(&clear)
             .map_err(|_| "key-store authentication failed".to_string())?;
         if data.version != 1 {
@@ -321,7 +339,12 @@ impl EncryptedKeyStore {
         OsRng.fill_bytes(&mut salt);
         OsRng.fill_bytes(&mut nonce);
         let clear = serde_json::to_vec(data).map_err(|error| error.to_string())?;
-        let ciphertext = encrypt(&derive(&self.passphrase, &salt)?, &nonce, &clear)?;
+        let ciphertext = encrypt_authenticated(
+            &derive_secret_key(&self.passphrase, &salt)?,
+            &nonce,
+            AAD,
+            &clear,
+        )?;
         let mut payload =
             Vec::with_capacity(MAGIC.len() + SALT_BYTES + NONCE_BYTES + ciphertext.len());
         payload.extend_from_slice(MAGIC);
@@ -770,6 +793,180 @@ pub fn issue_mutual_tls_certificate(
     Ok((key, builder.build()))
 }
 
+/// Generate a node-local Ed25519 key and certificate-signing request.
+///
+/// The private key never has to cross the node boundary: an offline authority
+/// can call [`issue_mutual_tls_certificate_from_csr`] with only the returned
+/// request.  DNS names and addresses are deliberately supplied by the
+/// authority from its approved deployment specification rather than trusted
+/// from an unaudited CSR extension.
+pub fn create_mutual_tls_request(common_name: &str) -> Result<(PKey<Private>, X509Req), String> {
+    if common_name.trim().is_empty() {
+        return Err("mutual-TLS request requires a common name".into());
+    }
+    let key = PKey::generate_ed25519().map_err(|error| error.to_string())?;
+    let mut name = X509NameBuilder::new().map_err(|error| error.to_string())?;
+    name.append_entry_by_nid(Nid::COMMONNAME, common_name)
+        .map_err(|error| error.to_string())?;
+    let name = name.build();
+    let mut builder = X509Req::builder().map_err(|error| error.to_string())?;
+    builder.set_version(0).map_err(|error| error.to_string())?;
+    builder
+        .set_subject_name(&name)
+        .map_err(|error| error.to_string())?;
+    builder
+        .set_pubkey(&key)
+        .map_err(|error| error.to_string())?;
+    builder
+        .sign(&key, MessageDigest::null())
+        .map_err(|error| error.to_string())?;
+    Ok((key, builder.build()))
+}
+
+/// Issue one mutual-TLS certificate from a node-generated CSR.
+///
+/// The authority fixes the identity and SANs from governance-approved input,
+/// verifies proof of possession, and refuses a CSR whose subject was swapped
+/// for another node.  It never receives the node private key.
+pub fn issue_mutual_tls_certificate_from_csr(
+    ca_key: &PKey<Private>,
+    ca_cert: &X509,
+    request: &X509Req,
+    common_name: &str,
+    dns_names: &[&str],
+    ip_addresses: &[&str],
+    lifetime_days: u32,
+) -> Result<X509, String> {
+    if common_name.trim().is_empty() || lifetime_days == 0 {
+        return Err("certificate identity and positive lifetime are required".into());
+    }
+    let request_key = request.public_key().map_err(|error| error.to_string())?;
+    if !request
+        .verify(&request_key)
+        .map_err(|error| error.to_string())?
+    {
+        return Err("certificate request proof of possession is invalid".into());
+    }
+    let request_common_names = request
+        .subject_name()
+        .entries_by_nid(Nid::COMMONNAME)
+        .map(|entry| entry.data().to_string().map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    if request_common_names.as_slice() != [common_name] {
+        return Err("certificate request common name does not match the approved node".into());
+    }
+
+    let mut name = X509NameBuilder::new().map_err(|error| error.to_string())?;
+    name.append_entry_by_nid(Nid::COMMONNAME, common_name)
+        .map_err(|error| error.to_string())?;
+    let name = name.build();
+    let mut builder = X509::builder().map_err(|error| error.to_string())?;
+    builder.set_version(2).map_err(|error| error.to_string())?;
+    let mut serial = BigNum::new().map_err(|error| error.to_string())?;
+    serial
+        .rand(159, MsbOption::MAYBE_ZERO, false)
+        .map_err(|error| error.to_string())?;
+    let serial = serial
+        .to_asn1_integer()
+        .map_err(|error| error.to_string())?;
+    builder
+        .set_serial_number(&serial)
+        .map_err(|error| error.to_string())?;
+    builder
+        .set_subject_name(&name)
+        .map_err(|error| error.to_string())?;
+    builder
+        .set_issuer_name(ca_cert.subject_name())
+        .map_err(|error| error.to_string())?;
+    builder
+        .set_pubkey(&request_key)
+        .map_err(|error| error.to_string())?;
+    let not_before = Asn1Time::days_from_now(0).map_err(|error| error.to_string())?;
+    builder
+        .set_not_before(&not_before)
+        .map_err(|error| error.to_string())?;
+    let not_after = Asn1Time::days_from_now(lifetime_days).map_err(|error| error.to_string())?;
+    builder
+        .set_not_after(&not_after)
+        .map_err(|error| error.to_string())?;
+    builder
+        .append_extension(
+            BasicConstraints::new()
+                .critical()
+                .build()
+                .map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+    builder
+        .append_extension(
+            KeyUsage::new()
+                .critical()
+                .digital_signature()
+                .build()
+                .map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+    builder
+        .append_extension(
+            ExtendedKeyUsage::new()
+                .server_auth()
+                .client_auth()
+                .build()
+                .map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| error.to_string())?;
+    let mut san = SubjectAlternativeName::new();
+    for name in dns_names {
+        san.dns(name);
+    }
+    for address in ip_addresses {
+        san.ip(address);
+    }
+    if !dns_names.is_empty() || !ip_addresses.is_empty() {
+        let extension = san
+            .build(&builder.x509v3_context(Some(ca_cert), None))
+            .map_err(|error| error.to_string())?;
+        builder
+            .append_extension(extension)
+            .map_err(|error| error.to_string())?;
+    }
+    let authority = AuthorityKeyIdentifier::new()
+        .keyid(true)
+        .build(&builder.x509v3_context(Some(ca_cert), None))
+        .map_err(|error| error.to_string())?;
+    builder
+        .append_extension(authority)
+        .map_err(|error| error.to_string())?;
+    builder
+        .sign(ca_key, MessageDigest::null())
+        .map_err(|error| error.to_string())?;
+    Ok(builder.build())
+}
+
+/// Store a node-local CSR bundle without weakening private-key permissions.
+pub fn write_tls_request_bundle(
+    directory: impl AsRef<Path>,
+    name: &str,
+    private_key: &PKey<Private>,
+    request: &X509Req,
+) -> Result<(PathBuf, PathBuf), String> {
+    let directory = directory.as_ref();
+    fs::create_dir_all(directory).map_err(|error| error.to_string())?;
+    let key_path = secure_write(
+        &directory.join(format!("{name}.key.pem")),
+        &private_key
+            .private_key_to_pem_pkcs8()
+            .map_err(|error| error.to_string())?,
+        0o600,
+    )?;
+    let request_path = secure_write(
+        &directory.join(format!("{name}.csr.pem")),
+        &request.to_pem().map_err(|error| error.to_string())?,
+        0o644,
+    )?;
+    Ok((key_path, request_path))
+}
+
 pub fn write_tls_bundle(
     directory: impl AsRef<Path>,
     name: &str,
@@ -797,4 +994,25 @@ pub fn write_tls_bundle(
         0o644,
     )?;
     Ok((key_path, cert_path, ca_path))
+}
+
+#[cfg(test)]
+mod file_lock_tests {
+    use super::*;
+    use std::os::unix::fs::symlink;
+
+    #[test]
+    fn state_lock_never_follows_a_symbolic_link() {
+        let directory = tempfile::tempdir().unwrap();
+        let state = directory.path().join("state");
+        let target = directory.path().join("target");
+        fs::write(&target, b"do-not-open").unwrap();
+        fs::set_permissions(&target, fs::Permissions::from_mode(0o600)).unwrap();
+        symlink(&target, PathBuf::from(format!("{}.lock", state.display()))).unwrap();
+        assert!(FileLock::acquire(&state)
+            .err()
+            .unwrap()
+            .to_ascii_lowercase()
+            .contains("symbolic link"));
+    }
 }

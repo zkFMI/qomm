@@ -2,7 +2,7 @@
 
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::scalar::Scalar;
-use qomm_harness::{python_version, unique_temp_dir, write_pretty_json, HarnessResult};
+use qomm_harness::{rustc_version, unique_temp_dir, write_pretty_json, HarnessResult};
 use qomm_transport::resident_quote::{serve, CircuitCache, Quote};
 use serde_json::{json, Map, Value};
 use std::ffi::OsString;
@@ -68,7 +68,7 @@ fn run() -> HarnessResult<i32> {
     let options = parse_args(&raw[1..])?;
     let mut result = Map::new();
     result.insert("host".into(), json!(qomm_measure::hosts::this_host()));
-    result.insert("python".into(), json!(python_version()));
+    result.insert("rustc".into(), json!(rustc_version()));
     result.insert("protocol".into(), json!("malicious-shamir-party.x"));
     result.insert("n_parties".into(), json!(options.n_parties));
     result.insert("threshold".into(), json!(options.threshold));
@@ -218,9 +218,8 @@ fn summarise(batch: usize, samples: &[Quote], compile_ms: f64) -> HarnessResult<
 
 fn transport_arm(options: &Options, repeats: usize) -> HarnessResult<Value> {
     let port = 8_899_u16;
-    TcpListener::bind(("127.0.0.1", port)).map_err(|error| {
-        format!("transport port {port} is in use; the Python baseline hard-codes it: {error}")
-    })?;
+    TcpListener::bind(("127.0.0.1", port))
+        .map_err(|error| format!("transport port {port} is already in use: {error}"))?;
     let request = request_for(1, options);
     let current = std::env::current_exe()?;
     let mut child = Command::new(current)
@@ -398,7 +397,7 @@ fn parse_args(raw: &[OsString]) -> HarnessResult<Options> {
         }
         index += 1;
     }
-    if options.batches.iter().any(|batch| *batch == 0) {
+    if options.batches.contains(&0) {
         return Err("--batches values must be positive".into());
     }
     if options.repeats == 0 {

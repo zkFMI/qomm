@@ -1,6 +1,5 @@
 //! Tokenise and parse the expression subset.
 //!
-//! The Python original borrowed the host language's parser and then filtered the
 //! tree against an allow-list, which is convenient and gets the allow-list
 //! backwards: everything is permitted until named otherwise, and the language
 //! grows whenever the host's does. Here the grammar is written out, so the
@@ -272,7 +271,6 @@ impl Parser {
         self.at += 1;
         let right = self.sum()?;
         // Chained comparisons would need two proofs and mean two things; the
-        // Python subset rejected them and so does the grammar here.
         if matches!(self.peek(), Some(Token::Cmp(_))) {
             return Err(RuleError(format!(
                 "line {}: chained comparisons are not allowed",

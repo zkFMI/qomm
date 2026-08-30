@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_stages.py`.
-
 use qomm_harness::{parse_value, write_pretty_json, HarnessResult};
 use serde_json::{json, Value};
 use std::ffi::OsString;

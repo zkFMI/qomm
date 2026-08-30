@@ -29,6 +29,7 @@ use crate::rule::{compile_rule, Rule};
 
 const RULE_DOMAIN: &[u8] = b"QOMM:RULE-DIGEST:v1";
 const PROGRAM_DOMAIN: &[u8] = b"QOMM:PROGRAM-DIGEST:v1";
+pub const POLICY_RULE_DIGEST_MARKER: &str = "# QOMM_POLICY_RULE_DIGEST=";
 
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|b| format!("{b:02x}")).collect()
@@ -80,6 +81,31 @@ pub fn program_digest(source: &str) -> String {
     h.update(PROGRAM_DOMAIN);
     h.update(body.join("\n").as_bytes());
     hex(&h.finalize())
+}
+
+/// Return the single DSL digest embedded by the Rust MPC generator.
+///
+/// Requiring exactly one marker prevents a source from carrying both the
+/// approved rule and a second, ambiguous rule identity.  Product execution
+/// additionally rebuilds the whole source from `ProgramConfig` and compares
+/// every byte before deriving the executable.
+pub fn embedded_policy_rule_digest(source: &str) -> Result<String, String> {
+    let values = source
+        .lines()
+        .filter_map(|line| line.trim().strip_prefix(POLICY_RULE_DIGEST_MARKER))
+        .collect::<Vec<_>>();
+    if values.len() != 1 {
+        return Err("the MPC source must contain exactly one policy-rule digest marker".into());
+    }
+    let value = values[0];
+    if value.len() != 64
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err("the MPC policy-rule digest marker is not canonical SHA-256".into());
+    }
+    Ok(value.to_string())
 }
 
 #[derive(Clone, Debug)]
@@ -173,9 +199,16 @@ impl CircuitRegistry {
         shape: &[u64],
     ) -> Result<ApprovedCircuit, RuleError> {
         let rule = compile_rule(rule_source, name)?;
+        let expected_rule_digest = rule_digest(&rule);
+        let embedded = embedded_policy_rule_digest(program_source).map_err(RuleError)?;
+        if embedded != expected_rule_digest {
+            return Err(RuleError(
+                "the MPC source was generated from a different price-rule DSL".into(),
+            ));
+        }
         let entry = ApprovedCircuit {
             name: rule.name.clone(),
-            rule_digest: rule_digest(&rule),
+            rule_digest: expected_rule_digest,
             program_digest: program_digest(program_source),
             shape: shape.to_vec(),
         };

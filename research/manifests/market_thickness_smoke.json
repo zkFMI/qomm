@@ -1,7 +1,7 @@
 {
   "experiment_id": "QOMM-MARKET-THICKNESS-SMOKE-003",
   "supersedes_blocked_experiment": "QOMM-MARKET-THICKNESS-SMOKE-002",
-  "new_causal_evidence": "The recorded command names a file that no longer exists. The measurement instrument was reimplemented in Rust and the Python it invoked was deleted, so the receipt on QOMM-MARKET-THICKNESS-SMOKE-002 describes a run of a different instrument than the one this repository now contains. The Rust binary was compared against that Python value by value while both existed --- 546 non-timing values identical, 0 different --- so this is a re-run of the same experiment on a rebuilt instrument, not a new hypothesis. Nothing about the market, the seeds, the population or the rules has changed.",
+  "new_causal_evidence": "The recorded command names a file that no longer exists. The measurement instrument was reimplemented in Rust and the legacy implementation it invoked was deleted, so the receipt on QOMM-MARKET-THICKNESS-SMOKE-002 describes a run of a different instrument than the one this repository now contains. The Rust binary was compared against that legacy implementation value by value while both existed --- 546 non-timing values identical, 0 different --- so this is a re-run of the same experiment on a rebuilt instrument, not a new hypothesis. Nothing about the market, the seeds, the population or the rules has changed.",
   "contract_id": "QOMM-PRODUCT-2026-08-24",
   "contract_sha256": "8c783133f6f737784497d700d9738a6ab9623c524fe36cae85635cb9f4153333",
   "stage": "smoke",

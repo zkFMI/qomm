@@ -1,9 +1,7 @@
-//! Rust port of `scripts/derive_snr.py`.
-
 use qomm_harness::{median, repo_root, write_pretty_json, HarnessResult};
+use qomm_sim::deterministic_random::DeterministicRng;
 use qomm_sim::experiment::DpParams;
 use qomm_sim::market::{SimConfig, SIZE_BUCKETS};
-use qomm_sim::pyrandom::PyRandom;
 use serde_json::{json, Map, Value};
 use std::path::PathBuf;
 
@@ -16,34 +14,6 @@ fn main() {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn snr_model_matches_the_mechanism_it_describes() {
-        let dp = DpParams::default();
-        let cfg = SimConfig::default();
-        let epsilon_per_field = dp.epsilon_per_window / 4.0;
-        assert_eq!(dp.volume_cap as f64 / epsilon_per_field, 1_200.0);
-
-        let mean_size = qomm_sim::fsum::nsum(
-            [0.55, 0.33, 0.12]
-                .into_iter()
-                .zip(SIZE_BUCKETS)
-                .map(|(weight, (low, high))| weight * (low + high) as f64 / 2.0),
-        );
-        let per_firm_per_s =
-            cfg.arrival_rate * (1_000.0 / cfg.step_ms as f64) / cfg.n_entities as f64;
-        let saturation = (dp.volume_cap as f64 / mean_size).powi(2) / per_firm_per_s;
-        assert!((225.0..240.0).contains(&saturation));
-
-        let ceiling = MEDIAN_OVER_SIGMA * epsilon_per_field * (cfg.n_entities as f64).sqrt();
-        assert!((0.80..0.86).contains(&ceiling));
-        assert!(ceiling > 0.36);
-    }
-}
-
 fn run_main() -> HarnessResult<()> {
     let out = parse_args()?;
     let cfg = SimConfig::default();
@@ -53,7 +23,6 @@ fn run_main() -> HarnessResult<()> {
     let noise = cap / epsilon_per_field;
 
     let weights = [0.55, 0.33, 0.12];
-    // Python's builtin `sum`, which compensates; see `qomm_sim::fsum`.
     let mean_size = qomm_sim::fsum::nsum(
         weights
             .iter()
@@ -108,7 +77,7 @@ fn run_main() -> HarnessResult<()> {
         return Err("derived noise scale does not match the measured one".into());
     }
 
-    let mut rng = PyRandom::new(7);
+    let mut rng = DeterministicRng::new(7);
     let saturated = drawn_median(&mut rng, cfg.n_entities, 10.0 * cap, cap, 20_000);
     let closed_form = MEDIAN_OVER_SIGMA * cap * (cfg.n_entities as f64).sqrt();
     println!(
@@ -205,7 +174,13 @@ fn run_main() -> HarnessResult<()> {
     Ok(())
 }
 
-fn drawn_median(rng: &mut PyRandom, firms: usize, per_firm: f64, cap: f64, trials: usize) -> f64 {
+fn drawn_median(
+    rng: &mut DeterministicRng,
+    firms: usize,
+    per_firm: f64,
+    cap: f64,
+    trials: usize,
+) -> f64 {
     let values = (0..trials)
         .map(|_| {
             qomm_sim::fsum::nsum((0..firms).map(|_| rng.gauss(0.0, per_firm).clamp(-cap, cap)))
@@ -231,4 +206,32 @@ fn parse_args() -> HarnessResult<PathBuf> {
         }
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn snr_model_matches_the_mechanism_it_describes() {
+        let dp = DpParams::default();
+        let cfg = SimConfig::default();
+        let epsilon_per_field = dp.epsilon_per_window / 4.0;
+        assert_eq!(dp.volume_cap as f64 / epsilon_per_field, 1_200.0);
+
+        let mean_size = qomm_sim::fsum::nsum(
+            [0.55, 0.33, 0.12]
+                .into_iter()
+                .zip(SIZE_BUCKETS)
+                .map(|(weight, (low, high))| weight * (low + high) as f64 / 2.0),
+        );
+        let per_firm_per_s =
+            cfg.arrival_rate * (1_000.0 / cfg.step_ms as f64) / cfg.n_entities as f64;
+        let saturation = (dp.volume_cap as f64 / mean_size).powi(2) / per_firm_per_s;
+        assert!((225.0..240.0).contains(&saturation));
+
+        let ceiling = MEDIAN_OVER_SIGMA * epsilon_per_field * (cfg.n_entities as f64).sqrt();
+        assert!((0.80..0.86).contains(&ceiling));
+        assert!(ceiling > 0.36);
+    }
 }

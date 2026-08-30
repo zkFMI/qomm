@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 /// Median successful TCP connection time in milliseconds.
 ///
-/// A fresh socket is used for every sample, matching `scripts/tcp_rtt.py`.
+/// A fresh socket is used for every sample.
 /// Failed attempts are omitted; `None` means that no attempt connected.
 pub fn tcp_handshake_median_ms(
     host: &str,

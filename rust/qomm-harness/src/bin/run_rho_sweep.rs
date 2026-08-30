@@ -1,6 +1,4 @@
-//! Rust port of `scripts/run_rho_sweep.py`.
-
-use qomm_harness::{fmean, parse_value, python_version, write_pretty_json, HarnessResult};
+use qomm_harness::{fmean, parse_value, rustc_version, write_pretty_json, HarnessResult};
 use qomm_sim::attackers;
 use qomm_sim::engine::{run_arm, ArmOptions};
 use qomm_sim::experiment::{build_probes, make_disclosure, DpParams};
@@ -28,7 +26,7 @@ struct Options {
 
 enum Market {
     Generated(ReferenceMarket),
-    Tape(TapeMarket),
+    Tape(Box<TapeMarket>),
 }
 
 impl PricePath for Market {
@@ -92,7 +90,7 @@ fn run_main() -> HarnessResult<()> {
     }
     let payload = json!({
         "host": qomm_measure::hosts::this_host(),
-        "python": python_version(),
+        "rustc": rustc_version(),
         "rhos": options.rhos,
         "seeds": options.seeds,
         "arms": arms,
@@ -229,7 +227,7 @@ fn one_market(
     }
     Ok((
         loaded.cfg,
-        Market::Tape(market),
+        Market::Tape(Box::new(market)),
         loaded.requests,
         Value::Object(meta),
     ))
@@ -242,7 +240,7 @@ fn print_rows(result: &Value, generated: bool) {
                 println!(
                     "  {:10} rho={:<5} auc {:.4}  firms covered {:.1}",
                     row["protocol"].as_str().unwrap_or_default(),
-                    qomm_harness::py_display(&row["linkage_rho"]),
+                    qomm_harness::value_display(&row["linkage_rho"]),
                     row["auc_mean"].as_f64().unwrap_or(0.0),
                     row["entities_covered"].as_f64().unwrap_or(0.0),
                 );
@@ -250,7 +248,7 @@ fn print_rows(result: &Value, generated: bool) {
                 println!(
                     "  {:10} rho={:<5} auc {:.4}",
                     row["protocol"].as_str().unwrap_or_default(),
-                    qomm_harness::py_display(&row["linkage_rho"]),
+                    qomm_harness::value_display(&row["linkage_rho"]),
                     row["auc_mean"].as_f64().unwrap_or(0.0),
                 );
             }

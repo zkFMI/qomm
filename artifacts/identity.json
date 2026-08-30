@@ -1,61 +1,40 @@
 {
-  "host": "host-a",
-  "question": "Is the request the circuit priced the request the taker sent, and is the policy the one the maker published?",
-  "setting": {
-    "n_makers": 4,
-    "n_parties": 7,
-    "threshold": 2,
-    "field_bits": 253,
-    "checked_values": 46,
-    "repeats": 1
-  },
-  "the_seam_that_was_open": "gen_qomm emitted a FIXTURE coefficient list with a comment saying so. With fixture coefficients the check proves nothing --- the argument is entirely that the coefficients arrive after the commitments, so a node knowing them in advance picks its error to cancel. This run derives them from the published commitments and hands the same list to the circuit, which is the first time a verification has run across that seam.",
   "honest": {
-    "verified": true,
     "culprits": [],
     "openings": {
-      "0": 277988444335458193381276720872501736246326928802884330205,
-      "1": 673989608471814572730748403218472126816532797888425539687,
-      "2": 500606324841572018687521343889663376478068409862944602671,
-      "3": 948464039139017139469245024601041111276567203201414803915,
-      "4": 600494260401638164859300509246696252205291886199868326351,
-      "5": 404701144057629690632945419257449968877217492966417859178,
-      "6": 565176046573139833208417445463548576119998948387508616097
-    }
+      "0": 1394721395775900095949232251407070470755703174477572059968008193801964575850,
+      "1": 1851379792732748119730335966416627133033444459548329816787521035678508526138,
+      "2": -753286429085827958056119465497573504190129444643876728257377388440701273944,
+      "3": -3590791799081766700409907031057354513641292241182254106149266331538842004658,
+      "4": 1317118515567826183019334299055274243785351915346244867667432251395365596657,
+      "5": 1273321834066472626269620077840760643201749436037276692273753809859615204043,
+      "6": -1593403010557945781879299384193477201372017673352018174642278057798114447422
+    },
+    "verified": true
+  },
+  "host": "host-c",
+  "question": "Is the request the circuit priced the request the taker sent, and is the policy the one the maker published?",
+  "setting": {
+    "checked_values": 46,
+    "field_bits": 253,
+    "n_makers": 4,
+    "n_parties": 7,
+    "repeats": 1,
+    "threshold": 2
   },
   "tampered": {
-    "what": "node 4 fed a different value at input 1, which is the taker's quantity --- the case a taker cares about rather than a maker",
-    "verified": false,
+    "message": "the inputs node 4 fed the circuit were not the ones committed to them",
     "named": [
       4
     ],
     "named_the_right_node": true,
-    "message": "the inputs node 4 fed the circuit were not the ones committed to it"
+    "verified": false,
+    "what": "node 4 fed a different value at input 1, which is the taker's quantity --- the case a taker cares about rather than a maker"
   },
+  "the_seam_that_was_open": "An earlier generator revision emitted a FIXTURE coefficient list with a comment saying so. With fixture coefficients the check proves nothing --- the argument is entirely that the coefficients arrive after the commitments, so a node knowing them in advance picks its error to cancel. This run derives them from the published commitments and hands the same list to the circuit, which closes and verifies that seam.",
   "what_this_does_not_establish": [
     "That the maker's committed policy is one it would honour off-venue. policy_audit shows the fields sit in bands the venue published; it cannot show intent.",
     "That the request was real. The maker never sees it --- that is the design --- so it cannot tell a genuine request from probing, which is what is_real cover traffic and the disclosure budget are for.",
-    "That every eligible maker was included. An omission has no commitment in the statement to fail against; qomm_audit/receipts.py covers that per slot, on a different axis."
-  ],
-  "two_defects_this_found": [
-    {
-      "what": "the generator was emitting FIXTURE coefficients",
-      "detail": "`1 + (617*k) % 63`, with a comment saying a fixture stands in for the Fiat-Shamir derivation because that needs the commitments. The comment was honest about the substitution and understated its effect: with coefficients a node can predict, the check proves nothing at all, because the entire soundness argument is that the coefficients arrive after the commitments.",
-      "fix": "gen_qomm --check-coefficients takes the derived list; build_inputs sizes the mask from its actual width rather than a constant 6 bits."
-    },
-    {
-      "what": "a misconfigured field makes the audit accuse EVERY node",
-      "detail": "The first run compiled at the default 128 bits while the commitments live in the 253-bit ed25519 scalar field. The openings wrapped, no party's check matched, and the verdict named all seven --- on an entirely honest run.",
-      "why_it_matters": "That is the worst failure mode an accountability mechanism can have. It does not fail closed or open; it convicts everybody, and an operator reading it would have no way to tell a misconfiguration from a total compromise.",
-      "fix": "the runner compiles with the commitment scheme's scalar modulus and passes it at run time. Matching the field is the configuration BINDING.md already recommends at 2.00x traffic; this is a second, independent reason for it."
-    }
-  ],
-  "the_chain_now_demonstrated": [
-    "taker and makers deal shares and publish a commitment to every share (roles.Dealing, which already existed for check_share and adds_up)",
-    "coefficients are derived by hashing those commitments --- after them, which is what makes the check sound",
-    "the same coefficient list is compiled into the circuit",
-    "the circuit folds each share into its own node's accumulator as it is read and opens one value per node",
-    "anyone recombines the published commitments with the same coefficients and checks each opening",
-    "a failing opening names a node, and the taker's own request is covered by the same mechanism as a maker's policy --- demonstrated by substituting the taker's quantity and getting node 4 named"
+    "That every eligible maker was included. An omission has no commitment in the statement to fail against; rust/qomm-audit/src/receipts.rs covers that per slot, on a different axis."
   ]
 }

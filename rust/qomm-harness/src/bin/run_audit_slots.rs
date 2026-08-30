@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_audit_slots.py`.
-
 use ed25519_dalek::SigningKey;
 use qomm_audit::receipts::{
     digest, sign_receipt, AuditLedger, BondLedger, Evidence, Fault, SlotSpec, GENESIS,
@@ -81,7 +79,7 @@ fn run() -> HarnessResult<()> {
         "  injected {} faults, detected_all={}, missed={}, wrongful={} (consequential={})",
         drill["injected"].as_array().map_or(0, Vec::len),
         py_bool(drill["detected_all_injected"].as_bool().unwrap_or(false)),
-        qomm_harness::py_display(&drill["missed"]),
+        qomm_harness::value_display(&drill["missed"]),
         drill["wrongful_findings"].as_array().map_or(0, Vec::len),
         drill["consequential_findings"]
             .as_array()
@@ -460,7 +458,7 @@ fn next(args: &mut impl Iterator<Item = OsString>, name: &str) -> HarnessResult<
 fn display_get(value: &Value, key: &str) -> String {
     value
         .get(key)
-        .map_or_else(|| "None".into(), qomm_harness::py_display)
+        .map_or_else(|| "None".into(), qomm_harness::value_display)
 }
 
 fn py_bool(value: bool) -> &'static str {
@@ -472,7 +470,7 @@ fn py_bool(value: bool) -> &'static str {
 }
 
 fn py_dict(value: &Value) -> String {
-    qomm_harness::py_display(value)
+    qomm_harness::value_display(value)
 }
 
 #[allow(dead_code)]

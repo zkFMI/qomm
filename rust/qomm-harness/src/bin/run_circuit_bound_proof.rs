@@ -1,4 +1,3 @@
-//! Rust port of `scripts/run_circuit_bound_proof.py`.
 //!
 //! The witness shares are read from MP-SPDZ persistence files. Run the circuit
 //! with both `--persist-wires` and `--shamir-inputs`; otherwise there are no

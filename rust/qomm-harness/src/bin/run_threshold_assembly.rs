@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_threshold_assembly.py`.
-
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{median, parse_value, repo_root, sample_sd, write_pretty_json, HarnessResult};
 use qomm_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
@@ -165,7 +163,6 @@ fn run_main() -> HarnessResult<()> {
             .collect::<Vec<_>>();
         let sentinel = 1 << 20;
         // A slot for every maker, and the same slot count for every row so the
-        // rows can be compared. The Python fixed this at 8 whatever `--makers`
         // said, and the Makefile asks for 16: the ranking key is
         // `(gated + sentinel) * n_slots + index`, so at sixteen makers in eight
         // slots maker 8 at cost c and maker 0 at cost c+1 derive the *same* key
@@ -306,7 +303,7 @@ fn validate(options: &Options) -> HarnessResult<()> {
     if options.widths.iter().any(|width| !(1..=64).contains(width)) {
         return Err("--widths must be between 1 and 64".into());
     }
-    if options.makers.iter().any(|count| *count == 0) {
+    if options.makers.contains(&0) {
         return Err("--makers must be at least 1".into());
     }
     Ok(())

@@ -1,17 +1,14 @@
-//! Rust port of `scripts/run_transport.py`.
-
 use qomm_audit::receipts::digest;
 use qomm_harness::measure::{render, scaled, summarise};
 use qomm_harness::{next_value, parse_value, write_pretty_json, HarnessResult};
 use qomm_sim::attackers::auc;
-use qomm_sim::market::py_round;
-use qomm_sim::pyrandom::PyRandom;
+use qomm_sim::deterministic_random::DeterministicRng;
+use qomm_sim::market::round_half_even;
 use qomm_transport::client::{Client, N_REQUEST_VALUES};
 use qomm_transport::relay::{NodeInbox, Relay};
 use qomm_transport::wire::{reconstruct, FRAME_BYTES};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -57,7 +54,7 @@ fn run_main() -> HarnessResult<()> {
             session
                 .phases
                 .iter()
-                .map(|value| json!(py_round(value * 1_000.0) as f64 / 1_000.0))
+                .map(|value| json!(round_half_even(value * 1_000.0) as f64 / 1_000.0))
                 .collect(),
         );
         report["added_latency_ms"] = json!(qomm_sim::fsum::nsum(
@@ -93,8 +90,8 @@ fn run_session(options: &Options, hops: usize) -> HarnessResult<Session> {
     if hops == 0 {
         return Err("--hops values must be positive".into());
     }
-    let mut rng = PyRandom::new(options.seed);
-    let mut phase_rng = PyRandom::new(options.seed + 7_717);
+    let mut rng = DeterministicRng::new(options.seed);
+    let mut phase_rng = DeterministicRng::new(options.seed + 7_717);
     let phases = (0..hops)
         .map(|_| phase_rng.uniform(0.0, options.slot_ms))
         .collect::<Vec<_>>();
@@ -120,7 +117,7 @@ fn run_session(options: &Options, hops: usize) -> HarnessResult<Session> {
         .map(|client_id| {
             let client_bytes = u16::try_from(client_id)
                 .map(u16::to_be_bytes)
-                .map_err(|_| "client index is outside the Python two-byte key domain")?;
+                .map_err(|_| "client index is outside the two-byte key domain")?;
             Ok(Client::new(
                 client_id,
                 digest(&[b"client", &client_bytes]).to_vec(),
@@ -295,7 +292,7 @@ fn print_report(report: &Value) {
     );
     println!(
         "  relay boundary offsets     : {}",
-        qomm_harness::py_display(&report["slot_phases_ms"])
+        qomm_harness::value_display(&report["slot_phases_ms"])
     );
     println!(
         "  added latency vs one hop   : {:.1} ms",
@@ -308,16 +305,16 @@ fn print_report(report: &Value) {
     println!("  frame size                 : {} B", report["frame_bytes"]);
     println!(
         "  frames per client per slot : {}",
-        qomm_harness::py_display(&report["frames_per_client_slot"])
+        qomm_harness::value_display(&report["frames_per_client_slot"])
     );
     println!(
         "  bytes per client per slot  : {}",
-        qomm_harness::py_display(&report["bytes_per_client_slot"])
+        qomm_harness::value_display(&report["bytes_per_client_slot"])
     );
     println!(
         "  active vs idle bytes       : {} vs {}",
-        qomm_harness::py_display(&report["active_client_bytes"]),
-        qomm_harness::py_display(&report["idle_client_bytes"])
+        qomm_harness::value_display(&report["active_client_bytes"]),
+        qomm_harness::value_display(&report["idle_client_bytes"])
     );
     println!(
         "  traffic identical          : {}",
@@ -329,7 +326,7 @@ fn print_report(report: &Value) {
     );
     println!(
         "  batch sizes seen at a node : {}",
-        qomm_harness::py_display(&report["batch_sizes_at_node"])
+        qomm_harness::value_display(&report["batch_sizes_at_node"])
     );
     println!(
         "  origin-linkage AUC         : {:.3} (base rate {:.3}, advantage {:.3})",
@@ -393,11 +390,7 @@ fn parse_args() -> HarnessResult<Options> {
                 println!("usage: run_transport --out PATH [--clients N] [--nodes N] [--slots N] [--slot-ms MS] [--activity P] [--seed N] [--hops N ...] [--link-ms MS]");
                 std::process::exit(0);
             }
-            _ => {
-                return Err(
-                    format!("unknown argument {}", OsString::from(arg).to_string_lossy()).into(),
-                )
-            }
+            _ => return Err(format!("unknown argument {}", arg.to_string_lossy()).into()),
         }
     }
     let out = out.ok_or("--out is required")?;
@@ -434,13 +427,14 @@ mod tests {
     /// `cargo test --release` fails three runs out of five and
     /// `--test-threads=1` passes six out of six.
     ///
-    /// The Python they were ported from never met this, because pytest runs a
     /// module's tests one after another and `cargo test` runs them in parallel
     /// threads. A suite that measures time does not survive that change of
     /// runner by itself, and no test count would have shown it.
     fn one_at_a_time() -> std::sync::MutexGuard<'static, ()> {
         static SLOT_CLOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
-        SLOT_CLOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+        SLOT_CLOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
     }
 
     fn options(link_ms: f64) -> Options {
@@ -463,8 +457,8 @@ mod tests {
         values[values.len() / 2]
     }
 
-    /// `tests/test_gaps.py::test_every_relay_hop_costs_a_connection`, which runs
-    /// eight slots and no link delay. It asserts an exact delivery count, so the
+    /// This regression runs eight slots and no link delay. It asserts an exact
+    /// delivery count, so the
     /// delay has to stay out of it: three hops at 5 ms against a 10 ms slot is a
     /// race, and it loses --- 67 of 72 frames arrived on the measurement host
     /// while all 72 arrived on the laptop. What the delay is for is

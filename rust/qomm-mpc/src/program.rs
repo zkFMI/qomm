@@ -1,10 +1,14 @@
 //! Deterministic MP-SPDZ source generation for the QOMM circuit.
 //!
-//! MP-SPDZ programs are Python source because that is the compiler's input
-//! language.  The generator itself is ordinary Rust: it assembles exactly the
-//! same lines as `mp_spdz/gen_qomm.py::build_program`, including Python's
-//! spelling of booleans and lists.
+//! QOMM owns this generator and all orchestration in Rust. The generated text
+//! uses MP-SPDZ's official compiler input language; only that upstream compiler
+//! boundary is allowed to invoke its bundled interpreter.
 
+use qomm_dsl::compile_rule;
+use qomm_dsl::emit::to_mpc_with_bindings;
+use qomm_dsl::registry::{rule_digest, POLICY_RULE_DIGEST_MARKER};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::fmt;
 
 pub const FIELDS: [&str; 10] = [
@@ -24,7 +28,8 @@ pub const FIELDS: [&str; 10] = [
 pub const ED25519_ORDER: &str =
     "7237005577332262213973186563042994240857116359379907606001950938285454250989";
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Mode {
     Rfq,
     Rfm,
@@ -50,7 +55,8 @@ impl Mode {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Disclosure {
     None,
     Threshold,
@@ -73,7 +79,8 @@ impl Disclosure {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "kebab-case")]
 pub enum CheckMode {
     Aggregate,
     PerParty,
@@ -89,7 +96,8 @@ impl CheckMode {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum StopAfter {
     Price,
     Direction,
@@ -109,7 +117,8 @@ impl StopAfter {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Reference {
     Anchored,
     None,
@@ -125,7 +134,8 @@ impl Reference {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(default)]
 pub struct ProgramConfig {
     pub n_mm: usize,
     pub n_parties: usize,
@@ -146,7 +156,6 @@ pub struct ProgramConfig {
     pub audit_gates: bool,
     pub bit_length: u32,
     pub argmin_arity: usize,
-    /// Decimal field coefficients. `Some` corresponds to Python's non-`None`.
     pub lagrange: Option<Vec<String>>,
     pub price_conditionals: usize,
     pub edabit: bool,
@@ -159,6 +168,24 @@ pub struct ProgramConfig {
     pub check_repeats: usize,
     pub stop_after: StopAfter,
     pub persist_wires: bool,
+    /// Persist the amount/price blindings, bit decompositions, and product
+    /// cross terms needed for a threshold zkPI. This is separate from the
+    /// legacy circuit-wire fixture so old measurement artifacts keep their
+    /// exact layout.
+    pub persist_zkpi_wires: bool,
+    /// Persist every node-local share required to prove the complete quote
+    /// computation (registered policy, eligibility, winner and minimality),
+    /// rather than only the amount/price payment instruction.
+    pub persist_quote_proof_wires: bool,
+    pub zkpi_amount_bits: usize,
+    pub zkpi_price_bits: usize,
+    pub quote_eligibility_bits: usize,
+    pub quote_span_bits: usize,
+    /// Persist the price/cash product and both reservation remainders needed
+    /// for a threshold DvP proof.  This extends (and therefore requires) the
+    /// threshold-zkPI handoff.
+    pub persist_dvp_wires: bool,
+    pub dvp_remainder_bits: usize,
     pub reference: Reference,
     pub range_query: bool,
     pub query_lo: i128,
@@ -182,8 +209,8 @@ impl Default for ProgramConfig {
             public_check: true,
             n_requests: 1,
             n_assets: 1,
-            // Empty, so the binary's `--ref-table` default (ref_mid + 5000 * asset,
-            // which is what gen_qomm.py uses) actually fires. A one-element default
+            // Empty, so the binary's `--ref-table` default (ref_mid + 5000 * asset)
+            // actually fires. A one-element default
             // is never empty, so that branch never ran and every run with more than
             // one asset was refused unless the table was passed by hand.
             ref_table: Vec::new(),
@@ -204,12 +231,112 @@ impl Default for ProgramConfig {
             check_repeats: 7,
             stop_after: StopAfter::Tournament,
             persist_wires: false,
+            persist_zkpi_wires: false,
+            persist_quote_proof_wires: false,
+            zkpi_amount_bits: 32,
+            zkpi_price_bits: 32,
+            quote_eligibility_bits: 34,
+            quote_span_bits: 32,
+            persist_dvp_wires: false,
+            dvp_remainder_bits: 32,
             reference: Reference::Anchored,
             range_query: false,
             query_lo: 0,
             query_hi: 0,
         }
     }
+}
+
+pub const POLICY_RULE_NAME: &str = "qomm_quote_policy";
+
+/// Canonical price-policy DSL used by the product MPC generator.
+///
+/// These are venue admission bounds, not fixture values.  The same checked AST
+/// emits the executable assignments below and the rule digest accepted by the
+/// circuit registry, so an operator can no longer pair one audited rule with a
+/// different handwritten price formula.
+pub fn policy_rule_source(config: &ProgramConfig) -> String {
+    let mut skew = "invcoef * inv".to_string();
+    for index in 0..config.price_conditionals {
+        let bound = 200 * (index + 1);
+        skew = if index % 2 == 0 {
+            format!("max({skew}, -{bound})")
+        } else {
+            format!("min({skew}, {bound})")
+        };
+    }
+    let (declarations, anchored) = match config.reference {
+        Reference::Anchored => (
+            concat!(
+                "param ask_level[-200000,200000] spread[0,200000] slope[0,16] ",
+                "invcoef[-8,8] use_ref[0,1]\n",
+                "state inv[-4000,4000]\n",
+                "input qty[1,1000] ref_price[0,1000000]\n"
+            ),
+            "ask_level + use_ref * ref_price",
+        ),
+        Reference::None => (
+            concat!(
+                "param ask_level[-200000,200000] spread[0,200000] slope[0,16] ",
+                "invcoef[-8,8]\n",
+                "state inv[-4000,4000]\n",
+                "input qty[1,1000]\n"
+            ),
+            "ask_level",
+        ),
+    };
+    format!(
+        concat!(
+            "{declarations}",
+            "anchored = {anchored}\n",
+            "depth = slope * qty\n",
+            "skew = {skew}\n",
+            "ask = ({anchored}) + slope * qty + ({skew})\n",
+            "bid = ({anchored}) - spread - slope * qty + ({skew})\n"
+        ),
+        declarations = declarations,
+        anchored = anchored,
+        skew = skew,
+    )
+}
+
+pub fn policy_rule_digest(config: &ProgramConfig) -> Result<String, ProgramError> {
+    let rule = compile_rule(&policy_rule_source(config), POLICY_RULE_NAME)
+        .map_err(|error| ProgramError(error.to_string()))?;
+    Ok(rule_digest(&rule))
+}
+
+fn policy_assignments(config: &ProgramConfig) -> Result<(String, Vec<String>), ProgramError> {
+    let rule = compile_rule(&policy_rule_source(config), POLICY_RULE_NAME)
+        .map_err(|error| ProgramError(error.to_string()))?;
+    let digest = rule_digest(&rule);
+    let mut bindings = BTreeMap::from([
+        ("ask_level".to_string(), "ask_level".to_string()),
+        ("spread".to_string(), "spread".to_string()),
+        ("slope".to_string(), "slope".to_string()),
+        ("invcoef".to_string(), "invcoef".to_string()),
+        ("inv".to_string(), "tile_makers(inv_vec)".to_string()),
+        ("qty".to_string(), "qty_v".to_string()),
+    ]);
+    if config.reference == Reference::Anchored {
+        bindings.insert("use_ref".into(), "use_ref".into());
+        bindings.insert(
+            "ref_price".into(),
+            "spread_request(ref_secret_per_request)".into(),
+        );
+    }
+    let emitted =
+        to_mpc_with_bindings(&rule, &bindings).map_err(|error| ProgramError(error.to_string()))?;
+    let assignments = ["anchored", "depth", "skew", "ask", "bid"]
+        .into_iter()
+        .map(|name| {
+            emitted
+                .get(name)
+                .map(|expression| format!("{name} = {expression}"))
+                .ok_or_else(|| ProgramError(format!("policy rule omitted output {name}")))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((digest, assignments))
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -236,7 +363,7 @@ pub fn sentinel_for(
     padded_mm: usize,
     max_cost: i128,
 ) -> Result<i128, ProgramError> {
-    if bit_length < 2 || bit_length > 127 || padded_mm == 0 {
+    if !(2..=127).contains(&bit_length) || padded_mm == 0 {
         return Err(ProgramError(format!(
             "bit_length={bit_length} cannot pack {padded_mm} makers"
         )));
@@ -260,7 +387,7 @@ fn bit_length_i128(value: i128) -> u32 {
     }
 }
 
-fn python_bool(value: bool) -> &'static str {
+fn mp_spdz_bool(value: bool) -> &'static str {
     if value {
         "True"
     } else {
@@ -268,7 +395,7 @@ fn python_bool(value: bool) -> &'static str {
     }
 }
 
-fn python_list<T: fmt::Display>(values: &[T]) -> String {
+fn mp_spdz_list<T: fmt::Display>(values: &[T]) -> String {
     format!(
         "[{}]",
         values
@@ -373,6 +500,41 @@ impl Lines {
 
 pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
     let c = config;
+    if c.persist_zkpi_wires && !c.persist_wires {
+        return Err(ProgramError(
+            "zkPI persistence requires the circuit wire persistence block".into(),
+        ));
+    }
+    if c.persist_quote_proof_wires
+        && (!c.persist_zkpi_wires
+            || !c.public_maker_assets
+            || c.n_requests != 1
+            || c.quote_eligibility_bits == 0
+            || c.quote_eligibility_bits > 64
+            || c.quote_span_bits == 0
+            || c.quote_span_bits > 64)
+    {
+        return Err(ProgramError(
+            "full quote-proof persistence requires one request, zkPI persistence, public maker assets, and 1..=64 eligibility/minimality widths".into(),
+        ));
+    }
+    if c.persist_zkpi_wires
+        && (c.zkpi_amount_bits == 0
+            || c.zkpi_amount_bits > 64
+            || c.zkpi_price_bits == 0
+            || c.zkpi_price_bits > 64)
+    {
+        return Err(ProgramError(
+            "zkPI amount and price widths must be between 1 and 64".into(),
+        ));
+    }
+    if c.persist_dvp_wires
+        && (!c.persist_zkpi_wires || c.dvp_remainder_bits == 0 || c.dvp_remainder_bits > 64)
+    {
+        return Err(ProgramError(
+            "DvP persistence requires zkPI persistence and a 1..=64 remainder width".into(),
+        ));
+    }
     if c.stop_after != StopAfter::Tournament && c.mode != Mode::Rfq {
         return Err(ProgramError(format!(
             "--stop-after names layers of the RFQ circuit; mode {} is built differently",
@@ -411,8 +573,8 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         c.disclose.as_str(),
         c.bit_length,
         c.argmin_arity,
-        python_bool(c.edabit),
-        python_bool(c.trunc_pr),
+        mp_spdz_bool(c.edabit),
+        mp_spdz_bool(c.trunc_pr),
         c.price_conditionals
     );
     if c.mode == Mode::Rfs {
@@ -441,6 +603,20 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
     w.push(format!("N_PARTIES = {}", c.n_parties));
     w.push(format!("LARGE = {large}"));
     w.push(format!("NOW_T = {}", c.now_t));
+    if c.persist_zkpi_wires {
+        w.push(format!("ZKPI_AMOUNT_BITS = {}", c.zkpi_amount_bits));
+        w.push(format!("ZKPI_PRICE_BITS = {}", c.zkpi_price_bits));
+    }
+    if c.persist_quote_proof_wires {
+        w.push(format!(
+            "QUOTE_ELIGIBILITY_BITS = {}",
+            c.quote_eligibility_bits
+        ));
+        w.push(format!("QUOTE_SPAN_BITS = {}", c.quote_span_bits));
+    }
+    if c.persist_dvp_wires {
+        w.push(format!("DVP_REMAINDER_BITS = {}", c.dvp_remainder_bits));
+    }
     if c.range_query {
         w.push("# The asker's range. Public, because it is their own question.");
         w.push(format!("QUERY_LO = {}", c.query_lo));
@@ -453,8 +629,8 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         |# request selects is not, so the selection has to be oblivious.
         "###,
     );
-    w.push(format!("REF_TABLE = {}", python_list(&ref_table)));
-    w.push(format!("MAKER_ASSET = {}", python_list(&maker_assets)));
+    w.push(format!("REF_TABLE = {}", mp_spdz_list(&ref_table)));
+    w.push(format!("MAKER_ASSET = {}", mp_spdz_list(&maker_assets)));
     w.push(format!(
         "REF_MID = {}   # only used for the sentinel scale",
         c.ref_mid
@@ -463,7 +639,12 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
 
     let checking = c.input_check && c.check_mode == CheckMode::PerParty;
     if checking {
-        let n_checked_values = 4 * c.n_requests + 2 + c.n_mm * FIELDS.len();
+        let n_checked_values = 4 * c.n_requests
+            + 2
+            + usize::from(c.binding_limit) * 4
+            + usize::from(c.persist_dvp_wires) * (4 + 5 * c.n_mm)
+            + c.n_mm * FIELDS.len()
+            + usize::from(c.persist_quote_proof_wires) * 9 * c.n_mm;
         w.push(format!("CHALLENGE_BITS = {}", c.challenge_bits));
         w.block(
             r###"
@@ -494,7 +675,7 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         w.push("");
     }
     if let Some(lagrange) = &c.lagrange {
-        w.push(format!("LAGRANGE = {}", python_list(lagrange)));
+        w.push(format!("LAGRANGE = {}", mp_spdz_list(lagrange)));
     }
 
     w.push("def secret_input():");
@@ -555,6 +736,37 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         |u_mask = secret_input()
         "###,
     );
+    if c.persist_dvp_wires {
+        w.block(
+            r###"
+            |
+            |# ---- pre-authorized DeFMI reservation openings -----------------
+            |# These arrive as Shamir shares from the reserve-admission path.
+            |# Their public commitments are checked when the distributed DvP
+            |# proof statement is assembled; inconsistent openings cannot be
+            |# converted into a proof for the on-ledger reservations.
+            |# The Taker has only the direction-relevant reserve in normal use;
+            |# the other pair is a sharing of zero.  Makers register both sides
+            |# with their standing policy because the direction and winner stay
+            |# secret until this circuit selects them.
+            |dvp_taker_securities_reserve = secret_input()
+            |dvp_taker_securities_blinding = secret_input()
+            |dvp_taker_cash_reserve = secret_input()
+            |dvp_taker_cash_blinding = secret_input()
+            |dvp_maker_securities_reserves = Array(M, sint)
+            |dvp_maker_securities_blindings = Array(M, sint)
+            |dvp_maker_cash_reserves = Array(M, sint)
+            |dvp_maker_cash_blindings = Array(M, sint)
+            |dvp_maker_handle_scalars = Array(M, sint)
+            |for _m in range(M):
+            |    dvp_maker_securities_reserves[_m] = secret_input()
+            |    dvp_maker_securities_blindings[_m] = secret_input()
+            |    dvp_maker_cash_reserves[_m] = secret_input()
+            |    dvp_maker_cash_blindings[_m] = secret_input()
+            |    dvp_maker_handle_scalars[_m] = secret_input()
+            "###,
+        );
+    }
     if c.binding_limit {
         w.block(
             r###"
@@ -574,9 +786,22 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
             |# it, and no further --- and `L` is committed rather than displayed,
             |# so it is one step better than the book.
             |u_limit = secret_input()
+            |# This opening is supplied as a ninth fixed-frame field. It never
+            |# leaves MPC; its only output is the joint proof that the selected
+            |# quote is on the executable side of the signed commitment.
+            |u_limit_blinding = secret_input()
             |fill_mask = secret_input()
+            |# Signed before submission and reused by the threshold zkPI.  A
+            |# post-quote random blinding would create a different quantity
+            |# commitment from the one in the Taker's execution mandate.
+            |u_qty_blinding = secret_input()
             "###,
         );
+    } else if c.persist_zkpi_wires {
+        // Legacy non-auto-settlement circuits do not carry a signed Taker
+        // mandate. Preserve their input layout while keeping the shared zkPI
+        // persistence block well-formed.
+        w.push("u_qty_blinding = sint.get_random()");
     }
     w.block(
         r###"
@@ -601,13 +826,51 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
     }
     w.push("");
 
+    if c.persist_quote_proof_wires {
+        w.block(
+            r###"
+            |# Pedersen blindings committed when each Maker registered its
+            |# policy. They are inputs, not fresh prover randomness: using new
+            |# blindings here would prove a policy invented after the RFQ.
+            "###,
+        );
+        for field in [
+            "ask_level",
+            "spread",
+            "slope",
+            "invcoef",
+            "inv",
+            "maxqty",
+            "expiry",
+            "active",
+            "use_ref",
+        ] {
+            w.push(format!("QPB_{field} = Array(M, sint)"));
+        }
+        w.push("for i in range(M):");
+        for field in [
+            "ask_level",
+            "spread",
+            "slope",
+            "invcoef",
+            "inv",
+            "maxqty",
+            "expiry",
+            "active",
+            "use_ref",
+        ] {
+            w.push(format!("    QPB_{field}[i] = secret_input()"));
+        }
+        w.push("");
+    }
+
     if checking {
         w.block(
             r###"
             |
             |# ---- input check, one opening per node ----------------------------
-            |# `zk/input_check.py` build_per_party / verify_per_party is the other
-            |# half. It combines the same powers of the same rho into the share
+            |# The public commitment verifier is the other half. It combines the
+            |# same powers of the same rho into the share
             |# commitments `roles.Dealing` already publishes, so a failing opening
             |# names a node from data anybody has.
             |_rho = sint.get_random_int(CHALLENGE_BITS).reveal()
@@ -635,8 +898,8 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
             |# dealer published, so a node choosing what to substitute cannot see
             |# them first. Public times secret is local, so the combination costs
             |# no communication at all; the opening below is the whole price.
-            |# `zk/input_check.py` is the other half --- it combines the same
-            |# coefficients into the commitments and checks this opening against it.
+            |# The public commitment verifier combines the same coefficients into
+            |# the commitments and checks this opening against them.
             |# Repetition rather than wider coefficients: at 127 bits the budget is
             |# challenge + hiding <= 41, so soundness is bought back by opening
             |# several independent combinations, which cost one round together
@@ -645,7 +908,7 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         );
         w.push(format!(
             "CHECK_COEFF = {}",
-            python_list(&check_coefficients)
+            mp_spdz_list(&check_coefficients)
         ));
         w.push(format!("CHECK_REPEATS = {}", c.check_repeats));
         w.block(
@@ -694,7 +957,6 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
     } else {
         w.push("# ---- oblivious reference-price lookup ----");
     }
-    // Deliberately unconditional: this mirrors the current Python generator,
     // including its reassignment after the `reference == none` prelude.
     w.block(
         r###"
@@ -983,61 +1245,18 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
         |    expiry = tile_makers(col_expiry.get_vector())
         |    active = tile_makers(col_active.get_vector())
         |    asset_mm = tile_makers(col_asset.get_vector())
-        |    # layer 1: price policy (2 SIMD multiplications, depth 1)
-        |    skew = invcoef * tile_makers(inv_vec)
-        |    depth = slope * qty_v
-        |    # mid is the maker's offset from the reference for its own asset,
-        |    # unless the maker switched the reference off, in which case mid is
-        |    # the level itself. One more multiplication in a layer that already
-        |    # has two, so the depth --- and the round count --- does not move.
+        |    # Layer 1 is emitted from the venue-approved price-policy DSL.
+        |    # Its exact rule digest is checked before the source is compiled.
         "###,
     );
-    if c.reference == Reference::None {
-        w.block(
-            r###"
-            |    # the level is the maker's own; nothing is added to it
-            |    anchored = ask_level
-            "###,
-        );
-    } else {
-        w.block(
-            r###"
-            |    use_ref = tile_makers(col_use_ref.get_vector())
-            |    anchored = ask_level + use_ref * spread_request(ref_secret_per_request)
-            "###,
-        );
+    if c.reference == Reference::Anchored {
+        w.push("    use_ref = tile_makers(col_use_ref.get_vector())");
     }
-    if c.price_conditionals != 0 {
-        w.push(format!(
-            "    # {} conditional(s) on secrets in the price rule.",
-            c.price_conditionals
-        ));
-        w.block(
-            r###"
-            |    # A branch on a secret is a comparison, and comparisons are what
-            |    # rounds are made of --- but every maker is evaluated at once, so
-            |    # this costs its depth once rather than once per maker.
-            "###,
-        );
-        for index in 0..c.price_conditionals {
-            let bound = 200 * (index + 1);
-            if index % 2 == 0 {
-                w.push(format!(
-                    "    skew = (skew > sint(-{bound})).if_else(skew, sint(-{bound}))"
-                ));
-            } else {
-                w.push(format!(
-                    "    skew = (skew < sint({bound})).if_else(skew, sint({bound}))"
-                ));
-            }
-        }
+    let (policy_digest, assignments) = policy_assignments(c)?;
+    w.push(format!("    {POLICY_RULE_DIGEST_MARKER}{policy_digest}"));
+    for assignment in assignments {
+        w.push(format!("    {assignment}"));
     }
-    w.block(
-        r###"
-        |    ask = anchored + depth + skew
-        |    bid = anchored - spread - depth + skew
-        "###,
-    );
     if c.persist_wires {
         for name in [
             "ask_level",
@@ -1223,29 +1442,43 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
                 "###,
             );
             if c.persist_wires {
-                w.push("W_key.assign(wide_keys.get_vector())");
+                if c.persist_quote_proof_wires {
+                    w.push(
+                        "# Bias signed costs for the public u64 proof opening; order is unchanged",
+                    );
+                    w.push("W_key.assign(wide_keys.get_vector() + LARGE * M)");
+                } else {
+                    w.push("W_key.assign(wide_keys.get_vector())");
+                }
             }
             if c.binding_limit {
                 w.block(
                     r###"
-                    |# The comparison is against the packed key, not the price: a key
-                    |# is cost*WIDE + maker, so `cost <= L` is `key <= L*WIDE + WIDE-1`
-                    |# and no unpacking is needed. WIDE is public, so the scaling is
-                    |# local.
-                    |limit_key = u_limit * WIDE + (WIDE - 1)
+                    |# The comparison is against the packed key, not the price. Each
+                    |# request has an independent M-maker lane and `pack_key` uses
+                    |# `cost*M + maker`; N_REQ must never change the price scale.
+                    |# Therefore `cost <= L` is exactly `key <= L*M + M-1`.
+                    |limit_key = u_limit * M + (M - 1)
                     |# The fill comparison rides the tournament's last layer rather
                     |# than running after it. Measured at +9 rounds standalone.
-                    |best_key, fill = argmin_fill(wide_keys.get_vector(0, M), M,
-                    |                             limit_key)
+                    |raw_best_key, raw_fill = argmin_fill(wide_keys.get_vector(0, M), M,
+                    |                                     limit_key)
+                    |# A cover lane must execute the identical circuit but must
+                    |# not leave a usable quote or proof witness.  The client
+                    |# still supplies random output masks, so neither an MPC
+                    |# node nor the coordinator can recognize the zero payload.
+                    |best_key = raw_best_key * u_is_real
+                    |fill = raw_fill * u_is_real
                     "###,
                 );
             } else {
-                w.push("best_key = argmin(wide_keys.get_vector(0, M), M)");
+                w.push("raw_best_key = argmin(wide_keys.get_vector(0, M), M)");
+                w.push("best_key = raw_best_key * u_is_real");
             }
             w.block(
                 r###"
                 |for r in range(1, N_REQ):
-                |    (argmin(wide_keys.get_vector(r * M, M), M) + u_mask).reveal()
+                |    (argmin(wide_keys.get_vector(r * M, M), M) * u_is_real + u_mask).reveal()
                 |# one opened value carries both the winning price and the winning
                 |# maker, under the trader's mask
                 "###,
@@ -1277,6 +1510,252 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
                 "###,
             );
             if c.persist_wires {
+                if c.persist_zkpi_wires {
+                    w.block(
+                        r###"
+                        |# Select the positive settlement price without opening the
+                        |# packed winner. The packed key uses the signed user cost
+                        |# (`ask` for buy, `-bid` for sell); zkPI always carries the
+                        |# positive cash price.
+                        |settlement_prices = dir_v.if_else(bid, ask)
+                        |winner_flags = (wide_keys.get_vector(0, M) == best_key) * u_is_real.expand_to_vector(M)
+                        |zkpi_price = winner_flags[0] * settlement_prices[0]
+                        |for _m in range(1, M):
+                        |    zkpi_price = zkpi_price + winner_flags[_m] * settlement_prices[_m]
+                        |
+                        |# Blindings and bit relations are generated *inside* the
+                        |# malicious-secure MPC. Every Persistence file receives
+                        |# only that party's Shamir evaluation. No later issuer is
+                        |# asked to recreate these values from a clear quote.
+                        |zkpi_qty_blinding = u_qty_blinding
+                        |zkpi_price_blinding = sint.get_random()
+                        |zkpi_qty_bits = W_qty[0].bit_decompose(ZKPI_AMOUNT_BITS)
+                        |zkpi_price_bits = zkpi_price.bit_decompose(ZKPI_PRICE_BITS)
+                        |zkpi_qty_bit_blindings = [sint.get_random() for _ in range(ZKPI_AMOUNT_BITS)]
+                        |zkpi_price_bit_blindings = [sint.get_random() for _ in range(ZKPI_PRICE_BITS)]
+                        |zkpi_qty_bit_cross = [zkpi_qty_bit_blindings[_b] * (1 - zkpi_qty_bits[_b])
+                        |                      for _b in range(ZKPI_AMOUNT_BITS)]
+                        |zkpi_price_bit_cross = [zkpi_price_bit_blindings[_b] * (1 - zkpi_price_bits[_b])
+                        |                        for _b in range(ZKPI_PRICE_BITS)]
+                        "###,
+                    );
+                    if c.persist_dvp_wires {
+                        w.block(
+                            r###"
+                            |# Select the winning Maker's venue-specific account
+                            |# handle without opening either the winner index or
+                            |# the scalar. Its Shamir evaluation is persisted in
+                            |# the zkPI prefix so proof nodes can bind the final
+                            |# payment instruction before authorizing it.
+                            |selected_maker_handle_scalar = winner_flags[0] * dvp_maker_handle_scalars[0]
+                            |for _m in range(1, M):
+                            |    selected_maker_handle_scalar = selected_maker_handle_scalar + winner_flags[_m] * dvp_maker_handle_scalars[_m]
+                            "###,
+                        );
+                    } else {
+                        w.block(
+                            r###"
+                            |# The zkPI-only test circuit has no DvP account
+                            |# registry. Keep the same persistence ABI with
+                            |# deterministic pseudonymous fixture handles.
+                            |selected_maker_handle_scalar = winner_flags[0] * 21
+                            |for _m in range(1, M):
+                            |    selected_maker_handle_scalar = selected_maker_handle_scalar + winner_flags[_m] * (21 + _m)
+                            "###,
+                        );
+                    }
+                    if c.binding_limit {
+                        w.block(
+                            r###"
+                            |# Joint proof witness for the signed hidden price
+                            |# limit. Buy: limit - quote. Sell: quote - limit.
+                            |# A non-filling lane cannot create a valid bounded
+                            |# proof and therefore cannot reach auto-settlement.
+                            |zkpi_limit_difference = u_dir.if_else(zkpi_price - u_limit,
+                            |                                          u_limit - zkpi_price)
+                            |zkpi_limit_difference_blinding = u_dir.if_else(
+                            |    zkpi_price_blinding - u_limit_blinding,
+                            |    u_limit_blinding - zkpi_price_blinding)
+                            |zkpi_limit_difference_bits = zkpi_limit_difference.bit_decompose(ZKPI_PRICE_BITS)
+                            |zkpi_limit_difference_bit_blindings = [sint.get_random() for _ in range(ZKPI_PRICE_BITS)]
+                            |zkpi_limit_difference_bit_cross = [
+                            |    zkpi_limit_difference_bit_blindings[_b] * (1 - zkpi_limit_difference_bits[_b])
+                            |    for _b in range(ZKPI_PRICE_BITS)]
+                            "###,
+                        );
+                    } else {
+                        w.block(
+                            r###"
+                            |# Preserve one persistence layout for all zkPI
+                            |# circuits. A venue may not interpret this zero
+                            |# witness as a signed-limit proof unless the
+                            |# approved circuit has binding_limit enabled.
+                            |zkpi_limit_difference = sint(0)
+                            |zkpi_limit_difference_blinding = sint(0)
+                            |zkpi_limit_difference_bits = [sint(0) for _ in range(ZKPI_PRICE_BITS)]
+                            |zkpi_limit_difference_bit_blindings = [sint(0) for _ in range(ZKPI_PRICE_BITS)]
+                            |zkpi_limit_difference_bit_cross = [sint(0) for _ in range(ZKPI_PRICE_BITS)]
+                            "###,
+                        );
+                    }
+                    if c.persist_dvp_wires {
+                        w.block(
+                            r###"
+                            |
+                            |# The cash leg and both unused reservation amounts
+                            |# remain secret. Their blindings and every bit
+                            |# relation are generated in this same MPC execution,
+                            |# so no later process has to receive both parties'
+                            |# openings in order to build the DvP proof.
+                            |selected_maker_securities_reserve = winner_flags[0] * dvp_maker_securities_reserves[0]
+                            |selected_maker_securities_blinding = winner_flags[0] * dvp_maker_securities_blindings[0]
+                            |selected_maker_cash_reserve = winner_flags[0] * dvp_maker_cash_reserves[0]
+                            |selected_maker_cash_blinding = winner_flags[0] * dvp_maker_cash_blindings[0]
+                            |for _m in range(1, M):
+                            |    selected_maker_securities_reserve = selected_maker_securities_reserve + winner_flags[_m] * dvp_maker_securities_reserves[_m]
+                            |    selected_maker_securities_blinding = selected_maker_securities_blinding + winner_flags[_m] * dvp_maker_securities_blindings[_m]
+                            |    selected_maker_cash_reserve = selected_maker_cash_reserve + winner_flags[_m] * dvp_maker_cash_reserves[_m]
+                            |    selected_maker_cash_blinding = selected_maker_cash_blinding + winner_flags[_m] * dvp_maker_cash_blindings[_m]
+                            |
+                            |# user buys (dir=0): Maker delivers securities and
+                            |# Taker pays cash. user sells (dir=1): the roles reverse.
+                            |dvp_direction = req_dir[0]
+                            |dvp_securities_reserve = dvp_direction.if_else(dvp_taker_securities_reserve,
+                            |                                                   selected_maker_securities_reserve)
+                            |dvp_securities_reserve_blinding = dvp_direction.if_else(dvp_taker_securities_blinding,
+                            |                                                            selected_maker_securities_blinding)
+                            |dvp_cash_reserve = dvp_direction.if_else(selected_maker_cash_reserve,
+                            |                                             dvp_taker_cash_reserve)
+                            |dvp_cash_reserve_blinding = dvp_direction.if_else(selected_maker_cash_blinding,
+                            |                                                      dvp_taker_cash_blinding)
+                            |dvp_cash = W_qty[0] * zkpi_price
+                            |dvp_cash_blinding = sint.get_random()
+                            |dvp_product_cross = dvp_cash_blinding - zkpi_qty_blinding * zkpi_price
+                            |dvp_securities_remainder = dvp_securities_reserve - W_qty[0]
+                            |dvp_securities_remainder_blinding = dvp_securities_reserve_blinding - zkpi_qty_blinding
+                            |dvp_cash_remainder = dvp_cash_reserve - dvp_cash
+                            |dvp_cash_remainder_blinding = dvp_cash_reserve_blinding - dvp_cash_blinding
+                            |dvp_securities_bits = dvp_securities_remainder.bit_decompose(DVP_REMAINDER_BITS)
+                            |dvp_cash_bits = dvp_cash_remainder.bit_decompose(DVP_REMAINDER_BITS)
+                            |dvp_securities_bit_blindings = [sint.get_random() for _ in range(DVP_REMAINDER_BITS)]
+                            |dvp_cash_bit_blindings = [sint.get_random() for _ in range(DVP_REMAINDER_BITS)]
+                            |dvp_securities_bit_cross = [dvp_securities_bit_blindings[_b] * (1 - dvp_securities_bits[_b])
+                            |                            for _b in range(DVP_REMAINDER_BITS)]
+                            |dvp_cash_bit_cross = [dvp_cash_bit_blindings[_b] * (1 - dvp_cash_bits[_b])
+                            |                    for _b in range(DVP_REMAINDER_BITS)]
+                            "###,
+                        );
+                    }
+                    if c.persist_quote_proof_wires {
+                        w.block(
+                            r###"
+                            |
+                            |# Complete quote-proof handoff.  Every blinding and
+                            |# relation below is generated or evaluated inside
+                            |# the same malicious-secure MPC execution as the
+                            |# quote. Persistence writes only this party's share.
+                            |quote_depth_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_skew_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_fits_bit_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_fits_product_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_fresh_bit_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_fresh_product_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_both_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_ok_blindings = [sint.get_random() for _m in range(M)]
+                            |quote_gated_blindings = [sint.get_random() for _m in range(M)]
+                            |
+                            |quote_anchor_blindings = []
+                            |quote_cost_blindings = []
+                            |quote_depth_cross = []
+                            |quote_skew_cross = []
+                            |quote_fits_bit_cross = []
+                            |quote_fits_product_cross = []
+                            |quote_fresh_bit_cross = []
+                            |quote_fresh_product_cross = []
+                            |quote_active_cross = []
+                            |quote_reference_cross = []
+                            |quote_both_cross = []
+                            |quote_ok_cross = []
+                            |quote_gated_cross = []
+                            |quote_fits_witness = []
+                            |quote_fits_witness_blindings = []
+                            |quote_fits_witness_bits = []
+                            |quote_fits_witness_bit_blindings = []
+                            |quote_fits_witness_bit_cross = []
+                            |quote_fresh_witness = []
+                            |quote_fresh_witness_blindings = []
+                            |quote_fresh_witness_bits = []
+                            |quote_fresh_witness_bit_blindings = []
+                            |quote_fresh_witness_bit_cross = []
+                            |quote_key_blindings = []
+                            |
+                            |for _m in range(M):
+                            |    _anchor_blinding = QPB_ask_level[_m] + QPB_use_ref[_m] * ref_secret
+                            |    _ask_blinding = _anchor_blinding + quote_depth_blindings[_m] + quote_skew_blindings[_m]
+                            |    _bid_blinding = _anchor_blinding - QPB_spread[_m] - quote_depth_blindings[_m] + quote_skew_blindings[_m]
+                            |    _cost_blinding = req_dir[0].if_else(-_bid_blinding, _ask_blinding)
+                            |    quote_anchor_blindings.append(_anchor_blinding)
+                            |    quote_cost_blindings.append(_cost_blinding)
+                            |    quote_depth_cross.append(quote_depth_blindings[_m] - QPB_slope[_m] * W_qty[0])
+                            |    quote_skew_cross.append(quote_skew_blindings[_m] - QPB_invcoef[_m] * W_inv[_m])
+                            |    quote_fits_bit_cross.append(quote_fits_bit_blindings[_m] * (1 - W_fits[_m]))
+                            |    quote_fits_product_cross.append(quote_fits_product_blindings[_m] - quote_fits_bit_blindings[_m] * W_fits_margin[_m])
+                            |    quote_fresh_bit_cross.append(quote_fresh_bit_blindings[_m] * (1 - W_fresh_bit[_m]))
+                            |    quote_fresh_product_cross.append(quote_fresh_product_blindings[_m] - quote_fresh_bit_blindings[_m] * W_fresh_margin[_m])
+                            |    quote_active_cross.append(QPB_active[_m] * (1 - W_active[_m]))
+                            |    quote_reference_cross.append(QPB_use_ref[_m] * (1 - col_use_ref[_m]))
+                            |    quote_both_cross.append(quote_both_blindings[_m] - quote_fits_bit_blindings[_m] * W_fresh_bit[_m])
+                            |    _effective_active = W_active[_m] * asset_gate[_m]
+                            |    quote_ok_cross.append(quote_ok_blindings[_m] - quote_both_blindings[_m] * _effective_active)
+                            |    quote_gated_cross.append(quote_gated_blindings[_m] - quote_ok_blindings[_m] * (W_cost[_m] - sint(LARGE)))
+                            |
+                            |    _fits_blinding = QPB_maxqty[_m] - zkpi_qty_blinding
+                            |    _fits_witness = 2 * W_fits_product[_m] - W_fits_margin[_m] + W_fits[_m] - 1
+                            |    _fits_witness_blinding = 2 * quote_fits_product_blindings[_m] - _fits_blinding + quote_fits_bit_blindings[_m]
+                            |    _fits_bits = _fits_witness.bit_decompose(QUOTE_ELIGIBILITY_BITS)
+                            |    _fits_bit_blindings = [sint.get_random() for _b in range(QUOTE_ELIGIBILITY_BITS)]
+                            |    _fits_bit_cross = [_fits_bit_blindings[_b] * (1 - _fits_bits[_b]) for _b in range(QUOTE_ELIGIBILITY_BITS)]
+                            |    quote_fits_witness.append(_fits_witness)
+                            |    quote_fits_witness_blindings.append(_fits_witness_blinding)
+                            |    quote_fits_witness_bits.append(_fits_bits)
+                            |    quote_fits_witness_bit_blindings.append(_fits_bit_blindings)
+                            |    quote_fits_witness_bit_cross.append(_fits_bit_cross)
+                            |
+                            |    _fresh_witness = 2 * W_fresh_product[_m] - W_fresh_margin[_m] + W_fresh_bit[_m] - 1
+                            |    _fresh_witness_blinding = 2 * quote_fresh_product_blindings[_m] - QPB_expiry[_m] + quote_fresh_bit_blindings[_m]
+                            |    _fresh_bits = _fresh_witness.bit_decompose(QUOTE_ELIGIBILITY_BITS)
+                            |    _fresh_bit_blindings = [sint.get_random() for _b in range(QUOTE_ELIGIBILITY_BITS)]
+                            |    _fresh_bit_cross = [_fresh_bit_blindings[_b] * (1 - _fresh_bits[_b]) for _b in range(QUOTE_ELIGIBILITY_BITS)]
+                            |    quote_fresh_witness.append(_fresh_witness)
+                            |    quote_fresh_witness_blindings.append(_fresh_witness_blinding)
+                            |    quote_fresh_witness_bits.append(_fresh_bits)
+                            |    quote_fresh_witness_bit_blindings.append(_fresh_bit_blindings)
+                            |    quote_fresh_witness_bit_cross.append(_fresh_bit_cross)
+                            |    quote_key_blindings.append(quote_gated_blindings[_m] * M)
+                            |
+                            |quote_winner_key_blinding = winner_flags[0] * quote_key_blindings[0]
+                            |for _m in range(1, M):
+                            |    quote_winner_key_blinding = quote_winner_key_blinding + winner_flags[_m] * quote_key_blindings[_m]
+                            |quote_minimality_values = []
+                            |quote_minimality_blindings = []
+                            |quote_minimality_bits = []
+                            |quote_minimality_bit_blindings = []
+                            |quote_minimality_bit_cross = []
+                            |for _m in range(M):
+                            |    _difference = W_key[_m] - (best_key + LARGE * M)
+                            |    _difference_blinding = quote_key_blindings[_m] - quote_winner_key_blinding
+                            |    _difference_bits = _difference.bit_decompose(QUOTE_SPAN_BITS)
+                            |    _difference_bit_blindings = [sint.get_random() for _b in range(QUOTE_SPAN_BITS)]
+                            |    _difference_bit_cross = [_difference_bit_blindings[_b] * (1 - _difference_bits[_b]) for _b in range(QUOTE_SPAN_BITS)]
+                            |    quote_minimality_values.append(_difference)
+                            |    quote_minimality_blindings.append(_difference_blinding)
+                            |    quote_minimality_bits.append(_difference_bits)
+                            |    quote_minimality_bit_blindings.append(_difference_bit_blindings)
+                            |    quote_minimality_bit_cross.append(_difference_bit_cross)
+                            "###,
+                        );
+                    }
+                }
                 w.block(
                     r###"
                     |wires = [best_key, W_qty[0]]
@@ -1288,9 +1767,81 @@ pub fn build_program(config: &ProgramConfig) -> Result<String, ProgramError> {
                     |              W_fits_margin[_m], W_fresh_margin[_m], W_fresh_bit[_m],
                     |              W_fits_product[_m], W_fresh_product[_m],
                     |              W_both[_m], W_gated[_m], W_cost[_m]]
-                    |sint.write_to_file(wires)
                     "###,
                 );
+                if c.persist_zkpi_wires {
+                    w.block(
+                        r###"
+                        |wires += [selected_maker_handle_scalar, zkpi_price,
+                        |          zkpi_qty_blinding, zkpi_price_blinding]
+                        |for _b in range(ZKPI_AMOUNT_BITS):
+                        |    wires += [zkpi_qty_bits[_b], zkpi_qty_bit_blindings[_b],
+                        |              zkpi_qty_bit_cross[_b]]
+                        |for _b in range(ZKPI_PRICE_BITS):
+                        |    wires += [zkpi_price_bits[_b], zkpi_price_bit_blindings[_b],
+                        |              zkpi_price_bit_cross[_b]]
+                        |wires += [zkpi_limit_difference, zkpi_limit_difference_blinding]
+                        |for _b in range(ZKPI_PRICE_BITS):
+                        |    wires += [zkpi_limit_difference_bits[_b],
+                        |              zkpi_limit_difference_bit_blindings[_b],
+                        |              zkpi_limit_difference_bit_cross[_b]]
+                        "###,
+                    );
+                    if c.persist_dvp_wires {
+                        w.block(
+                            r###"
+                            |wires += [dvp_cash, dvp_cash_blinding,
+                            |          dvp_product_cross, dvp_securities_remainder,
+                            |          dvp_securities_remainder_blinding]
+                            |for _b in range(DVP_REMAINDER_BITS):
+                            |    wires += [dvp_securities_bits[_b], dvp_securities_bit_blindings[_b],
+                            |              dvp_securities_bit_cross[_b]]
+                            |wires += [dvp_cash_remainder, dvp_cash_remainder_blinding]
+                            |for _b in range(DVP_REMAINDER_BITS):
+                            |    wires += [dvp_cash_bits[_b], dvp_cash_bit_blindings[_b],
+                            |              dvp_cash_bit_cross[_b]]
+                            "###,
+                        );
+                    }
+                    if c.persist_quote_proof_wires {
+                        w.block(
+                            r###"
+                            |for _m in range(M):
+                            |    wires += [col_use_ref[_m],
+                            |              QPB_ask_level[_m], QPB_spread[_m], QPB_slope[_m],
+                            |              QPB_invcoef[_m], QPB_inv[_m], QPB_maxqty[_m],
+                            |              QPB_expiry[_m], QPB_active[_m], QPB_use_ref[_m],
+                            |              quote_depth_blindings[_m], quote_skew_blindings[_m],
+                            |              quote_fits_bit_blindings[_m], quote_fits_product_blindings[_m],
+                            |              quote_fresh_bit_blindings[_m], quote_fresh_product_blindings[_m],
+                            |              quote_both_blindings[_m], quote_ok_blindings[_m], quote_gated_blindings[_m],
+                            |              quote_cost_blindings[_m],
+                            |              quote_depth_cross[_m], quote_skew_cross[_m],
+                            |              quote_fits_bit_cross[_m], quote_fits_product_cross[_m],
+                            |              quote_fresh_bit_cross[_m], quote_fresh_product_cross[_m],
+                            |              quote_active_cross[_m], quote_reference_cross[_m],
+                            |              quote_both_cross[_m], quote_ok_cross[_m], quote_gated_cross[_m],
+                            |              quote_fits_witness[_m], quote_fits_witness_blindings[_m]]
+                            |    for _b in range(QUOTE_ELIGIBILITY_BITS):
+                            |        wires += [quote_fits_witness_bits[_m][_b],
+                            |                  quote_fits_witness_bit_blindings[_m][_b],
+                            |                  quote_fits_witness_bit_cross[_m][_b]]
+                            |    wires += [quote_fresh_witness[_m], quote_fresh_witness_blindings[_m]]
+                            |    for _b in range(QUOTE_ELIGIBILITY_BITS):
+                            |        wires += [quote_fresh_witness_bits[_m][_b],
+                            |                  quote_fresh_witness_bit_blindings[_m][_b],
+                            |                  quote_fresh_witness_bit_cross[_m][_b]]
+                            |    wires += [quote_key_blindings[_m],
+                            |              quote_minimality_values[_m], quote_minimality_blindings[_m]]
+                            |    for _b in range(QUOTE_SPAN_BITS):
+                            |        wires += [quote_minimality_bits[_m][_b],
+                            |                  quote_minimality_bit_blindings[_m][_b],
+                            |                  quote_minimality_bit_cross[_m][_b]]
+                            "###,
+                        );
+                    }
+                }
+                w.push("sint.write_to_file(wires)");
             } else {
                 w.push("sint.write_to_file([best_key])");
             }
@@ -1417,7 +1968,7 @@ mod tests {
     }
 
     #[test]
-    fn sentinel_matches_the_python_rule() {
+    fn sentinel_matches_the_packing_rule() {
         assert_eq!(sentinel_for(31, 16, 800_000).unwrap(), 33_554_432);
     }
 

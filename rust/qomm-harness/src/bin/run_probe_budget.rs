@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_probe_budget.py`.
-
 use qomm_harness::{median, parse_value, write_pretty_json, HarnessResult};
 use qomm_sim::attackers;
 use qomm_sim::engine::{run_arm, ArmOptions};
@@ -131,7 +129,7 @@ fn one_seed(seed: u64, probes_per_window: usize) -> Vec<(usize, f64)> {
 
 fn round_places(value: f64, places: i32) -> f64 {
     let scale = 10f64.powi(places);
-    qomm_sim::market::py_round(value * scale) as f64 / scale
+    qomm_sim::market::round_half_even(value * scale) as f64 / scale
 }
 
 fn parse_args() -> HarnessResult<Options> {

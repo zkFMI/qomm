@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_multiplication_cost.py`.
-
 use qomm_harness::local_mpc::{maybe_run_party, LocalMpcRun};
 use qomm_harness::{
     parse_value, timing_summary, unique_temp_dir, write_pretty_json, HarnessResult,
@@ -104,7 +102,7 @@ fn run_main() -> HarnessResult<()> {
                 )?);
             }
             let overhead = slope(&control_rows, options.parties, options.field_bits, delta)?;
-            let net = py_round_places(
+            let net = round_half_even_places(
                 arm["per_multiplication"]["per_party_elements"]
                     .as_f64()
                     .unwrap_or(0.0)
@@ -122,7 +120,7 @@ fn run_main() -> HarnessResult<()> {
         .unwrap_or(&first["per_multiplication"])["per_party_elements"]
         .as_f64()
         .unwrap_or(0.0);
-    let ratio = (here != 0.0).then(|| py_round_places(5.5 / here, 2));
+    let ratio = (here != 0.0).then(|| round_half_even_places(5.5 / here, 2));
     let payload = json!({
         "host": qomm_measure::hosts::this_host(),
         "n_parties": {"exact": options.parties},
@@ -216,9 +214,9 @@ fn slope(rows: &[Value], parties: usize, field_bits: usize, delta: usize) -> Har
     let global_bytes = delta_mb * 1e6 / delta as f64;
     let per_party = global_bytes / parties as f64;
     Ok(json!({
-        "global_bytes": py_round_places(global_bytes, 2),
-        "per_party_bytes": py_round_places(per_party, 2),
-        "per_party_elements": py_round_places(per_party / (field_bits as f64 / 8.0), 3),
+        "global_bytes": round_half_even_places(global_bytes, 2),
+        "per_party_bytes": round_half_even_places(per_party, 2),
+        "per_party_elements": round_half_even_places(per_party / (field_bits as f64 / 8.0), 3),
     }))
 }
 
@@ -230,9 +228,9 @@ fn protocol_name(binary: &str) -> &'static str {
     }
 }
 
-fn py_round_places(value: f64, places: i32) -> f64 {
+fn round_half_even_places(value: f64, places: i32) -> f64 {
     let scale = 10f64.powi(places);
-    qomm_sim::market::py_round(value * scale) as f64 / scale
+    qomm_sim::market::round_half_even(value * scale) as f64 / scale
 }
 
 fn parse_args() -> HarnessResult<Options> {

@@ -54,3 +54,17 @@ fn nothing_is_emitted_when_there_is_no_limit() {
     assert!(!source.contains("argmin_fill"));
     assert!(!source.contains("limit_key"));
 }
+
+#[test]
+fn request_batch_size_never_changes_the_packed_price_scale() {
+    let source = build_program(&ProgramConfig {
+        n_mm: 16,
+        n_requests: 4,
+        binding_limit: true,
+        ..ProgramConfig::default()
+    })
+    .unwrap();
+    assert!(source.contains("return cost * M + index_vec"));
+    assert!(source.contains("limit_key = u_limit * M + (M - 1)"));
+    assert!(!source.contains("limit_key = u_limit * WIDE"));
+}

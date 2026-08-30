@@ -1,5 +1,3 @@
-//! Rust port of `scripts/manifest.py`.
-
 use qomm_harness::{write_pretty_json, HarnessResult};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -120,7 +118,7 @@ fn entries(artifacts: &Path) -> HarnessResult<BTreeMap<String, Value>> {
             match serde_json::from_slice::<Value>(&raw) {
                 Ok(loaded) => {
                     if let Some(object) = loaded.as_object() {
-                        for field in ["host", "rustc", "python", "runtime", "target", "group"] {
+                        for field in ["host", "rustc", "runtime", "target", "group"] {
                             if let Some(value) = object.get(field) {
                                 record.insert(field.into(), value.clone());
                             }

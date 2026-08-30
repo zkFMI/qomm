@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_dp_audit.py`.
-
 use qomm_harness::{write_pretty_json, HarnessResult};
 use qomm_sim::audit::{audit_window, AuditResult, AuditSettings, Field};
 use qomm_sim::disclosure::WindowObservation;
@@ -53,7 +51,6 @@ struct Job {
 
 impl Row {
     fn from_result(result: AuditResult, field: String) -> Self {
-        // Python's `round()` produces an integer threshold after the first
         // positive result, but the untouched sentinel is the float `0.0`.
         let best_threshold = if result.empirical_epsilon > 0.0 {
             json!(result.best_threshold as i64)
@@ -129,7 +126,6 @@ fn run() -> HarnessResult<()> {
         &arm_options,
     );
 
-    // Python dictionaries retain the first-seen entity order. The simulation
     // core uses BTreeMap for deterministic keyed state, so reconstruct that
     // insertion order from the attempt stream for tie-breaking below.
     let mut first_seen_by_window: BTreeMap<usize, BTreeMap<usize, usize>> = BTreeMap::new();
@@ -142,7 +138,7 @@ fn run() -> HarnessResult<()> {
     }
 
     let mut windows = result.windows;
-    windows.sort_by(|left, right| right.requests.cmp(&left.requests));
+    windows.sort_by_key(|window| std::cmp::Reverse(window.requests));
     windows.truncate(options.windows);
 
     let job_count =

@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_input_check.py`.
-
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
@@ -14,8 +12,11 @@ use std::time::Instant;
 
 const CHALLENGE_BITS: usize = 40;
 const STATISTICAL_BITS: usize = 40;
+#[cfg(test)]
 const NARROW_CHALLENGE_BITS: usize = 6;
+#[cfg(test)]
 const NARROW_STATISTICAL_BITS: usize = 35;
+#[cfg(test)]
 const NARROW_REPEATS: usize = 7;
 const SHARE_SLACK_BITS: usize = 40;
 const PEDERSEN_PUBLICLY_VERIFIABLE: bool = true;
@@ -83,6 +84,7 @@ impl VoleScheme {
         out
     }
 
+    #[cfg(test)]
     fn opens(&self, commitment: VoleCommitment, value: u128, key: u128) -> bool {
         commitment == self.commit(value, key)
     }
@@ -102,12 +104,14 @@ impl PedersenInputCheck {
         self.openings.len()
     }
 
+    #[cfg(test)]
     fn soundness_bits(&self) -> usize {
         self.challenge_bits * self.repeats()
     }
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn build_pedersen_check(
     key: &Pedersen,
     values: &[i64],
@@ -272,6 +276,7 @@ impl VoleInputCheck {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn build_vole_check(
     scheme: &VoleScheme,
     values: &[i128],
@@ -434,7 +439,9 @@ fn main() {
 fn run_main() -> HarnessResult<()> {
     let options = parse_args()?;
     if options.group != "ed25519" {
-        return Err("the Rust port supports the repository's ed25519 measurement group".into());
+        return Err(
+            "the native harness supports the repository's ed25519 measurement group".into(),
+        );
     }
     if options.repeats == 0 || options.inputs.is_empty() || options.parties < 4 {
         return Err("--repeats/--inputs must be non-zero and --parties must be at least 4".into());
@@ -477,8 +484,8 @@ fn run_main() -> HarnessResult<()> {
                 let verify = row["verify_ms"]["median"].as_f64().unwrap_or(0.0)
                     / base["verify_ms"]["median"].as_f64().unwrap_or(1.0);
                 row["over_aggregate"] = json!({
-                    "build": py_round_places(build, 2),
-                    "verify": py_round_places(verify, 2),
+                    "build": round_half_even_places(build, 2),
+                    "verify": round_half_even_places(verify, 2),
                 });
             }
             rows.push(row);
@@ -498,7 +505,7 @@ fn run_main() -> HarnessResult<()> {
         let scale = ped["scale_us"]["median"].as_f64().unwrap_or(0.0)
             / vol["scale_us"]["median"].as_f64().unwrap_or(1.0);
         let verify = if options.inputs.len() > 2 {
-            Some(py_round_places(
+            Some(round_half_even_places(
                 ped["rows"][2]["verify_ms"]["median"]
                     .as_f64()
                     .unwrap_or(0.0)
@@ -511,7 +518,7 @@ fn run_main() -> HarnessResult<()> {
             None
         };
         result["vole_speedup"] = json!({
-            "scale": py_round_places(scale, 1),
+            "scale": round_half_even_places(scale, 1),
             "verify_at_166": verify,
         });
     }
@@ -823,6 +830,7 @@ struct PerParty {
     masks: Vec<RistrettoPoint>,
     openings: Vec<Scalar>,
     opening_blindings: Vec<Scalar>,
+    #[allow(dead_code)]
     challenge_bits: usize,
 }
 
@@ -835,6 +843,7 @@ impl PerParty {
         self.commitments.first().map_or(0, Vec::len)
     }
 
+    #[cfg(test)]
     fn soundness_bits(&self) -> usize {
         self.challenge_bits
     }
@@ -1189,6 +1198,7 @@ fn width_check_with(
 }
 
 #[derive(Clone, Copy, Debug)]
+#[cfg(test)]
 struct NarrowTradeoff {
     challenge_bits: usize,
     statistical_bits: usize,
@@ -1197,6 +1207,7 @@ struct NarrowTradeoff {
     hiding_bits: f64,
 }
 
+#[cfg(test)]
 fn narrow_tradeoff(inputs: usize, value_bits: usize) -> Vec<NarrowTradeoff> {
     let mut rows = Vec::new();
     for challenge_bits in 2usize..=40 {
@@ -1216,8 +1227,8 @@ fn narrow_tradeoff(inputs: usize, value_bits: usize) -> Vec<NarrowTradeoff> {
             challenge_bits,
             statistical_bits: gap as usize,
             repeats,
-            soundness_bits: py_round_places(repeats as f64 * per_round, 1),
-            hiding_bits: py_round_places(gap as f64 - (repeats as f64).log2(), 1),
+            soundness_bits: round_half_even_places(repeats as f64 * per_round, 1),
+            hiding_bits: round_half_even_places(gap as f64 - (repeats as f64).log2(), 1),
         });
     }
     rows
@@ -1243,7 +1254,7 @@ fn random_scalar_bits(bits: usize, rng: &mut OsRng) -> Scalar {
     let mut bytes = [0u8; 32];
     let used = bits.div_ceil(8).min(32);
     rng.fill_bytes(&mut bytes[..used]);
-    if bits % 8 != 0 && used > 0 {
+    if !bits.is_multiple_of(8) && used > 0 {
         bytes[used - 1] &= (1u8 << (bits % 8)) - 1;
     }
     Scalar::from_bytes_mod_order(bytes)
@@ -1305,9 +1316,9 @@ fn mul_mod(mut left: u128, mut right: u128, modulus: u128) -> u128 {
     result
 }
 
-fn py_round_places(value: f64, places: i32) -> f64 {
+fn round_half_even_places(value: f64, places: i32) -> f64 {
     let scale = 10f64.powi(places);
-    qomm_sim::market::py_round(value * scale) as f64 / scale
+    qomm_sim::market::round_half_even(value * scale) as f64 / scale
 }
 
 fn parse_args() -> HarnessResult<Options> {
@@ -1897,8 +1908,10 @@ mod tests {
 
     #[test]
     fn the_two_schemes_do_not_promise_the_same_thing() {
-        assert!(PEDERSEN_PUBLICLY_VERIFIABLE);
-        assert!(!VOLE_PUBLICLY_VERIFIABLE);
+        const {
+            assert!(PEDERSEN_PUBLICLY_VERIFIABLE);
+            assert!(!VOLE_PUBLICLY_VERIFIABLE);
+        }
     }
 
     #[test]

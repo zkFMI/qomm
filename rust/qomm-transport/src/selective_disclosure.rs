@@ -63,7 +63,10 @@ impl X25519PublicKey {
     }
 }
 
-fn shared(private: &X25519PrivateKey, public: &X25519PublicKey) -> Result<Vec<u8>, String> {
+pub(crate) fn shared(
+    private: &X25519PrivateKey,
+    public: &X25519PublicKey,
+) -> Result<Vec<u8>, String> {
     let mut deriver = Deriver::new(&private.0).map_err(|error| error.to_string())?;
     deriver
         .set_peer(&public.0)
@@ -110,7 +113,7 @@ fn derive_key(
     hmac_sha256(&pseudorandom, &info)
 }
 
-fn encrypt(
+pub(crate) fn encrypt(
     key: &[u8; 32],
     nonce: &[u8; 12],
     clear: &[u8],
@@ -137,7 +140,7 @@ fn encrypt(
     Ok(output)
 }
 
-fn decrypt(
+pub(crate) fn decrypt(
     key: &[u8; 32],
     nonce: &[u8; 12],
     encrypted: &[u8],

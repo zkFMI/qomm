@@ -5,35 +5,32 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use openssl::x509::X509;
 use qomm_dsl::registry::CircuitRegistry;
-use qomm_mpc::program::{build_program, ProgramConfig};
+use qomm_mpc::program::{build_program, policy_rule_source, ProgramConfig, POLICY_RULE_NAME};
 use qomm_proofs::kyb::{
     cohort_id, present, BusinessAttributes, EntityLimits, KybCredential, KybIssuer,
 };
 use qomm_transport::executor::{
-    circuit_shape_digest, write_source_bound_executable, ProgramRegistry, RegisteredProgram,
+    circuit_shape_digest, write_source_bound_runtime_executable, ProgramRegistry,
+    RegisteredProgram, RuntimeBinding,
 };
 use qomm_transport::key_management::{create_ca, issue_mutual_tls_certificate, write_tls_bundle};
 use qomm_transport::node_service::{
-    certificate_fingerprint, client_ssl_context, server_ssl_context, KybPolicy, NodeStore,
-    Principal, RateLimitPolicy, ResidentNodeClient, ResidentNodeLocalClient, ResidentNodeServer,
-    RECORD_BYTES,
+    certificate_fingerprint, client_ssl_context, server_ssl_context, KybPolicy, NodeSealingKeys,
+    NodeStore, Principal, RateLimitPolicy, ResidentNodeClient, ResidentNodeLocalClient,
+    ResidentNodeServer, RECORD_BYTES,
 };
 use qomm_transport::wire::{Frame, PAYLOAD_BYTES};
 use serde_json::{json, Value};
-use sha2::Digest;
+use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::fs;
+use std::os::unix::fs::PermissionsExt;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 const KYB_SCOPE: &[u8] = b"qomm-test-venue/orders";
-
-const RULE: &str = "\
-param mid[99000,101000] half[1,200] slope[0,16]\n\
-input qty[1,1000]\n\
-ask = mid + half + slope * qty\n";
 
 struct Bundle {
     key: PathBuf,
@@ -125,12 +122,19 @@ fn raw_frame(slot: u32, marker: u8, key: &[u8]) -> Vec<u8> {
 }
 
 fn request(id: &str, slot: u32, raw: &[u8]) -> Value {
+    let claim: [u8; 32] = Sha256::new()
+        .chain_update(b"QOMM:TEST:ADMISSION-CLAIM:v1")
+        .chain_update(slot.to_be_bytes())
+        .chain_update(raw)
+        .finalize()
+        .into();
     json!({
         "version": 1,
         "request_id": id,
         "operation": "submit",
         "slot": slot,
         "frame": BASE64.encode(raw),
+        "admission_claim_digest": hex::encode(claim),
     })
 }
 
@@ -206,9 +210,62 @@ fn approved_registry(node: u16, directory: &Path) -> (Arc<ProgramRegistry>, Stri
         u64::from(config.bit_length),
     ];
     let mut circuits = CircuitRegistry::default();
-    circuits.approve("quote", RULE, &generated, &shape).unwrap();
+    circuits
+        .approve(
+            POLICY_RULE_NAME,
+            &policy_rule_source(&config),
+            &generated,
+            &shape,
+        )
+        .unwrap();
+    let runtime_executable = directory.join(format!("node-{node}-runtime"));
+    let runtime_fixture = format!(
+        concat!(
+            "#!/bin/sh\n",
+            "set -eu\n",
+            "node= slot= batch= lane= source=\n",
+            "while [ \"$#\" -gt 0 ]; do\n",
+            "  case \"$1\" in\n",
+            "    --config) shift 2 ;;\n",
+            "    --node) node=\"$2\"; shift 2 ;;\n",
+            "    --slot) slot=\"$2\"; shift 2 ;;\n",
+            "    --batch-digest) batch=\"$2\"; shift 2 ;;\n",
+            "    --lane) lane=\"$2\"; shift 2 ;;\n",
+            "    --source-digest) source=\"$2\"; shift 2 ;;\n",
+            "    *) exit 64 ;;\n",
+            "  esac\n",
+            "done\n",
+            "cat >/dev/null\n",
+            "printf '{{\"node\":%s,\"slot\":%s,\"lane\":%s,",
+            "\"batch_digest\":\"%s\",\"source_digest\":\"%s\",",
+            "\"state_generation\":1,\"frame_count\":1,\"input_count\":1,",
+            "\"elapsed_ns\":1,\"stdout_digest\":\"{}\",",
+            "\"stderr_digest\":\"{}\",",
+            "\"persistence_path\":\"/private/Transactions-P%s.data\",",
+            "\"persistence_digest\":\"{}\"}}\\n' ",
+            "\"$node\" \"$slot\" \"$lane\" \"$batch\" \"$source\" \"$node\"\n",
+        ),
+        "05".repeat(32),
+        "06".repeat(32),
+        "07".repeat(32),
+    );
+    fs::write(&runtime_executable, runtime_fixture).unwrap();
+    fs::set_permissions(&runtime_executable, fs::Permissions::from_mode(0o700)).unwrap();
+    let runtime_executable = fs::canonicalize(runtime_executable).unwrap();
+    let runtime_config = directory.join(format!("node-{node}-runtime.json"));
+    fs::write(&runtime_config, b"{\"version\":1}\n").unwrap();
+    fs::set_permissions(&runtime_config, fs::Permissions::from_mode(0o600)).unwrap();
+    let runtime_config = fs::canonicalize(runtime_config).unwrap();
+    let runtime = RuntimeBinding {
+        executable: runtime_executable.clone(),
+        executable_sha256: hex::encode(sha2::Sha256::digest(
+            fs::read(&runtime_executable).unwrap(),
+        )),
+        config: runtime_config.clone(),
+        config_sha256: hex::encode(sha2::Sha256::digest(fs::read(&runtime_config).unwrap())),
+    };
     let executable = directory.join(format!("node-{node}-compute"));
-    write_source_bound_executable(&executable, &generated).unwrap();
+    write_source_bound_runtime_executable(&executable, &generated, &runtime).unwrap();
     let executable = fs::canonicalize(executable).unwrap();
     let shape_digest = circuit_shape_digest(&shape);
     let program = RegisteredProgram {
@@ -221,6 +278,7 @@ fn approved_registry(node: u16, directory: &Path) -> (Arc<ProgramRegistry>, Stri
         ],
         cwd: directory.to_path_buf(),
         executable_sha256: hex::encode(sha2::Sha256::digest(fs::read(&executable).unwrap())),
+        runtime: Some(runtime),
         timeout_seconds: 5.0,
     };
     let registry =
@@ -239,6 +297,7 @@ fn unapproved_computation_registry_is_refused_before_listening() {
         argv: vec![executable.display().to_string(), "ok".into()],
         cwd: directory.path().to_path_buf(),
         executable_sha256: hex::encode(sha2::Sha256::digest(fs::read(&executable).unwrap())),
+        runtime: None,
         timeout_seconds: 5.0,
     };
     let unapproved = Arc::new(ProgramRegistry::new(0, vec![program]).unwrap());
@@ -249,6 +308,7 @@ fn unapproved_computation_registry_is_refused_before_listening() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         BTreeMap::new(),
         None,
+        NodeSealingKeys::generate_for_testing(),
         Arc::new(NodeStore::open(directory.path().join("node.sqlite3")).unwrap()),
         Some(unapproved),
         RateLimitPolicy::default(),
@@ -288,6 +348,7 @@ fn real_mutual_tls_fixed_records_durable_idempotency_and_reconnect() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::clone(&store),
         Some(Arc::clone(&registry)),
         RateLimitPolicy::default(),
@@ -356,6 +417,7 @@ fn frame_replacement_bad_mac_and_changed_idempotency_body_fail_closed() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::clone(&store),
         None,
         RateLimitPolicy::default(),
@@ -425,6 +487,7 @@ fn fresh_wallet_cannot_bypass_a_legal_entity_scope_cap() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::clone(&store),
         None,
         policy,
@@ -487,6 +550,7 @@ fn incomplete_duplicate_unclosed_and_unopened_slots_are_refused() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         store,
         Some(registry),
         RateLimitPolicy::default(),
@@ -618,6 +682,7 @@ fn configured_nullifier_without_a_kyb_presentation_is_refused() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::new(NodeStore::open(directory.path().join("node.sqlite3")).unwrap()),
         None,
         RateLimitPolicy::default(),
@@ -685,6 +750,7 @@ fn kyb_presentation_is_bound_to_venue_scope_and_its_proved_nullifier() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::new(NodeStore::open(directory.path().join("node.sqlite3")).unwrap()),
         None,
         RateLimitPolicy::default(),
@@ -721,6 +787,7 @@ fn caller_selected_slot_cannot_move_the_entity_cap_epoch() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
+        NodeSealingKeys::generate_for_testing(),
         Arc::new(NodeStore::open(directory.path().join("node.sqlite3")).unwrap()),
         None,
         policy,

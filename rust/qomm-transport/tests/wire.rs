@@ -1,8 +1,21 @@
 use qomm_transport::wire::{
-    frame_is_authentic, reconstruct, share_request, Frame, FRAME_BYTES, PAYLOAD_BYTES,
+    frame_is_authentic, reconstruct, share_request, FieldElement, Frame, FRAME_BYTES, PAYLOAD_BYTES,
 };
 
 const N_REQUEST_VALUES: usize = 4;
+
+const ED25519_ORDER_BE: [u8; 32] = [
+    0x10, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x14, 0xde, 0xf9, 0xde, 0xa2, 0xf7, 0x9c, 0xd6, 0x58, 0x12, 0x63, 0x1a, 0x5c, 0xf5, 0xd3, 0xed,
+];
+
+#[test]
+fn wire_field_is_exactly_the_mp_spdz_scalar_field() {
+    assert!(FieldElement::from_be_bytes(ED25519_ORDER_BE).is_err());
+    let mut largest = ED25519_ORDER_BE;
+    largest[31] -= 1;
+    assert!(FieldElement::from_be_bytes(largest).is_ok());
+}
 
 #[test]
 fn real_and_cover_requests_have_identical_fixed_wire_size() {

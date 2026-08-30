@@ -4,7 +4,7 @@ use rand::rngs::StdRng;
 use rand::SeedableRng;
 
 #[test]
-fn maker_motion_stays_inside_the_python_demo_bounds() {
+fn maker_motion_stays_inside_the_demo_bounds() {
     let mut maker = Policy {
         ask_level: 40,
         spread: 120,
@@ -23,7 +23,7 @@ fn maker_motion_stays_inside_the_python_demo_bounds() {
 }
 
 #[test]
-fn a_real_fill_moves_inventory_in_the_direction_the_python_demo_uses() {
+fn a_real_fill_moves_inventory_in_the_direction_the_demo_uses() {
     let mut maker = Policy::default();
     maker_filled(
         &mut maker,

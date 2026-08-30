@@ -1,6 +1,7 @@
 //! Minimal local MP-SPDZ orchestration shared by harnesses that inspect raw logs.
 
 use crate::{unique_temp_dir, HarnessResult};
+use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::Protocol;
 use std::fs::{self, File};
 use std::net::TcpListener;
@@ -122,13 +123,8 @@ impl LocalMpcRun {
     }
 
     pub fn compile(&self, field_bits: usize) -> HarnessResult<Option<u64>> {
-        let python = std::env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
-        let output = Command::new(python)
-            .current_dir(&self.root)
-            .arg("./compile.py")
-            .args(["-F", &field_bits.to_string()])
-            .arg(&self.program)
-            .output()?;
+        let compiler = OfficialCompiler::from_checkout(&self.root)?;
+        let output = compiler.compile_field(field_bits, &self.program)?;
         if !output.status.success() {
             let text = format!(
                 "{}{}",
@@ -342,6 +338,7 @@ impl LocalMpcRun {
             ok: !failed,
             wall_seconds: started.elapsed().as_secs_f64(),
             combined,
+            party_logs: logs,
             party0_mb,
             party0_rounds,
             global_mb,
@@ -378,6 +375,10 @@ pub struct StockRun {
     pub ok: bool,
     pub wall_seconds: f64,
     pub combined: String,
+    /// One unmodified runtime log per MPC party, ordered by party index.
+    /// Publication acceptance uses these to build node-local transcript
+    /// evidence without exposing any private input file.
+    pub party_logs: Vec<String>,
     pub party0_mb: Option<f64>,
     pub party0_rounds: Option<u64>,
     pub global_mb: Option<f64>,
@@ -442,7 +443,7 @@ fn parse_global_sent(text: &str) -> Option<f64> {
         let Some((_, rest)) = line.split_once("Global data sent =") else {
             continue;
         };
-        return rest.trim().split_whitespace().next()?.parse().ok();
+        return rest.split_whitespace().next()?.parse().ok();
     }
     None
 }

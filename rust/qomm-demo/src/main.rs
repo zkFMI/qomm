@@ -85,7 +85,9 @@ fn run() -> Result<(), String> {
         return Err("round interval must be positive".into());
     }
     if nodes < 4 * threshold + 1 {
-        eprintln!("note: N={nodes}, T={threshold} is below n >= 4T+1; product-share correction is reduced");
+        eprintln!(
+            "note: N={nodes}, T={threshold} cannot run the optional n >= 4T+1 Atlas identify-and-correct demonstration; MP-SPDZ malicious-Shamir remains the execution protocol"
+        );
     }
     let mut room = Room::new(makers, nodes, threshold, input_check, seed)?;
     if engine == "mpc" {

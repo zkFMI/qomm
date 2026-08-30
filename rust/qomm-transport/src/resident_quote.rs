@@ -5,6 +5,7 @@
 //! whose protocol cost the measurement harness is intended to measure.
 
 use qomm_dsl::registry::program_digest;
+use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::inputs::{build_inputs, finish_reference, parse_policies, InputConfig};
 use qomm_mpc::program::{
     build_program, pow2_ceil, sentinel_for, CheckMode, Disclosure, Mode, ProgramConfig,
@@ -23,7 +24,7 @@ use std::time::{Duration, Instant};
 
 pub type QuoteResult<T> = Result<T, String>;
 
-const SHAPE: [&str; 14] = [
+const SHAPE: [&str; 15] = [
     "n_mm",
     "n_parties",
     "mode",
@@ -36,6 +37,7 @@ const SHAPE: [&str; 14] = [
     "edabit",
     "audit_gates",
     "public_maker_assets",
+    "input_check",
     "threshold",
     "ref_table",
 ];
@@ -54,6 +56,7 @@ struct Request {
     edabit: bool,
     audit_gates: bool,
     public_maker_assets: bool,
+    input_check: bool,
     threshold: usize,
     user_qty: i128,
     user_dir: i128,
@@ -73,6 +76,13 @@ impl Request {
         let defaults = ProgramConfig::default();
         let mode_name = string(object, "mode", defaults.mode.as_str())?;
         let disclose_name = string(object, "disclose", defaults.disclose.as_str())?;
+        let input_check = bool_field(object, "input_check", true)?;
+        if !input_check {
+            return Err(
+                "resident quote service refuses unchecked MPC inputs; use the measurement harness for unchecked experiments"
+                    .into(),
+            );
+        }
         Ok(Self {
             n_mm: usize_field(object, "n_mm", defaults.n_mm)?,
             n_parties: usize_field(object, "n_parties", defaults.n_parties)?,
@@ -81,8 +91,8 @@ impl Request {
             rfs_steps: usize_field(object, "rfs_steps", defaults.rfs_steps)?,
             disclose: Disclosure::parse(&disclose_name)
                 .ok_or_else(|| "disclose must be none or threshold".to_string())?,
-            // serve_qomm.py intentionally differs from ProgramConfig's direct
-            // library default here, so this is the service contract's default.
+            // The resident service intentionally differs from ProgramConfig's
+            // direct library default here, so this is the service contract's default.
             bit_length: u32_field(object, "bit_length", 31)?,
             argmin_arity: usize_field(object, "argmin_arity", defaults.argmin_arity)?,
             n_assets: usize_field(object, "n_assets", defaults.n_assets)?,
@@ -94,6 +104,7 @@ impl Request {
                 "public_maker_assets",
                 defaults.public_maker_assets,
             )?,
+            input_check,
             threshold: usize_field(object, "threshold", 2)?,
             user_qty: i128_field(object, "user_qty", 100)?,
             user_dir: i128_field(object, "user_dir", 0)?,
@@ -126,6 +137,7 @@ impl Request {
             "public_maker_assets".into(),
             json!(self.public_maker_assets),
         );
+        values.insert("input_check".into(), json!(self.input_check));
         values.insert("threshold".into(), json!(self.threshold));
         values.insert(
             "ref_table".into(),
@@ -205,6 +217,7 @@ struct Shape {
 
 /// One compiled MP-SPDZ circuit per request shape.
 pub struct CircuitCache {
+    compiler: OfficialCompiler,
     root: PathBuf,
     workdir: PathBuf,
     shapes: Vec<Shape>,
@@ -220,10 +233,9 @@ impl CircuitCache {
         workdir: impl AsRef<Path>,
         approvals: Option<Vec<Approval>>,
     ) -> QuoteResult<Self> {
-        let root = fs::canonicalize(root.as_ref()).map_err(|error| error.to_string())?;
-        if !root.join("compile.py").is_file() {
-            return Err(format!("{} is not an MP-SPDZ checkout", root.display()));
-        }
+        let compiler =
+            OfficialCompiler::from_checkout(root.as_ref()).map_err(|error| error.to_string())?;
+        let root = compiler.root().to_path_buf();
         if !root.join("malicious-shamir-party.x").is_file() {
             return Err(format!(
                 "{} is missing malicious-shamir-party.x",
@@ -232,6 +244,7 @@ impl CircuitCache {
         }
         fs::create_dir_all(workdir.as_ref()).map_err(|error| error.to_string())?;
         Ok(Self {
+            compiler,
             root,
             workdir: workdir.as_ref().to_path_buf(),
             shapes: Vec::new(),
@@ -341,11 +354,9 @@ impl CircuitCache {
         .map_err(|error| error.to_string())?;
         fs::write(&source_dest, &generated.source).map_err(|error| error.to_string())?;
         let started = Instant::now();
-        let python = std::env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
-        let output = Command::new(python)
-            .current_dir(&self.root)
-            .args(["./compile.py", "-F", "128", &program])
-            .output()
+        let output = self
+            .compiler
+            .compile_field(128, &program)
             .map_err(|error| error.to_string())?;
         if !output.status.success() {
             let combined = format!(
@@ -550,28 +561,31 @@ fn generate(request: &Request) -> QuoteResult<Generated> {
         .ok_or_else(|| "ref_table must contain at least one entry".to_string())?;
     let sentinel =
         sentinel_for(request.bit_length, padded, 8 * max_ref).map_err(|error| error.to_string())?;
-    let mut config = ProgramConfig::default();
-    config.n_mm = padded;
-    config.n_parties = request.n_parties;
-    config.mode = request.mode;
-    config.rfs_steps = request.rfs_steps;
-    config.disclose = request.disclose;
-    config.n_requests = request.n_requests;
-    config.n_assets = request.n_assets;
-    config.ref_table = ref_table.clone();
-    config.maker_assets = (0..padded).map(|maker| maker % request.n_assets).collect();
-    config.public_maker_assets = request.public_maker_assets;
-    config.audit_gates = request.audit_gates;
-    config.bit_length = request.bit_length;
-    config.argmin_arity = if request.argmin_arity == 0 {
-        padded
-    } else {
-        request.argmin_arity
-    };
-    config.edabit = request.edabit;
     // This is gen_qomm's CLI default, which differs from ProgramConfig's
     // direct-call default even when input checking is disabled.
-    config.check_mode = CheckMode::PerParty;
+    let config = ProgramConfig {
+        n_mm: padded,
+        n_parties: request.n_parties,
+        mode: request.mode,
+        rfs_steps: request.rfs_steps,
+        disclose: request.disclose,
+        n_requests: request.n_requests,
+        n_assets: request.n_assets,
+        ref_table: ref_table.clone(),
+        maker_assets: (0..padded).map(|maker| maker % request.n_assets).collect(),
+        public_maker_assets: request.public_maker_assets,
+        audit_gates: request.audit_gates,
+        bit_length: request.bit_length,
+        argmin_arity: if request.argmin_arity == 0 {
+            padded
+        } else {
+            request.argmin_arity
+        },
+        edabit: request.edabit,
+        input_check: request.input_check,
+        check_mode: CheckMode::PerParty,
+        ..ProgramConfig::default()
+    };
     let source = build_program(&config).map_err(|error| error.to_string())?;
     let policies = request
         .policies
@@ -610,11 +624,15 @@ fn generate(request: &Request) -> QuoteResult<Generated> {
         check_mode: config.check_mode,
         binding_limit: config.binding_limit,
         user_limit: 100_000,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &config.check_coefficients,
         check_repeats: config.check_repeats,
         policies: policies.as_deref(),
         shamir_inputs: false,
         shamir_threshold: request.n_parties.saturating_sub(1) / 2,
+        dvp: None,
+        quote_proof: None,
     };
     let mut generated = build_inputs(&input_config).map_err(|error| error.to_string())?;
     finish_reference(&mut generated, &input_config, sentinel, request.mode)
@@ -1071,6 +1089,21 @@ mod tests {
         assert_eq!(request.argmin_arity, defaults.argmin_arity);
         assert_eq!(request.n_assets, defaults.n_assets);
         assert_eq!(request.n_requests, defaults.n_requests);
+        assert!(request.input_check);
+        assert!(request
+            .shape()
+            .as_array()
+            .is_some_and(|pairs| pairs.iter().any(|pair| {
+                pair.as_array().is_some_and(|pair| {
+                    pair.first() == Some(&json!("input_check")) && pair.get(1) == Some(&json!(true))
+                })
+            })));
+    }
+
+    #[test]
+    fn resident_service_refuses_unchecked_inputs() {
+        let error = Request::from_value(&json!({"input_check": false})).unwrap_err();
+        assert!(error.contains("refuses unchecked MPC inputs"), "{error}");
     }
 
     #[test]
@@ -1082,18 +1115,9 @@ mod tests {
 
     /// The file `--approve-into` writes has to be the file `--approved` reads.
     ///
-    /// It was not, in the Python this replaces. A shape is a sequence of
-    /// `(name, value)` pairs, JSON writes each pair as an array, and
-    /// `serve_qomm.py:212` used `tuple(entry["shape"])` as a dict key --- which
-    /// converts only the outer level, leaving lists inside a key and raising
-    /// `TypeError: unhashable type: 'list'`. So the approval gate that decides
-    /// which circuits a resident service will run could never load its own
-    /// output, and nothing exercised the path.
-    ///
-    /// This holds because the shape stays a `Value` and is compared by
-    /// equality; nothing here hashes it. The bytes are unchanged --- the array
-    /// of pairs is the format the Python wrote --- so an approved file from
-    /// either side loads here.
+    /// Shapes are arrays of `(name, value)` pairs. The loader keeps them as a
+    /// `Value` and compares by equality rather than turning nested arrays into
+    /// hash keys, so an approved file always loads back into the same shape.
     #[test]
     fn an_approved_file_loads_back_the_shape_it_was_written_from() {
         let request = Request::from_value(&json!({"n_mm": 1, "n_parties": 3, "threshold": 1}))

@@ -1,11 +1,11 @@
-//! Rust port of `scripts/run_qomm.py`.
 //!
 //! Program generation is provided by `qomm-mpc`, and every party is a fresh
 //! process invoking `qomm_mpc::run`, which enters the linked libSPDZ engine.
 //! The harness only owns orchestration, parsing, restoration, and the artifact.
 
 use qomm_harness::{unique_temp_dir, write_pretty_json, HarnessResult};
-use qomm_mpc::inputs::{build_inputs, finish_reference, InputConfig};
+use qomm_mpc::compiler::OfficialCompiler;
+use qomm_mpc::inputs::{build_inputs, finish_reference, DvpInputs, InputConfig};
 use qomm_mpc::program::{
     build_program, ed25519_lagrange_at_zero, pow2_ceil, sentinel_for, CheckMode, Disclosure, Mode,
     ProgramConfig, Reference, StopAfter, ED25519_ORDER,
@@ -66,6 +66,19 @@ struct Options {
     reference: Reference,
     use_ref: i128,
     persist_wires: bool,
+    persist_zkpi_wires: bool,
+    persist_dvp_wires: bool,
+    zkpi_amount_bits: usize,
+    zkpi_price_bits: usize,
+    dvp_remainder_bits: usize,
+    taker_securities_reserve: Option<i128>,
+    taker_securities_blinding: Option<i128>,
+    taker_cash_reserve: Option<i128>,
+    taker_cash_blinding: Option<i128>,
+    maker_securities_reserve: Option<i128>,
+    maker_securities_blinding: Option<i128>,
+    maker_cash_reserve: Option<i128>,
+    maker_cash_blinding: Option<i128>,
     shamir_inputs: bool,
     tag: String,
     out: Option<PathBuf>,
@@ -112,6 +125,19 @@ impl Default for Options {
             reference: Reference::Anchored,
             use_ref: 1,
             persist_wires: false,
+            persist_zkpi_wires: false,
+            persist_dvp_wires: false,
+            zkpi_amount_bits: 32,
+            zkpi_price_bits: 32,
+            dvp_remainder_bits: 32,
+            taker_securities_reserve: None,
+            taker_securities_blinding: None,
+            taker_cash_reserve: None,
+            taker_cash_blinding: None,
+            maker_securities_reserve: None,
+            maker_securities_blinding: None,
+            maker_cash_reserve: None,
+            maker_cash_blinding: None,
             shamir_inputs: false,
             tag: String::new(),
             out: None,
@@ -184,6 +210,16 @@ fn run_main() -> HarnessResult<i32> {
         options.prime = Some(ED25519_ORDER.into());
         options.field_bits = decimal_bit_length(ED25519_ORDER) as i128;
     }
+    if options.persist_dvp_wires {
+        options.persist_zkpi_wires = true;
+        options.persist_wires = true;
+    }
+    if options.persist_zkpi_wires {
+        options.persist_wires = true;
+        if !options.shamir_inputs || options.mode != Mode::Rfq {
+            return Err("threshold proof persistence requires RFQ and --shamir-inputs".into());
+        }
+    }
     if options.input_check
         && options.check_mode == CheckMode::Aggregate
         && !options.unsound_check_for_measurement
@@ -240,7 +276,6 @@ fn run_main() -> HarnessResult<i32> {
             installed.keep = true;
             // The name of the compiled program, on its own, next to the JSON.
             // `rounds-by-channel` needs exactly this one field and used to get
-            // it by starting a Python interpreter to parse the JSON in a shell
             // substitution. Writing what the next step reads is cheaper than
             // parsing, and it is the producer that knows the field's name.
             if let Some(out) = options.out.as_deref() {
@@ -357,6 +392,11 @@ fn generate(
         binding_limit: options.binding_limit,
         stop_after: options.stop_after,
         persist_wires: options.persist_wires,
+        persist_zkpi_wires: options.persist_zkpi_wires,
+        persist_dvp_wires: options.persist_dvp_wires,
+        zkpi_amount_bits: options.zkpi_amount_bits,
+        zkpi_price_bits: options.zkpi_price_bits,
+        dvp_remainder_bits: options.dvp_remainder_bits,
         reference: options.reference,
         ..ProgramConfig::default()
     };
@@ -389,11 +429,57 @@ fn generate(
         check_mode: options.check_mode,
         binding_limit: options.binding_limit,
         user_limit: options.user_limit,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &config.check_coefficients,
         check_repeats: config.check_repeats,
         policies: None,
         shamir_inputs: options.shamir_inputs,
-        shamir_threshold: (options.n_parties - 1) / 2,
+        shamir_threshold: options.threshold,
+        dvp: if options.persist_dvp_wires {
+            Some(DvpInputs {
+                taker_securities_reserve: options
+                    .taker_securities_reserve
+                    .ok_or("--persist-dvp-wires requires --taker-securities-reserve")?,
+                taker_securities_blinding: options
+                    .taker_securities_blinding
+                    .ok_or("--persist-dvp-wires requires --taker-securities-blinding")?,
+                taker_cash_reserve: options
+                    .taker_cash_reserve
+                    .ok_or("--persist-dvp-wires requires --taker-cash-reserve")?,
+                taker_cash_blinding: options
+                    .taker_cash_blinding
+                    .ok_or("--persist-dvp-wires requires --taker-cash-blinding")?,
+                maker_securities_reserves: vec![
+                    options.maker_securities_reserve.ok_or(
+                        "--persist-dvp-wires requires --maker-securities-reserve"
+                    )?;
+                    padded
+                ],
+                maker_securities_blindings: vec![
+                    options.maker_securities_blinding.ok_or(
+                        "--persist-dvp-wires requires --maker-securities-blinding"
+                    )?;
+                    padded
+                ],
+                maker_cash_reserves: vec![
+                    options.maker_cash_reserve.ok_or(
+                        "--persist-dvp-wires requires --maker-cash-reserve"
+                    )?;
+                    padded
+                ],
+                maker_cash_blindings: vec![
+                    options.maker_cash_blinding.ok_or(
+                        "--persist-dvp-wires requires --maker-cash-blinding"
+                    )?;
+                    padded
+                ],
+                maker_handle_scalars: (0..padded).map(|maker| 21_i128 + maker as i128).collect(),
+            })
+        } else {
+            None
+        },
+        quote_proof: None,
     };
     let mut generated = build_inputs(&input_config)?;
     finish_reference(&mut generated, &input_config, sentinel, options.mode)?;
@@ -725,9 +811,9 @@ fn compile_program(
     prime: Option<&str>,
     field_bits: i128,
 ) -> HarnessResult<Value> {
-    let python = std::env::var_os("PYTHON").unwrap_or_else(|| "python3".into());
-    let mut command = Command::new(python);
-    command.current_dir(root).arg("./compile.py").arg("-F");
+    let compiler = OfficialCompiler::from_checkout(root)?;
+    let mut command = compiler.command();
+    command.arg("-F");
     if let Some(prime) = prime {
         command.arg(decimal_bit_length(prime).to_string());
     } else {
@@ -999,7 +1085,6 @@ fn minimum(values: &[f64]) -> f64 {
 
 /// Six significant digits, the way MP-SPDZ's own `%g` output would have them.
 ///
-/// The Python reads this figure off the engine's stdout with a regex and never
 /// rounds it. Computing it from the byte count instead means reproducing what
 /// the engine would have printed, and C's formatted output rounds half to even
 /// while Rust's `f64::round` rounds half away from zero. On an exact tie those
@@ -1012,9 +1097,9 @@ fn six_significant(value: f64) -> f64 {
     let scale = 10_f64.powf(6.0 - digits);
     let scaled = value * scale;
     let rounded = if scaled < 0.0 {
-        -(qomm_sim::market::py_round(-scaled) as f64)
+        -(qomm_sim::market::round_half_even(-scaled) as f64)
     } else {
-        qomm_sim::market::py_round(scaled) as f64
+        qomm_sim::market::round_half_even(scaled) as f64
     };
     rounded / scale
 }
@@ -1159,6 +1244,43 @@ fn parse_args() -> HarnessResult<Options> {
             }
             "--use-ref" => number!(options.use_ref, i128),
             "--persist-wires" => options.persist_wires = true,
+            "--persist-zkpi-wires" => options.persist_zkpi_wires = true,
+            "--persist-dvp-wires" => options.persist_dvp_wires = true,
+            "--zkpi-amount-bits" => number!(options.zkpi_amount_bits, usize),
+            "--zkpi-price-bits" => number!(options.zkpi_price_bits, usize),
+            "--dvp-remainder-bits" => number!(options.dvp_remainder_bits, usize),
+            "--taker-securities-reserve" => {
+                let text = take(&mut index)?;
+                options.taker_securities_reserve = Some(text.parse()?);
+            }
+            "--taker-securities-blinding" => {
+                let text = take(&mut index)?;
+                options.taker_securities_blinding = Some(text.parse()?);
+            }
+            "--taker-cash-reserve" => {
+                let text = take(&mut index)?;
+                options.taker_cash_reserve = Some(text.parse()?);
+            }
+            "--taker-cash-blinding" => {
+                let text = take(&mut index)?;
+                options.taker_cash_blinding = Some(text.parse()?);
+            }
+            "--maker-securities-reserve" => {
+                let text = take(&mut index)?;
+                options.maker_securities_reserve = Some(text.parse()?);
+            }
+            "--maker-securities-blinding" => {
+                let text = take(&mut index)?;
+                options.maker_securities_blinding = Some(text.parse()?);
+            }
+            "--maker-cash-reserve" => {
+                let text = take(&mut index)?;
+                options.maker_cash_reserve = Some(text.parse()?);
+            }
+            "--maker-cash-blinding" => {
+                let text = take(&mut index)?;
+                options.maker_cash_blinding = Some(text.parse()?);
+            }
             "--shamir-inputs" => options.shamir_inputs = true,
             "--tag" => options.tag = take(&mut index)?,
             "--out" => options.out = Some(PathBuf::from(take(&mut index)?)),
@@ -1179,7 +1301,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn negative_packed_cost_uses_python_flooring() {
+    fn negative_packed_cost_uses_floor_division() {
         assert_eq!(unpack_key(-399, 16), (-25, 1));
     }
 
@@ -1206,7 +1328,7 @@ mod tests {
     }
 
     #[test]
-    fn ed25519_order_has_the_python_bit_length() {
+    fn ed25519_order_has_the_required_bit_length() {
         assert_eq!(decimal_bit_length(ED25519_ORDER), 253);
     }
 

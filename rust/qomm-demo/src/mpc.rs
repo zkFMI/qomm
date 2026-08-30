@@ -1,4 +1,3 @@
-//! The browser demo's full-circuit MP-SPDZ engine, without a Python runtime.
 //!
 //! `qomm-mpc` owns program and input generation.  MP-SPDZ remains the protocol
 //! implementation: this module compiles one shape, starts all parties for each
@@ -6,6 +5,7 @@
 //! model the browser's simulation path uses.
 
 use crate::model::{evaluate, Outcome, Policy, Request};
+use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::inputs::{build_inputs, finish_reference, parse_policies, InputConfig};
 use qomm_mpc::program::{build_program, pow2_ceil, sentinel_for, CheckMode, Mode, ProgramConfig};
 use serde_json::{json, Value};
@@ -70,13 +70,11 @@ impl MpcEngine {
                 "{n_parties} parties cannot carry threshold {threshold}"
             ));
         }
-        let root = fs::canonicalize(root).map_err(|error| error.to_string())?;
-        if !root.join("compile.py").is_file() {
-            return Err(format!("{} is not an MP-SPDZ checkout", root.display()));
-        }
+        let compiler = OfficialCompiler::from_checkout(root).map_err(|error| error.to_string())?;
+        let root = compiler.root().to_path_buf();
         let atlas = root.join("atlas-party.x");
         let malicious = root.join("malicious-shamir-party.x");
-        let robust = atlas.is_file() && n_parties >= 4 * threshold + 1;
+        let robust = atlas.is_file() && n_parties > 4 * threshold;
         let (binary, robust_reason) = if robust {
             (atlas, String::new())
         } else if !atlas.is_file() {
@@ -100,17 +98,19 @@ impl MpcEngine {
             ));
         }
         let padded = pow2_ceil(n_makers).map_err(|error| error.to_string())?;
-        let mut config = ProgramConfig::default();
-        config.n_mm = padded;
-        config.n_parties = n_parties;
-        config.n_assets = references.len();
-        config.ref_table = references.iter().copied().map(i128::from).collect();
-        config.maker_assets = (0..padded)
-            .map(|maker| maker % references.len().max(1))
-            .collect();
-        config.bit_length = bit_length;
-        config.input_check = input_check;
-        config.check_mode = CheckMode::PerParty;
+        let config = ProgramConfig {
+            n_mm: padded,
+            n_parties,
+            n_assets: references.len(),
+            ref_table: references.iter().copied().map(i128::from).collect(),
+            maker_assets: (0..padded)
+                .map(|maker| maker % references.len().max(1))
+                .collect(),
+            bit_length,
+            input_check,
+            check_mode: CheckMode::PerParty,
+            ..ProgramConfig::default()
+        };
         let source = build_program(&config).map_err(|error| error.to_string())?;
         let work_path = std::env::temp_dir().join(format!(
             "qomm-demo-mpc-{}-{:016x}",
@@ -136,10 +136,8 @@ impl MpcEngine {
         .map_err(|error| error.to_string())?;
         fs::write(&source_path, source).map_err(|error| error.to_string())?;
         let started = Instant::now();
-        let compiled = Command::new("python3")
-            .current_dir(&root)
-            .args(["./compile.py", "-F", "128", &program])
-            .output()
+        let compiled = compiler
+            .compile_field(128, &program)
             .map_err(|error| error.to_string())?;
         if !compiled.status.success() {
             let _ = fs::remove_file(&source_path);
@@ -240,11 +238,15 @@ impl MpcEngine {
             check_mode: self.config.check_mode,
             binding_limit: self.config.binding_limit,
             user_limit: 100_000,
+            user_limit_blinding: 1,
+            user_qty_blinding: 1,
             check_coefficients: &self.config.check_coefficients,
             check_repeats: self.config.check_repeats,
             policies: Some(&mpc_policies),
             shamir_inputs: false,
             shamir_threshold: self.threshold,
+            dvp: None,
+            quote_proof: None,
         };
         let mut generated = build_inputs(&config).map_err(|error| error.to_string())?;
         let max_reference = self.references.iter().copied().max().unwrap_or(0);
@@ -313,6 +315,10 @@ impl MpcEngine {
                 .arg(round_dir.join(format!("hosts-P{party}")))
                 .arg("-IF")
                 .arg(&input_prefix)
+                // MP-SPDZ prints public output only for party 0 by default.
+                // The demo deliberately observes every party so it can fail
+                // closed if the opened value ever differs between nodes.
+                .args(["-OF", "."])
                 .stdout(Stdio::from(log))
                 .stderr(Stdio::from(stderr));
             if self.robust && !corruption.is_empty() {
@@ -333,15 +339,29 @@ impl MpcEngine {
             .iter()
             .map(|path| fs::read_to_string(path).map_err(|error| error.to_string()))
             .collect::<Result<Vec<_>, _>>()?;
-        let opened = logs
-            .iter()
-            .filter_map(|log| opened_key(log))
-            .collect::<Vec<_>>();
-        let Some(masked_key) = opened.first().copied() else {
+        let opened = logs.iter().map(|log| opened_key(log)).collect::<Vec<_>>();
+        let Some(masked_key) = opened.first().copied().flatten() else {
             return Err("the MP-SPDZ parties emitted no QOMM_MASKED_KEY".into());
         };
-        if opened.len() != self.n_parties || opened.iter().any(|value| *value != masked_key) {
-            return Err("the MP-SPDZ parties disagreed on the opened masked key".into());
+        let missing = opened
+            .iter()
+            .enumerate()
+            .filter_map(|(party, value)| value.is_none().then_some(party))
+            .collect::<Vec<_>>();
+        if !missing.is_empty() {
+            return Err(format!(
+                "MP-SPDZ public output was missing for parties {missing:?}"
+            ));
+        }
+        let disagreements = opened
+            .iter()
+            .enumerate()
+            .filter_map(|(party, value)| (*value != Some(masked_key)).then_some((party, *value)))
+            .collect::<Vec<_>>();
+        if !disagreements.is_empty() {
+            return Err(format!(
+                "the MP-SPDZ parties disagreed on the opened masked key: party 0={masked_key}, others={disagreements:?}"
+            ));
         }
         let references = self
             .references

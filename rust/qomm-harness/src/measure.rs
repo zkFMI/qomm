@@ -1,4 +1,4 @@
-//! Rust counterpart of `scripts/measure.py`.
+//! Native measurement summaries and report rendering.
 
 use serde::Serialize;
 use serde_json::{json, Value};
@@ -16,7 +16,7 @@ pub fn render(summary: &Value, places: usize, unit: &str) -> String {
         return format!("{:.*}{unit}", places, summary.as_f64().unwrap_or(0.0));
     }
     if let Some(value) = summary.get("exact") {
-        return format!("{}{unit} (exact)", crate::py_display(value));
+        return format!("{}{unit} (exact)", crate::value_display(value));
     }
     let n = summary["n"].as_u64().unwrap_or(0);
     if n == 0 {
@@ -67,7 +67,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn summaries_match_the_python_contract() {
+    fn summaries_match_the_locked_contract() {
         assert_eq!(
             summarise(&[]),
             json!({
@@ -120,19 +120,14 @@ mod tests {
         assert_eq!(spread(&json!({"sd": null})), (None, 1));
     }
 
-    /// The contract `scripts/measure.py` had, recorded rather than re-derived.
-    ///
-    /// This used to shell out to `python3` and compare against the live module.
-    /// That was the right test while the module existed and it is not a test at
-    /// all now: an oracle that has been deleted cannot disagree with anything.
-    /// The JSON below is what the Python printed, taken from the last commit
-    /// that carried it, so what the two agreed on outlives the one of them that
-    /// did not.
-    const PYTHON_MEASURE_CONTRACT: &str = r##"{"exact":{"exact":7},"render":["3.0 ms","3.5 ms","7 B (exact)","\u2014","2.0 ms (n=1)","2.0 \u00b1 1.4 ms (n=2)"],"scaled":[{"exact":70.0},{"max":30.0,"mean":20.0,"median":20.0,"min":10.0,"n":2,"rsd":0.7071067811865476,"sd":14.142135623730951}],"spread":[[null,1],[null,1],[1.4142135623730951,2],[null,1]],"summarise":[{"max":null,"mean":null,"median":null,"min":null,"n":0,"rsd":null,"sd":null},{"max":2.0,"mean":2.0,"median":2.0,"min":2.0,"n":1,"rsd":null,"sd":null},{"max":3.0,"mean":2.0,"median":2.0,"min":1.0,"n":2,"rsd":0.7071067811865476,"sd":1.4142135623730951},{"max":1.0,"mean":0.0,"median":0.0,"min":-1.0,"n":2,"rsd":null,"sd":1.4142135623730951}],"value":[3.0,7.0,2.0,null]}"##;
+    /// Stable public measurement contract recorded before the superseded
+    /// implementation was removed. The fixture is now owned and verified by
+    /// this Rust module; no external oracle is executed.
+    const MEASUREMENT_CONTRACT: &str = r##"{"exact":{"exact":7},"render":["3.0 ms","3.5 ms","7 B (exact)","\u2014","2.0 ms (n=1)","2.0 \u00b1 1.4 ms (n=2)"],"scaled":[{"exact":70.0},{"max":30.0,"mean":20.0,"median":20.0,"min":10.0,"n":2,"rsd":0.7071067811865476,"sd":14.142135623730951}],"spread":[[null,1],[null,1],[1.4142135623730951,2],[null,1]],"summarise":[{"max":null,"mean":null,"median":null,"min":null,"n":0,"rsd":null,"sd":null},{"max":2.0,"mean":2.0,"median":2.0,"min":2.0,"n":1,"rsd":null,"sd":null},{"max":3.0,"mean":2.0,"median":2.0,"min":1.0,"n":2,"rsd":0.7071067811865476,"sd":1.4142135623730951},{"max":1.0,"mean":0.0,"median":0.0,"min":-1.0,"n":2,"rsd":null,"sd":1.4142135623730951}],"value":[3.0,7.0,2.0,null]}"##;
 
     #[test]
-    fn all_public_operations_match_the_contract_the_python_had() {
-        let python: Value = serde_json::from_str(PYTHON_MEASURE_CONTRACT).unwrap();
+    fn all_public_operations_match_the_stable_contract() {
+        let expected: Value = serde_json::from_str(MEASUREMENT_CONTRACT).unwrap();
 
         let empty = summarise(&[]);
         let single = summarise(&[2.0]);
@@ -161,6 +156,6 @@ mod tests {
                        spread_json(&summarise(&[1.0, 3.0])),
                        spread_json(&json!({"sd": null}))],
         });
-        assert_eq!(rust, python);
+        assert_eq!(rust, expected);
     }
 }

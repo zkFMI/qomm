@@ -7,12 +7,15 @@ description = "MP-SPDZ as a library: run the quote circuit and read the round an
 build = "build.rs"
 
 [dependencies]
+qomm-dsl.workspace = true
 qomm-measure.workspace = true
+serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
 sha2.workspace = true
+tempfile = "3"
 
 [[bin]]
 name = "qomm-party"

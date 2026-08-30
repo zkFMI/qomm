@@ -1,4 +1,3 @@
-//! Rust port of `scripts/run_distributed_assembly.py`.
 //!
 //! One long-lived OS process represents each quorum member.  Public VSS ladders
 //! use a shared mailbox, but recipient evaluations are encrypted to an
@@ -318,7 +317,7 @@ fn run_main() -> HarnessResult<()> {
             "max": wall_samples.iter().copied().max_by(f64::total_cmp),
         },
         "node_wait_ms": {"median": median(&node_waits)},
-        "bytes_between_nodes": {"median": python_integer_median(&wire_bytes)},
+        "bytes_between_nodes": {"median": integer_median(&wire_bytes)},
         "verified": true,
     });
     write_pretty_json(Some(&options.out), &payload)?;
@@ -899,7 +898,7 @@ fn read_line(reader: &mut impl BufRead, what: &str) -> HarnessResult<String> {
     Ok(line.trim().to_string())
 }
 
-fn python_integer_median(values: &[u64]) -> Value {
+fn integer_median(values: &[u64]) -> Value {
     let mut values = values.to_vec();
     values.sort_unstable();
     let middle = values.len() / 2;

@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_disclosure_ceiling.py`.
-
 use qomm_harness::smallsample::{fsum, mean_ci};
 use qomm_harness::{write_pretty_json, HarnessResult};
 use qomm_sim::disclosure::Disclosure;

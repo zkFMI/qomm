@@ -1,5 +1,4 @@
-//! Rust port of the Python run_binding_chain measurement.
-
+#[cfg(test)]
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::local_mpc::LocalMpcRun;
@@ -66,12 +65,14 @@ fn run_main() -> HarnessResult<()> {
     let (range_proof, _) = prove_dealt_range(
         &honest.dealer,
         &honest.bound,
-        spread_position,
-        half_value,
-        &blinding,
-        band.0,
-        band.1,
-        b"band",
+        DealtRange {
+            position: spread_position,
+            value: half_value,
+            blinding: &blinding,
+            low: band.0,
+            high: band.1,
+            context: b"band",
+        },
         &mut OsRng,
     )?;
     let range_ms = started.elapsed().as_secs_f64() * 1e3;
@@ -254,11 +255,15 @@ fn deal_market(options: &Options, ref_table: &[i128]) -> HarnessResult<DealtMark
         check_mode: CheckMode::Aggregate,
         binding_limit: false,
         user_limit: 100_000,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &[],
         check_repeats: 7,
         policies: None,
         shamir_inputs: false,
         shamir_threshold: options.threshold,
+        dvp: None,
+        quote_proof: None,
     };
     let mut generated = build_inputs(&input_config)?;
     let additive = generated
@@ -323,17 +328,29 @@ fn reconstruct_blinding(bound: &BoundInputs, position: usize) -> HarnessResult<S
     Ok(shamir::reconstruct(&points, &shares))
 }
 
+struct DealtRange<'a> {
+    position: usize,
+    value: i64,
+    blinding: &'a Scalar,
+    low: i64,
+    high: i64,
+    context: &'a [u8],
+}
+
 fn prove_dealt_range<R: rand_core::RngCore + rand_core::CryptoRng>(
     dealer: &BindingDealer,
     bound: &BoundInputs,
-    position: usize,
-    value: i64,
-    blinding: &Scalar,
-    low: i64,
-    high: i64,
-    context: &[u8],
+    range: DealtRange<'_>,
     rng: &mut R,
 ) -> Result<(BoundedProof, usize), String> {
+    let DealtRange {
+        position,
+        value,
+        blinding,
+        low,
+        high,
+        context,
+    } = range;
     let dealt = bound
         .values
         .get(position)
@@ -361,6 +378,7 @@ fn check_dealt_range(
     })
 }
 
+#[cfg(test)]
 fn position_of(maker: usize, field: &str, binding_limit: bool) -> Result<usize, String> {
     let field = FIELDS
         .iter()
@@ -369,6 +387,7 @@ fn position_of(maker: usize, field: &str, binding_limit: bool) -> Result<usize, 
     Ok(5 + 1 + usize::from(binding_limit) * 2 + maker * FIELDS.len() + field)
 }
 
+#[cfg(test)]
 fn commitment_at(
     bound: &BoundInputs,
     maker: usize,
@@ -488,7 +507,7 @@ fn json_i128(value: &Value) -> HarnessResult<i128> {
 
 fn round_places(value: f64, places: i32) -> f64 {
     let scale = 10f64.powi(places);
-    qomm_sim::market::py_round(value * scale) as f64 / scale
+    qomm_sim::market::round_half_even(value * scale) as f64 / scale
 }
 
 fn parse_args() -> HarnessResult<Options> {
@@ -736,12 +755,14 @@ mod tests {
         let (proof, _) = prove_dealt_range(
             &market.dealer,
             &market.bound,
-            position,
-            value,
-            &blinding,
-            band.0,
-            band.1,
-            b"band",
+            DealtRange {
+                position,
+                value,
+                blinding: &blinding,
+                low: band.0,
+                high: band.1,
+                context: b"band",
+            },
             &mut OsRng,
         )
         .unwrap();
@@ -766,24 +787,28 @@ mod tests {
         assert!(prove_dealt_range(
             &market.dealer,
             &market.bound,
-            position,
-            value,
-            &blinding,
-            band.0,
-            band.1,
-            b"band",
+            DealtRange {
+                position,
+                value,
+                blinding: &blinding,
+                low: band.0,
+                high: band.1,
+                context: b"band",
+            },
             &mut OsRng,
         )
         .is_ok());
         let error = prove_dealt_range(
             &market.dealer,
             &market.bound,
-            position,
-            value,
-            &(blinding + Scalar::ONE),
-            band.0,
-            band.1,
-            b"band",
+            DealtRange {
+                position,
+                value,
+                blinding: &(blinding + Scalar::ONE),
+                low: band.0,
+                high: band.1,
+                context: b"band",
+            },
             &mut OsRng,
         )
         .unwrap_err();
@@ -801,12 +826,14 @@ mod tests {
         assert!(prove_dealt_range(
             &honest,
             &honest_bound,
-            0,
-            100,
-            &honest_blinding,
-            band.0,
-            band.1,
-            b"band",
+            DealtRange {
+                position: 0,
+                value: 100,
+                blinding: &honest_blinding,
+                low: band.0,
+                high: band.1,
+                context: b"band",
+            },
             &mut OsRng,
         )
         .is_ok());
@@ -818,12 +845,14 @@ mod tests {
         let error = prove_dealt_range(
             &outside,
             &outside_bound,
-            0,
-            9_999,
-            &outside_blinding,
-            band.0,
-            band.1,
-            b"band",
+            DealtRange {
+                position: 0,
+                value: 9_999,
+                blinding: &outside_blinding,
+                low: band.0,
+                high: band.1,
+                context: b"band",
+            },
             &mut OsRng,
         )
         .unwrap_err();

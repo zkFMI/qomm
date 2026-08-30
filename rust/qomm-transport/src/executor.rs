@@ -1,5 +1,6 @@
 //! Allow-listed circuit execution for a resident MPC node.
 
+use crate::resident_mpc::ResidentExecutionReceipt;
 use qomm_dsl::registry::CircuitRegistry;
 use qomm_mpc::program::{build_program, ProgramConfig};
 use serde::Deserialize;
@@ -28,8 +29,77 @@ pub struct RegisteredProgram {
     pub argv: Vec<String>,
     pub cwd: PathBuf,
     pub executable_sha256: String,
+    /// Native stock-MP-SPDZ handoff used by a circuit-approved resident node.
+    /// Isolated executor tests may omit it, but `from_approved_mpc` fails
+    /// closed without this independently hashed runner and configuration.
+    #[serde(default)]
+    pub runtime: Option<RuntimeBinding>,
     #[serde(default = "default_timeout")]
     pub timeout_seconds: f64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct RuntimeBinding {
+    pub executable: PathBuf,
+    pub executable_sha256: String,
+    pub config: PathBuf,
+    pub config_sha256: String,
+}
+
+impl RuntimeBinding {
+    fn verify(&self) -> Result<(), String> {
+        verify_runtime_file(
+            &self.executable,
+            &self.executable_sha256,
+            true,
+            "resident MPC runner",
+        )?;
+        verify_runtime_file(
+            &self.config,
+            &self.config_sha256,
+            false,
+            "resident MPC configuration",
+        )?;
+        let mode = self
+            .config
+            .metadata()
+            .map_err(|error| error.to_string())?
+            .permissions()
+            .mode()
+            & 0o777;
+        if mode & 0o077 != 0 {
+            return Err("resident MPC configuration must use mode 600".into());
+        }
+        Ok(())
+    }
+}
+
+fn verify_runtime_file(
+    path: &Path,
+    expected: &str,
+    executable: bool,
+    name: &str,
+) -> Result<(), String> {
+    if !path.is_absolute() {
+        return Err(format!("{name} must use an absolute path"));
+    }
+    let mut handle = OpenOptions::new()
+        .read(true)
+        .custom_flags(libc::O_NOFOLLOW)
+        .open(path)
+        .map_err(|_| format!("{name} is absent"))?;
+    let metadata = handle.metadata().map_err(|error| error.to_string())?;
+    if !metadata.is_file() || (executable && metadata.permissions().mode() & 0o111 == 0) {
+        return Err(format!("{name} has the wrong file type or mode"));
+    }
+    let mut bytes = Vec::new();
+    handle
+        .read_to_end(&mut bytes)
+        .map_err(|error| error.to_string())?;
+    if hex::encode(Sha256::digest(bytes)) != expected {
+        return Err(format!("{name} digest does not match its bytes"));
+    }
+    Ok(())
 }
 
 fn default_timeout() -> f64 {
@@ -86,8 +156,12 @@ impl RegisteredProgram {
                 && argument != "{node}"
                 && argument != "{slot}"
                 && argument != "{batch_digest}"
+                && argument != "{lane}"
         }) {
             return Err("only {node}, {slot}, and {batch_digest} placeholders are allowed".into());
+        }
+        if let Some(runtime) = &self.runtime {
+            runtime.verify()?;
         }
         Ok(handle)
     }
@@ -109,10 +183,57 @@ pub fn source_bound_executable_bytes(source: &str) -> Vec<u8> {
     .into_bytes()
 }
 
+/// Canonical launcher for the real resident MPC runtime.
+///
+/// Its bytes commit to the approved circuit source, the exact runner binary,
+/// and the exact non-secret runtime configuration. `ProgramRegistry` hashes
+/// all three immediately before every launch; the launcher merely preserves
+/// the already-verified paths while forwarding the sealed batch on stdin.
+pub fn source_bound_runtime_executable_bytes(source: &str, runtime: &RuntimeBinding) -> Vec<u8> {
+    let source_digest = hex::encode(Sha256::digest(source.as_bytes()));
+    let runner = shell_quote(&runtime.executable.to_string_lossy());
+    let config = shell_quote(&runtime.config.to_string_lossy());
+    format!(
+        concat!(
+            "#!/bin/sh\n",
+            "set -eu\n",
+            "if [ \"$#\" -eq 3 ]; then lane=0; ",
+            "elif [ \"$#\" -eq 4 ]; then lane=\"$4\"; else exit 64; fi\n",
+            "source_digest='{source_digest}'\n",
+            "# qomm-runtime-sha256={}\n",
+            "# qomm-runtime-config-sha256={}\n",
+            "exec {runner} --config {config} --node \"$1\" --slot \"$2\" \\\n",
+            "  --batch-digest \"$3\" --lane \"$lane\" --source-digest \"$source_digest\"\n",
+        ),
+        runtime.executable_sha256,
+        runtime.config_sha256,
+        source_digest = source_digest,
+        runner = runner,
+        config = config,
+    )
+    .into_bytes()
+}
+
+fn shell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "'\\''"))
+}
+
 /// Materialise the only executable form accepted for a DSL-approved source.
 pub fn write_source_bound_executable(path: impl AsRef<Path>, source: &str) -> Result<(), String> {
     let path = path.as_ref();
     fs::write(path, source_bound_executable_bytes(source)).map_err(|error| error.to_string())?;
+    fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|error| error.to_string())
+}
+
+pub fn write_source_bound_runtime_executable(
+    path: impl AsRef<Path>,
+    source: &str,
+    runtime: &RuntimeBinding,
+) -> Result<(), String> {
+    runtime.verify()?;
+    let path = path.as_ref();
+    fs::write(path, source_bound_runtime_executable_bytes(source, runtime))
+        .map_err(|error| error.to_string())?;
     fs::set_permissions(path, fs::Permissions::from_mode(0o700)).map_err(|error| error.to_string())
 }
 
@@ -201,6 +322,7 @@ struct ApprovalFile {
     rule_source_file: PathBuf,
     program_source_file: PathBuf,
     shape: Vec<u64>,
+    program_config: ProgramConfig,
 }
 
 #[derive(Debug)]
@@ -208,6 +330,7 @@ pub struct ProgramRegistry {
     node: u16,
     programs: BTreeMap<String, RegisteredProgram>,
     approved_executable_digests: BTreeMap<String, String>,
+    approved_source_digests: BTreeMap<String, String>,
     circuit_approved: bool,
     execution_count: AtomicU64,
 }
@@ -228,6 +351,7 @@ impl ProgramRegistry {
             node,
             programs: approved,
             approved_executable_digests: BTreeMap::new(),
+            approved_source_digests: BTreeMap::new(),
             circuit_approved: false,
             execution_count: AtomicU64::new(0),
         })
@@ -281,6 +405,25 @@ impl ProgramRegistry {
                 .map_err(|error| error.to_string())?;
             let program_source = fs::read_to_string(base.join(approval.program_source_file))
                 .map_err(|error| error.to_string())?;
+            let expected_source =
+                build_program(&approval.program_config).map_err(|error| error.to_string())?;
+            if program_source != expected_source {
+                return Err(
+                    "approved MPC source is not the exact output of the Rust generator configuration"
+                        .into(),
+                );
+            }
+            let expected_shape = vec![
+                approval.program_config.n_mm as u64,
+                approval.program_config.n_parties as u64,
+                u64::from(approval.program_config.bit_length),
+            ];
+            if approval.shape != expected_shape {
+                return Err(format!(
+                    "approved circuit shape {:?} does not match generator configuration {:?}",
+                    approval.shape, expected_shape
+                ));
+            }
             let mut circuits = CircuitRegistry::default();
             circuits
                 .approve(
@@ -308,22 +451,30 @@ impl ProgramRegistry {
     }
 
     fn bind_approved_source(&mut self, source: &str) -> Result<(), String> {
-        let expected_bytes = source_bound_executable_bytes(source);
-        let expected_digest = hex::encode(Sha256::digest(&expected_bytes));
+        let source_digest = hex::encode(Sha256::digest(source.as_bytes()));
         for (shape, program) in &self.programs {
-            if program.argv.len() != 4
+            if !(program.argv.len() == 4 || program.argv.len() == 5)
                 || program.argv[1] != "{node}"
                 || program.argv[2] != "{slot}"
                 || program.argv[3] != "{batch_digest}"
+                || program.argv.get(4).is_some_and(|value| value != "{lane}")
             {
                 return Err(
-                    "approved executables must accept exactly {node}, {slot}, and {batch_digest}"
+                    "approved executables must accept {node}, {slot}, {batch_digest}, and optionally {lane}"
                         .into(),
                 );
             }
+            let runtime = program.runtime.as_ref().ok_or_else(|| {
+                "circuit-approved computation has no hashed resident MPC runtime".to_string()
+            })?;
+            runtime.verify()?;
+            let expected_bytes = source_bound_runtime_executable_bytes(source, runtime);
+            let expected_digest = hex::encode(Sha256::digest(&expected_bytes));
             program.open_verified(Some(&expected_digest))?;
             self.approved_executable_digests
                 .insert(shape.clone(), expected_digest.clone());
+            self.approved_source_digests
+                .insert(shape.clone(), source_digest.clone());
         }
         Ok(())
     }
@@ -379,6 +530,15 @@ impl ProgramRegistry {
         let batch_digest = sealed
             .map(|batch| hex::encode(batch.batch_digest))
             .unwrap_or_default();
+        let lane = if let Some(sealed) = sealed {
+            let lane = request.get("lane").and_then(Value::as_u64).unwrap_or(0);
+            if lane >= sealed.frames.len() as u64 {
+                return Err("computation lane is outside the fixed population".into());
+            }
+            lane
+        } else {
+            request.get("lane").and_then(Value::as_u64).unwrap_or(0)
+        };
         let argv = program
             .argv
             .iter()
@@ -387,6 +547,7 @@ impl ProgramRegistry {
                     .replace("{node}", &self.node.to_string())
                     .replace("{slot}", &slot.to_string())
                     .replace("{batch_digest}", &batch_digest)
+                    .replace("{lane}", &lane.to_string())
             })
             .collect::<Vec<_>>();
         let started = Instant::now();
@@ -432,20 +593,87 @@ impl ProgramRegistry {
                     .map_err(|_| "approved computation stderr reader panicked".to_string())?
                     .map_err(|error| error.to_string())?;
                 if !status.success() {
-                    return Err(
-                        "approved computation failed; stdout/stderr retained only as digests"
-                            .into(),
-                    );
+                    // The approved child can see sealed inputs, so its raw output must
+                    // never cross the node boundary on failure.  Still return enough
+                    // immutable evidence for operators to correlate failures across
+                    // the seven parties.  The previous generic error claimed that
+                    // digests were retained but discarded the digests themselves.
+                    return Err(format!(
+                        "approved computation failed (exit_code={}, stdout_digest={}, stderr_digest={}); raw output was not disclosed",
+                        status.code().unwrap_or(-1),
+                        hex::encode(Sha256::digest(&stdout)),
+                        hex::encode(Sha256::digest(&stderr)),
+                    ));
                 }
-                return Ok(json!({
+                let mut response = json!({
                     "slot": slot,
                     "shape_digest": shape,
                     "exit_code": status.code().unwrap_or(0),
                     "elapsed_ns": started.elapsed().as_nanos().min(u128::from(u64::MAX)) as u64,
-                    "stdout_digest": hex::encode(Sha256::digest(stdout)),
-                    "stderr_digest": hex::encode(Sha256::digest(stderr)),
+                    "stdout_digest": hex::encode(Sha256::digest(&stdout)),
+                    "stderr_digest": hex::encode(Sha256::digest(&stderr)),
                     "batch_digest": batch_digest,
-                }));
+                    "lane": lane,
+                });
+                if self.circuit_approved {
+                    let receipt: ResidentExecutionReceipt = serde_json::from_slice(&stdout)
+                        .map_err(|_| {
+                            "approved resident MPC runner returned a malformed execution receipt"
+                                .to_string()
+                        })?;
+                    let expected_batch = sealed
+                        .map(|value| value.batch_digest)
+                        .ok_or_else(|| "approved execution lost its sealed batch".to_string())?;
+                    let expected_source = self
+                        .approved_source_digests
+                        .get(shape)
+                        .ok_or_else(|| "approved execution lost its source digest".to_string())?;
+                    receipt.validate_against(
+                        self.node,
+                        u32::try_from(slot)
+                            .map_err(|_| "approved execution slot is outside u32".to_string())?,
+                        usize::try_from(lane)
+                            .map_err(|_| "approved execution lane is outside usize".to_string())?,
+                        expected_batch,
+                        expected_source,
+                    )?;
+                    let object = response
+                        .as_object_mut()
+                        .expect("executor response is constructed as an object");
+                    object.insert(
+                        "mpc_execution_digest".into(),
+                        Value::String(hex::encode(receipt.public_digest()?)),
+                    );
+                    object.insert(
+                        "mpc_source_digest".into(),
+                        Value::String(receipt.source_digest.clone()),
+                    );
+                    object.insert(
+                        "mpc_persistence_digest".into(),
+                        Value::String(hex::encode(receipt.persistence_digest)),
+                    );
+                    object.insert(
+                        "mpc_stdout_digest".into(),
+                        Value::String(hex::encode(receipt.stdout_digest)),
+                    );
+                    object.insert(
+                        "mpc_stderr_digest".into(),
+                        Value::String(hex::encode(receipt.stderr_digest)),
+                    );
+                    object.insert(
+                        "mpc_state_generation".into(),
+                        Value::from(receipt.state_generation),
+                    );
+                    object.insert(
+                        "mpc_frame_count".into(),
+                        Value::from(receipt.frame_count as u64),
+                    );
+                    object.insert(
+                        "mpc_input_count".into(),
+                        Value::from(receipt.input_count as u64),
+                    );
+                }
+                return Ok(response);
             }
             if started.elapsed() >= timeout {
                 let _ = child.kill();
@@ -488,6 +716,7 @@ mod tests {
             argv: vec![executable.display().to_string()],
             cwd: directory.path().to_path_buf(),
             executable_sha256: hex::encode(Sha256::digest(fs::read(&executable).unwrap())),
+            runtime: None,
             timeout_seconds: 5.0,
         };
         let verified = program.open_verified(None).unwrap();

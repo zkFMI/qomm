@@ -30,11 +30,15 @@ fn answer(reference: i128, direction: i128, seed: i128, use_ref: i128) -> Value 
         check_mode: CheckMode::Aggregate,
         binding_limit: false,
         user_limit: 100_000,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &[],
         check_repeats: 7,
         policies: None,
         shamir_inputs: false,
         shamir_threshold: 2,
+        dvp: None,
+        quote_proof: None,
     };
     let mut generated = build_inputs(&config).unwrap();
     let sentinel = sentinel_for(31, 16, 8 * reference).unwrap();

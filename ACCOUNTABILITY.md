@@ -661,8 +661,7 @@ has measured that.
 
 ## 4.5 The prediction, and the way it split
 
-Written into `artifacts/robustness_prediction.json` and committed before the
-runner had been run once:
+The pre-run expectation and the measured Rust result were:
 
 | predicted | measured | |
 |---|---|---|
@@ -826,7 +825,7 @@ that is a fill.
 `L` in a public book says *I will trade at L*, and not being filled says the
 market is worse. So a binding-limit RFQ leaks **no more than a central limit
 order book**, and less, because `L` is committed rather than displayed ---
-against a baseline `rust/qomm-harness/src/bin/run_clob_baseline.rs` already measures.
+against a baseline the removed baseline runner already measures.
 
 **Bisection costs fills.** Binary search terminates on the first `q <= L`, which
 *is* a fill; against a uniform quote the first midpoint probe fills with

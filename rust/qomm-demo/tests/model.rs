@@ -57,11 +57,15 @@ fn demo_prices_exactly_what_the_rust_circuit_generator_prices() {
             check_mode: CheckMode::Aggregate,
             binding_limit: false,
             user_limit: 100_000,
+            user_limit_blinding: 1,
+            user_qty_blinding: 1,
             check_coefficients: &[],
             check_repeats: 7,
             policies: Some(&parsed),
             shamir_inputs: false,
             shamir_threshold: 2,
+            dvp: None,
+            quote_proof: None,
         };
         let mut generated = build_inputs(&config).unwrap();
         let sentinel =

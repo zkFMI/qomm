@@ -1,10 +1,7 @@
-//! Rust port of `scripts/collect_origins.py`.
-
 use qomm_harness::{next_value, parse_value, HarnessResult};
 use qomm_transport::ethereum_rpc::{RpcClient, RpcResult};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use std::ffi::OsString;
 use std::fs::{self, File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -524,11 +521,7 @@ fn parse_args() -> HarnessResult<Options> {
                 println!("usage: collect_origins --fills PATH --out PATH [--rpc URL] [--threshold N] [--workers N] [--hub-limit N] [--cluster-only]");
                 std::process::exit(0);
             }
-            _ => {
-                return Err(
-                    format!("unknown argument {}", OsString::from(arg).to_string_lossy()).into(),
-                )
-            }
+            _ => return Err(format!("unknown argument {}", arg.to_string_lossy()).into()),
         }
     }
     if workers == 0 {

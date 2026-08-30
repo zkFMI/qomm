@@ -1,5 +1,6 @@
 //! Fail-closed experiment launcher with a hash-bound contract and ledger.
 
+use qomm_harness::rust_only::{validate_experiment_command, validate_repository};
 use qomm_harness::{repo_root, HarnessResult};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
@@ -10,6 +11,8 @@ use std::os::unix::fs::OpenOptionsExt;
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
+
+type ValidatedResearch = (Map<String, Value>, Vec<Map<String, Value>>);
 
 const REQUIRED: [&str; 16] = [
     "experiment_id",
@@ -78,7 +81,7 @@ fn canonical_json(value: &Value) -> String {
     render_json(value, false)
 }
 
-fn python_json(value: &Value) -> String {
+fn spaced_json(value: &Value) -> String {
     render_json(value, true)
 }
 
@@ -166,7 +169,6 @@ fn append_receipt(
         fs::create_dir_all(parent)?;
     }
     let mut file = OpenOptions::new()
-        .write(true)
         .create(true)
         .append(true)
         .mode(0o644)
@@ -210,10 +212,8 @@ fn resolve_output(root: &Path, raw: &str) -> HarnessResult<PathBuf> {
     Ok(output)
 }
 
-fn validate(
-    paths: &Paths,
-    manifest_path: &Path,
-) -> HarnessResult<(Map<String, Value>, Vec<Map<String, Value>>)> {
+fn validate(paths: &Paths, manifest_path: &Path) -> HarnessResult<ValidatedResearch> {
+    validate_repository(&paths.root)?;
     let contract = load_json(&paths.contract)?;
     let manifest = load_json(manifest_path)?;
     let missing = REQUIRED
@@ -252,6 +252,13 @@ fn validate(
     }) {
         return Err("manifest command must be a non-empty string array".into());
     }
+    let command = command.expect("command was just validated");
+    validate_experiment_command(
+        &command
+            .iter()
+            .map(|item| item.as_str().expect("command item was just validated"))
+            .collect::<Vec<_>>(),
+    )?;
     let raw_output = manifest
         .get("output")
         .and_then(Value::as_str)
@@ -390,7 +397,7 @@ fn run(paths: &Paths, manifest_path: &Path) -> HarnessResult<i32> {
         eprintln!("{error}");
         return Ok(1);
     }
-    println!("{}", python_json(&Value::Object(receipt)));
+    println!("{}", spaced_json(&Value::Object(receipt)));
     Ok(0)
 }
 

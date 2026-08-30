@@ -1,10 +1,7 @@
 //! Deterministic MP-SPDZ input fixtures and their cleartext reference.
 //!
-//! This is the Rust port of `gen_qomm.py::build_inputs` and
-//! `finish_reference`.  Byte parity requires more than equivalent randomness:
-//! the generator deliberately uses CPython's `random.Random`, with one stream
-//! for policies and a separate stream for sharing.  The small MT19937 below
-//! reproduces the integer-seeded CPython stream, including rejection sampling.
+//! `finish_reference`. Reproducibility requires a fixed stream: policies and
+//! sharing use separate deterministic MT19937 instances with rejection sampling.
 
 use crate::program::{CheckMode, Mode, Reference, ED25519_ORDER, FIELDS};
 use serde_json::Value;
@@ -30,23 +27,8 @@ pub struct Policy {
 }
 
 impl Policy {
-    fn fixture(
-        asset: i128,
-        ask_level: i128,
-        spread: i128,
-        slope: i128,
-        invcoef: i128,
-        inv: i128,
-        maxqty: i128,
-        expiry: i128,
-        active: i128,
-        use_ref: i128,
-    ) -> Self {
-        Self {
-            values: [
-                asset, ask_level, spread, slope, invcoef, inv, maxqty, expiry, active, use_ref,
-            ],
-        }
+    fn fixture(values: [i128; FIELDS.len()]) -> Self {
+        Self { values }
     }
 
     fn padding() -> Self {
@@ -89,7 +71,6 @@ pub fn parse_policies(text: &str) -> Result<Vec<Policy>, InputError> {
 
 /// Read only the outer list length, matching the CLI's validation order.
 ///
-/// Python rejects a short list before it attempts to read any policy fields.
 pub fn policy_count(text: &str) -> Result<usize, InputError> {
     let value: Value = serde_json::from_str(text).map_err(|error| InputError(error.to_string()))?;
     value
@@ -135,11 +116,129 @@ pub struct InputConfig<'a> {
     pub check_mode: CheckMode,
     pub binding_limit: bool,
     pub user_limit: i128,
+    /// Pedersen blinding for the Taker's pre-signed limit commitment.  The
+    /// production resident path accepts a full scalar field element in the
+    /// fixed request frame; this i128 field is retained only for deterministic
+    /// fixture generation.
+    pub user_limit_blinding: i128,
+    /// Pedersen blinding for the quantity commitment already signed in the
+    /// Taker mandate. Production accepts the full scalar as a tenth frame
+    /// field; deterministic fixtures use this compact value.
+    pub user_qty_blinding: i128,
     pub check_coefficients: &'a [i128],
     pub check_repeats: usize,
     pub policies: Option<&'a [Policy]>,
     pub shamir_inputs: bool,
     pub shamir_threshold: usize,
+    /// Reservation values already authorized by Maker and Taker.  These are
+    /// supplied only when the circuit must emit the DvP proof handoff.  A real
+    /// service receives the corresponding per-node shares from admission;
+    /// this deterministic generator is the reproducible harness dealer.
+    pub dvp: Option<DvpInputs>,
+    /// Registered Pedersen blindings for the complete quote proof. Production
+    /// nodes receive their Shamir evaluations through encrypted policy state;
+    /// this clear fixture is used only to generate reproducible party inputs.
+    pub quote_proof: Option<QuoteProofInputs>,
+}
+
+pub const QUOTE_POLICY_BLINDING_FIELDS: usize = 9;
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QuoteProofInputs {
+    /// ask_level, spread, slope, invcoef, inv, maxqty, expiry, active, use_ref
+    pub maker_policy_blindings: Vec<[i128; QUOTE_POLICY_BLINDING_FIELDS]>,
+}
+
+impl QuoteProofInputs {
+    pub fn validate(&self, n_mm: usize) -> Result<(), InputError> {
+        if self.maker_policy_blindings.len() != n_mm
+            || self
+                .maker_policy_blindings
+                .iter()
+                .flatten()
+                .any(|value| *value < 0)
+        {
+            return Err(InputError(
+                "quote-proof policy blindings must contain nine non-negative values per padded Maker"
+                    .into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub const fn value_count(n_mm: usize) -> usize {
+        QUOTE_POLICY_BLINDING_FIELDS * n_mm
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DvpInputs {
+    pub taker_securities_reserve: i128,
+    pub taker_securities_blinding: i128,
+    pub taker_cash_reserve: i128,
+    pub taker_cash_blinding: i128,
+    pub maker_securities_reserves: Vec<i128>,
+    pub maker_securities_blindings: Vec<i128>,
+    pub maker_cash_reserves: Vec<i128>,
+    pub maker_cash_blindings: Vec<i128>,
+    /// Secret scalar behind each Maker's venue-specific settlement handle.
+    /// The circuit selects one scalar and proof nodes expose only G*x.
+    pub maker_handle_scalars: Vec<i128>,
+}
+
+impl DvpInputs {
+    pub fn validate(&self, n_mm: usize) -> Result<(), InputError> {
+        for (name, values) in [
+            ("Maker securities reserves", &self.maker_securities_reserves),
+            (
+                "Maker securities reserve blindings",
+                &self.maker_securities_blindings,
+            ),
+            ("Maker cash reserves", &self.maker_cash_reserves),
+            ("Maker cash reserve blindings", &self.maker_cash_blindings),
+            (
+                "Maker settlement handle scalars",
+                &self.maker_handle_scalars,
+            ),
+        ] {
+            if values.len() != n_mm {
+                return Err(InputError(format!(
+                    "{name} has {} entries, expected one per padded Maker ({n_mm})",
+                    values.len()
+                )));
+            }
+        }
+        if [
+            self.taker_securities_reserve,
+            self.taker_securities_blinding,
+            self.taker_cash_reserve,
+            self.taker_cash_blinding,
+        ]
+        .into_iter()
+        .chain(self.maker_securities_reserves.iter().copied())
+        .chain(self.maker_securities_blindings.iter().copied())
+        .chain(self.maker_cash_reserves.iter().copied())
+        .chain(self.maker_cash_blindings.iter().copied())
+        .chain(self.maker_handle_scalars.iter().copied())
+        .any(|value| value < 0)
+        {
+            return Err(InputError(
+                "DvP reserve values and blindings must be non-negative".into(),
+            ));
+        }
+        Ok(())
+    }
+
+    pub const fn value_count(n_mm: usize) -> usize {
+        4 + 5 * n_mm
+    }
+
+    /// Maker-side values that remain in the resident node state. The four
+    /// Taker reserve fields are job-specific and travel with the signed RFQ
+    /// shares instead of being frozen into a venue-wide state file.
+    pub const fn standing_value_count(n_mm: usize) -> usize {
+        5 * n_mm
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -165,7 +264,7 @@ impl GeneratedInputs {
     }
 
     pub fn reference_json(&self) -> String {
-        self.reference.to_python_json()
+        self.reference.to_canonical_json()
     }
 
     pub fn best_price(&self) -> Option<i128> {
@@ -179,10 +278,10 @@ impl GeneratedInputs {
     }
 }
 
-/// Port of `gen_qomm.py::build_inputs`.
+/// Build deterministic per-party circuit inputs and the clear verification record.
 pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputError> {
-    let mut rng = PyRandom::new(config.seed);
-    let mut share_rng = PyRandom::new(config.seed ^ 0x5eed);
+    let mut rng = DeterministicRng::new(config.seed);
+    let mut share_rng = DeterministicRng::new(config.seed ^ 0x5eed);
     let mut per_party = vec![Vec::new(); config.n_parties];
     let prime = config
         .shamir_inputs
@@ -228,6 +327,34 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
         BigInt::positive(mask.clone()),
         None,
     )?;
+    if let Some(dvp) = config.dvp.as_ref() {
+        dvp.validate(config.n_mm)?;
+        let mut values = vec![
+            dvp.taker_securities_reserve,
+            dvp.taker_securities_blinding,
+            dvp.taker_cash_reserve,
+            dvp.taker_cash_blinding,
+        ];
+        for maker in 0..config.n_mm {
+            values.extend([
+                dvp.maker_securities_reserves[maker],
+                dvp.maker_securities_blindings[maker],
+                dvp.maker_cash_reserves[maker],
+                dvp.maker_cash_blindings[maker],
+                dvp.maker_handle_scalars[maker],
+            ]);
+        }
+        for value in values {
+            deal_value(
+                config,
+                prime.as_ref(),
+                &mut share_rng,
+                &mut per_party,
+                BigInt::from_i128(value),
+                None,
+            )?;
+        }
+    }
     if config.binding_limit {
         deal_value(
             config,
@@ -235,6 +362,14 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
             &mut share_rng,
             &mut per_party,
             BigInt::from_i128(config.user_limit),
+            None,
+        )?;
+        deal_value(
+            config,
+            prime.as_ref(),
+            &mut share_rng,
+            &mut per_party,
+            BigInt::from_i128(config.user_limit_blinding),
             None,
         )?;
         let fill_mask = share_rng.randrange_power_of_two(config.value_bits);
@@ -246,6 +381,14 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
             BigInt::positive(fill_mask),
             None,
         )?;
+        deal_value(
+            config,
+            prime.as_ref(),
+            &mut share_rng,
+            &mut per_party,
+            BigInt::from_i128(config.user_qty_blinding),
+            None,
+        )?;
     }
 
     let mut policies = Vec::with_capacity(config.n_mm);
@@ -254,7 +397,7 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
             if let Some(supplied) = config.policies {
                 supplied[maker].clone()
             } else {
-                Policy::fixture(
+                Policy::fixture([
                     (maker % config.n_assets) as i128,
                     rng.randint(-15, 15),
                     rng.randint(10, 80),
@@ -265,7 +408,7 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
                     config.now_t + rng.randint(1, 600),
                     1,
                     config.use_ref,
-                )
+                ])
             }
         } else {
             Policy::padding()
@@ -283,6 +426,22 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
         policies.push(policy);
     }
 
+    if let Some(quote) = config.quote_proof.as_ref() {
+        quote.validate(config.n_mm)?;
+        for maker in &quote.maker_policy_blindings {
+            for value in maker {
+                deal_value(
+                    config,
+                    prime.as_ref(),
+                    &mut share_rng,
+                    &mut per_party,
+                    BigInt::from_i128(*value),
+                    None,
+                )?;
+            }
+        }
+    }
+
     if config.input_check {
         if config.check_mode == CheckMode::PerParty {
             check_field_width(config.n_parties, config.value_bits, config.field_bits)?;
@@ -295,7 +454,18 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
                 values.push(BigInt::positive(share_rng.randrange_power_of_two(bits)));
             }
         } else {
-            let n_values = config.n_mm * FIELDS.len() + config.n_requests * 4 + 2;
+            let n_values = config.n_mm * FIELDS.len()
+                + config.n_requests * 4
+                + 2
+                + usize::from(config.binding_limit) * 4
+                + config
+                    .dvp
+                    .as_ref()
+                    .map_or(0, |_| DvpInputs::value_count(config.n_mm))
+                + config
+                    .quote_proof
+                    .as_ref()
+                    .map_or(0, |_| QuoteProofInputs::value_count(config.n_mm));
             let width = mask_bits_for(n_values, config.value_bits);
             check_field_width(config.n_parties, width, config.field_bits)?;
             for _ in 0..config.check_repeats {
@@ -322,7 +492,7 @@ pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputEr
 fn deal_value(
     config: &InputConfig<'_>,
     prime: Option<&BigNat>,
-    rng: &mut PyRandom,
+    rng: &mut DeterministicRng,
     per_party: &mut [Vec<BigInt>],
     value: BigInt,
     width: Option<u32>,
@@ -349,7 +519,7 @@ fn deal_value(
     Ok(())
 }
 
-/// Port of `gen_qomm.py::finish_reference`.
+/// Complete the clear verification record after the packing sentinel is known.
 pub fn finish_reference(
     generated: &mut GeneratedInputs,
     config: &InputConfig<'_>,
@@ -526,7 +696,7 @@ fn additive_split(
     value: &BigInt,
     n_nodes: usize,
     value_bits: u32,
-    rng: &mut PyRandom,
+    rng: &mut DeterministicRng,
 ) -> Result<Vec<BigInt>, InputError> {
     if n_nodes < 2 {
         return Err(InputError("sharing needs at least two nodes".into()));
@@ -556,7 +726,7 @@ fn shamir_split(
     n_nodes: usize,
     threshold: usize,
     prime: &BigNat,
-    rng: &mut PyRandom,
+    rng: &mut DeterministicRng,
 ) -> Result<Vec<BigInt>, InputError> {
     if n_nodes < threshold.saturating_mul(2).saturating_add(1) {
         return Err(InputError(format!(
@@ -613,7 +783,7 @@ struct ClearReference {
 }
 
 impl ClearReference {
-    fn to_python_json(&self) -> String {
+    fn to_canonical_json(&self) -> String {
         let mut out = String::from("{\n");
         json_line(&mut out, 1, "ask_key", option_integer(self.ask_key), true);
         json_line(&mut out, 1, "best_ask", option_integer(self.best_ask), true);
@@ -664,7 +834,7 @@ impl ClearReference {
             &mut out,
             1,
             "no_eligible_maker",
-            python_bool(self.no_eligible_maker).into(),
+            json_bool(self.no_eligible_maker).into(),
             true,
         );
         json_line(&mut out, 1, "padded_mm", self.padded_mm.to_string(), true);
@@ -677,7 +847,7 @@ impl ClearReference {
                 &mut out,
                 3,
                 "eligible",
-                python_bool(quote.eligible).into(),
+                json_bool(quote.eligible).into(),
                 true,
             );
             json_line(&mut out, 3, "mm", quote.mm.to_string(), false);
@@ -731,7 +901,7 @@ fn option_usize(value: Option<usize>) -> String {
     value.map_or_else(|| "null".into(), |value| value.to_string())
 }
 
-fn python_bool(value: bool) -> &'static str {
+fn json_bool(value: bool) -> &'static str {
     if value {
         "true"
     } else {
@@ -997,12 +1167,12 @@ const MATRIX_A: u32 = 0x9908_b0df;
 const UPPER_MASK: u32 = 0x8000_0000;
 const LOWER_MASK: u32 = 0x7fff_ffff;
 
-struct PyRandom {
+struct DeterministicRng {
     state: [u32; MT_N],
     index: usize,
 }
 
-impl PyRandom {
+impl DeterministicRng {
     fn new(seed: i128) -> Self {
         let mut key = Vec::new();
         let mut value = seed.unsigned_abs();
@@ -1148,8 +1318,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn python_random_integer_stream_matches_known_values() {
-        let mut rng = PyRandom::new(7);
+    fn deterministic_random_integer_stream_matches_known_values() {
+        let mut rng = DeterministicRng::new(7);
         assert_eq!(rng.randint(-15, 15), -5);
         assert_eq!(rng.randint(10, 80), 29);
         assert_eq!(rng.randint(0, 3), 3);

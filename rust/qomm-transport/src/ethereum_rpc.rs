@@ -27,7 +27,6 @@ impl RpcClient {
 
     /// Perform one JSON-RPC call.
     ///
-    /// Transport failures are retried with the Python collector's 1, 2, 4
     /// second backoff. A JSON-RPC error is a successful HTTP exchange and maps
     /// to `None`, also matching the collector.
     pub fn call(&mut self, method: &str, params: Value) -> RpcResult<Option<Value>> {

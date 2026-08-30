@@ -128,19 +128,11 @@ of one, so a maker in a market with no usable benchmark had no way to say no,
 and a corporate bond has no continuous mid to be an offset from.
 
 `use_ref` is that missing switch: a secret bit per maker, with
-`anchored = ask_level + use_ref * ref`. It puts one more multiplication into a SIMD
-layer that already had two, so the depth does not move. Measured both arms in
-one session on one machine (`use_ref_cost.json`, M=16, 31 bits, 4 assets, 15 ms,
-both verified):
-
-| | rounds | party0 | global | wall |
-|---|---:|---:|---:|---:|
-| without `use_ref` | 64 | 3.320 MB | 19.319 MB | 3.632 s |
-| with `use_ref` | 64 | 3.328 MB | 19.369 MB | 3.625 s |
-
-**Rounds unchanged, traffic +0.26%, wall clock inside the noise.** *Prediction
-and miss:* rounds were predicted unchanged and are; traffic was predicted at
-+1% to +3% and came in **five times cheaper**.
+`anchored = ask_level + use_ref * ref`. It puts one more multiplication into a
+SIMD layer that already has two, so it does not add multiplicative depth. The
+current Rust generator and its reference-invariance tests exercise both the
+anchored and independent-price modes; no retired cross-language timing is kept
+as present evidence.
 
 The two settings are two markets, and `qomm_dsl/examples/` now carries one file
 for each. On the reference, `mid` is a small offset and the market level rides
@@ -255,7 +247,7 @@ node to a result; they do not show the result was correct.
 | proofs | quote proof, M <= 16 | 317 ms to prove, 400 ms to verify |
 | the three times | priced 824 ms, proved +551 ms, settleable +655 ms = **2.03 s** | measured |
 | RFS update interval | set it to **3 s or more** | one second is not met (measured) |
-| disclosure interval | 60 s | proofs and audits fit comfortably |
+| disclosure interval | 60 s | proofs and audits fit comfortably; also what would make 63.9 MB of in-MPC noise per release affordable, were that protocol deployed (2.3) |
 | binding | **required here** | see 1.2. A quote proof about inputs nothing checked is a proof of the wrong statement |
 
 **What it gives**: the computation is verifiable every slot. The joint path
@@ -388,6 +380,62 @@ significantly worse than no disclosure at all (fill rate -0.039, maker P&L
 as upward bias in a non-linear statistic, so **arm B stays the default until a
 bias correction is added and the measurement repeated**.
 
+**The publication path now generates its noise inside MPC and commits it with
+the budget transition.** Seven MP-SPDZ processes supply the 64 shared random
+bits; seven isolated signers certify the transcript and output; the ledger
+atomically spends the entity budget and rejects replay or alteration. The
+end-to-end acceptance is `artifacts/distributed_publication.json`; the detailed
+cost curve remains `artifacts/distributed_dp.json`. Measured at n=7, T=2:
+
+| | rounds | traffic (7 nodes) | per node |
+|---|---|---|---|
+| the release with no mechanism | 2 | 0.0022 MB | 0.3 KB |
+| support 8 | 28 | 32.1 MB | 5.2 MB |
+| support 16 | 28 | 63.9 MB | 10.3 MB |
+| support 32 | 43 | 127.6 MB | 20.1 MB |
+
+**The noise would be 92.9% of the rounds and above 99.9% of the bytes.** Read
+that against the 60 s disclosure interval this section already recommends: 63.9
+MB per minute is 8.5 Mbit/s across all seven nodes and 1.4 Mbit/s at party 0,
+which sends the most of any single node, and
+the 28 rounds are about 56 ms at the same-metro placement above. It fits with
+three orders of magnitude to spare. At one release per second the same figures
+are 511 Mbit/s aggregate and 83 Mbit/s at party 0, which a datacentre link carries
+and a wide-area one may not; the 28 rounds are then 56 ms of a 1000 ms period at
+the metro placement and about 2 s at a 70 ms round trip, where they no longer
+fit. **The interval this file already recommends is what makes the protocol
+affordable, and the recommendation does not depend on the protocol.**
+
+The implemented mechanism carries a finite support and
+folds the tails onto its endpoints, which the central sampler does not do. That
+costs 1.8e-4 in total variation from the ideal at support 8 and 6.1e-8 at
+support 16 --- against a rounding term of 2.4e-16 to 6.7e-16, which is set by
+the f64 accumulation behind the thresholds and not by the 2^-64 grid they are
+floored onto --- and worse, it costs the *form* of the guarantee: adjacent
+inputs give releases whose supports do not coincide at the edges, so the ratio
+there is infinite and the mechanism is **(epsilon, delta) with delta 2.5e-4 at
+support 8**, computed as a hockey-stick divergence rather than from a closed
+form. Widening the support does not fix it
+cheaply: the 64-bit uniform cannot represent a cell below 2^-64, which at
+epsilon 1 stops near |k|=35, and going past that is paid for in shared bits per
+release. The production certificate therefore states `(epsilon, delta)` with
+delta from `DpMechanism::privacy_delta` --- the hockey-stick divergence over
+the cells actually released, 2.5e-4 at support 8 --- instead of silently
+substituting it under the appendix's ideal pure-DP claim. Do not use a closed
+form for it: the
+folded tail understates it by e^epsilon and the endpoint cell understates it
+whenever the sensitivity exceeds one, by about 2x at epsilon 0.5 with
+sensitivity 3.
+
+There is also a cheaper construction that is not implemented --- each node
+drawing its own share from a Polya distribution with shape 1/(n-T), so that the
+honest n-T sum to exactly the discrete Laplace, at 2 rounds and no extra traffic
+for 1.4x the target variance (about 1.18x the standard deviation). It is not
+taken because a corrupt node can then draw from the wrong distribution and skew
+the published value; the in-MPC protocol makes that impossible. See
+`POSITION.md` for why the argument against that objection is not obviously
+wrong.
+
 ### 2.4 Threat model
 
 | | rounds | traffic | wall clock |
@@ -398,6 +446,21 @@ bias correction is added and the measurement repeated**.
 **Malicious security costs 1.12 to 1.24x the wall clock and 2.9 to 3.2x the
 traffic.** At that price, requiring it is a reasonable call and there is no
 reason to drop it.
+
+**That price is a property of the circuit, not of the engine, and the disclosure
+circuit is dearer.** The same comparison on the noise generation of 2.3, at
+support 16: semi-honest 15 rounds and 10.6 MB, malicious 28 rounds and 63.9 MB
+--- **1.9x the rounds and 6.0x the traffic**, against 1.2x and 3.2x on the quote
+circuit. The quote circuit is arithmetic and the disclosure circuit is
+comparisons, whose malicious-secure random bits are verified inline rather than
+sacrificed in a batch at the end. A prediction that the ratio would carry over
+from one circuit to the other was written down before this was measured and was
+falsified; it is recorded in `REVIEW.md`.
+
+The conclusion does not change. Even semi-honest, the in-MPC release costs 15
+rounds against 3 for the same release with no mechanism, so weakening the threat
+model does not make this construction cheap --- it only makes it less expensive.
+Keep malicious security.
 
 ### 2.5 Multiple assets
 
@@ -529,22 +592,25 @@ needs one intermediate move.
 message, and that gets harder with each one. A single hop lets the relay see the
 user's IP, so **two or more is recommended**. The cost is negligible.
 
-### 2.12 Which implementation runs the settlement layer
+### 2.12 What the settlement layer costs, and what it does not carry
 
-Measured on the same machine (`DEFMI.md` section 7). A 40-bit rail rounds up to
-64 under bulletproofs, so the comparison is made on the rounded-up side.
+Measured on the same machine (`DEFMI.md` section 7). Bulletproofs widths are
+powers of two, so a 40-bit rail is proved at 64.
 
-| | Python (bit decomposition) | Rust (Bulletproofs) |
-|---|---:|---:|
-| settle (verify) | 48.8 ms | **7.79 ms** (6.3x) |
-| package | 29,523 B | **2,816 B** (10.5x) |
-| per core | 20.5/s | **128/s** |
-| rail width granularity | any (24 and 40 bits included) | 8/16/32/64 only |
-| audit of the underlying cryptography | none (hand-rolled over libsodium) | dalek and bulletproofs (Quarkslab 2019), FROST (NCC 2023) |
-| DvP on note rails | present | **absent** (not ported) |
+| | |
+|---|---:|
+| settle (verify) | **7.79 ms** |
+| package | **2,816 B** |
+| per core | **128/s** |
+| rail width granularity | 8/16/32/64 only |
+| audit of the underlying cryptography | dalek and bulletproofs (Quarkslab 2019), FROST (NCC 2023) |
 
-**Deploy the Rust.** The retired implementation's measurements remain historical
-calibration data; executable settlement and note rails now live in `rust/qomm-defmi`.
+Two limits to plan around. Rail widths round up, so a 24-bit securities rail is
+proved at 32 and a 40-bit cash rail at 64 --- the split-rail lever is blunter
+than the widths suggest. Note-rail DvP is implemented: pre-trade reserve notes
+are consumed atomically into delivery and refund claims, and the full
+Avalanche acceptance completes with zero account records. What remains external
+is legal recognition of those claims and the production operator network.
 
 ---
 

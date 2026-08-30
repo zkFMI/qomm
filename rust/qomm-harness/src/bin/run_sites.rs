@@ -1,6 +1,10 @@
-//! Rust port of `scripts/run_sites.py`.
+//! Execute the QOMM circuit at selected MP-SPDZ protocol sites.
+//!
+//! Orchestration and result handling are native Rust. Circuit compilation is
+//! delegated only to the verified official compiler inside MP-SPDZ.
 
 use qomm_harness::{next_value, parse_value, unique_temp_dir, write_pretty_json, HarnessResult};
+use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::inputs::{build_inputs, finish_reference, InputConfig};
 use qomm_mpc::program::{
     build_program, pow2_ceil, sentinel_for, CheckMode, Mode, ProgramConfig, Reference,
@@ -239,7 +243,7 @@ fn run_main() -> HarnessResult<i32> {
         .lines()
         .filter_map(|line| line.strip_prefix("QOMM_MASKED_KEY="))
         .filter_map(|value| value.parse::<i128>().ok())
-        .last();
+        .next_back();
     let padded = json_i128(&reference["padded_mm"])?;
     let (verified, detail) = if let Some(masked) = masked {
         let key = masked - json_i128(&reference["mask"])?;
@@ -368,11 +372,15 @@ fn generate_fixture(options: &Options, work: &Path, program: &str) -> HarnessRes
         check_mode: CheckMode::PerParty,
         binding_limit: false,
         user_limit: 100_000,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &config.check_coefficients,
         check_repeats: config.check_repeats,
         policies: None,
         shamir_inputs: false,
         shamir_threshold: 3,
+        dvp: None,
+        quote_proof: None,
     };
     let mut generated = build_inputs(&input_config)?;
     finish_reference(&mut generated, &input_config, sentinel, options.mode)?;
@@ -426,7 +434,7 @@ fn compile_program(builder: &Site, work: &Path, program: &str) -> HarnessResult<
         Command::new("ssh")
             .arg(alias)
             .arg(format!(
-                "cd {} && python3 ./compile.py -F 128 {}",
+                "cd {} && ./compile.py -F 128 {}",
                 shell_quote(&builder.root),
                 shell_quote(program)
             ))
@@ -438,10 +446,7 @@ fn compile_program(builder: &Site, work: &Path, program: &str) -> HarnessResult<
             fs::create_dir_all(parent)?;
         }
         fs::copy(source, target)?;
-        Command::new(python_executable())
-            .args(["./compile.py", "-F", "128", program])
-            .current_dir(root)
-            .output()?
+        OfficialCompiler::from_checkout(&root)?.compile_field(128, program)?
     };
     let text = combined_output(&output);
     if !output.status.success() {
@@ -609,7 +614,7 @@ fn rtt_ms(alias: &str) -> Option<f64> {
         Duration::from_secs(5),
     )
     .ok()??;
-    Some(qomm_sim::market::py_round(measured * 100.0) as f64 / 100.0)
+    Some(qomm_sim::market::round_half_even(measured * 100.0) as f64 / 100.0)
 }
 
 fn open_tunnel(site: &Site, base_port: u16) -> HarnessResult<Child> {
@@ -767,12 +772,6 @@ fn expand_tilde(value: &str) -> PathBuf {
                 .join(tail)
         },
     )
-}
-
-fn python_executable() -> PathBuf {
-    std::env::var_os("PYTHON")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("python3"))
 }
 
 fn json_i128(value: &Value) -> HarnessResult<i128> {

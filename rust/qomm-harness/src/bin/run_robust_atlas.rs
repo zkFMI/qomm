@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_robust_atlas.py`.
-
 use qomm_harness::local_mpc::{maybe_run_party, LocalMpcRun};
 use qomm_harness::{parse_value, unique_temp_dir, HarnessResult};
 use serde_json::{json, Map, Value};
@@ -100,13 +98,13 @@ fn run_main() -> HarnessResult<()> {
         };
         println!(
             "{flag} {name:22} answer={} named={} rounds={}",
-            qomm_harness::py_display(&arm["answer"]),
-            qomm_harness::py_display(&arm["named"]),
-            qomm_harness::py_display(&arm["rounds"]),
+            qomm_harness::value_display(&arm["answer"]),
+            qomm_harness::value_display(&arm["named"]),
+            qomm_harness::value_display(&arm["rounds"]),
         );
         for key in ["refused_to_start", "refused_past_capacity"] {
             if !arm[key].is_null() {
-                println!("       {key}: {}", qomm_harness::py_display(&arm[key]));
+                println!("       {key}: {}", qomm_harness::value_display(&arm[key]));
             }
         }
     }

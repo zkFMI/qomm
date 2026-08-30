@@ -132,10 +132,12 @@ impl Session {
         now: i64,
         input_check: bool,
     ) -> Result<ProtocolResult, String> {
-        let mut transcript = Transcript::default();
-        transcript.silent = (0..self.n)
-            .filter(|node| self.behaviour(*node) == OFFLINE)
-            .collect();
+        let mut transcript = Transcript {
+            silent: (0..self.n)
+                .filter(|node| self.behaviour(*node) == OFFLINE)
+                .collect(),
+            ..Transcript::default()
+        };
         let live = (0..self.n)
             .filter(|node| !matches!(self.behaviour(*node), OFFLINE | DROPOUT))
             .collect::<Vec<_>>();
@@ -183,18 +185,18 @@ impl Session {
             .map(|node| node.inputs.clone())
             .collect::<Vec<_>>();
         let mut stated = held.clone();
-        for node in 0..self.n {
+        for (node, shares) in stated.iter_mut().enumerate().take(self.n) {
             if self.behaviour(node) == LIE_INPUT {
-                stated[node][1] += 333;
+                shares[1] += 333;
                 transcript.corrupted_inputs.push(node);
             }
         }
         let mut node_shares = BTreeMap::new();
         let mask = (1_u128 << 72) - 1;
-        for node in 0..self.n {
+        for (node, shares) in stated.iter().enumerate().take(self.n) {
             node_shares.insert(
                 node,
-                stated[node]
+                shares
                     .iter()
                     .take(6)
                     .map(|value| format!("{:018x}", (*value as u128) & mask))

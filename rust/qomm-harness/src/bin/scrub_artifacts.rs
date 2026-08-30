@@ -1,5 +1,3 @@
-//! Rust port of `scripts/scrub_artifacts.py`.
-
 use qomm_harness::HarnessResult;
 use std::collections::BTreeMap;
 use std::fs;

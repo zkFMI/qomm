@@ -1,325 +1,451 @@
 {
-  "host": "host-a",
-  "group": "ed25519",
-  "repeats": 30,
   "challenge_bits": 40,
-  "width_budget": {
-    "n_inputs": 166,
-    "value_bits": 31,
-    "challenge_bits": 40,
-    "opening_bits": 120,
-    "mask_bits": 119,
-    "field_bits_needed": 164,
-    "group_order_bits": 252,
-    "mp_spdz_default_128": "refused: 166 inputs of 31 bits with 40-bit coefficients open to 120 bits, which fits --- but the 119-bit mask has to be dealt to 7 nodes with 40 bits of slack per share, and that needs 164 bits against the narrower of the MPC prime (127) and the group order (252). The forty bits are spent twice, once on the combination and once on each share. Widen the field, or say in the artifact which of the two hidings was given up.",
-    "wide_enough": "fits",
-    "group_order": "fits",
-    "finding": "The check does not run in the field it was proposed to save. It needs about 164 bits against 253 for the group order, and at 253 the same widening also makes threshold_sigma assemble correctly --- so the question is whether 164 is worth it over 253, not whether the check avoids widening at all."
+  "group": "ed25519",
+  "host": "host-c",
+  "per_party": {
+    "aggregate_field_bits_needed": {
+      "exact": 164
+    },
+    "field_bits_needed": {
+      "exact": 160
+    },
+    "n_parties": {
+      "exact": 7
+    },
+    "rows": [
+      {
+        "build_ms": {
+          "max": 9.649041,
+          "mean": 9.3972166,
+          "median": 9.343542,
+          "min": 9.242,
+          "n": 5,
+          "rsd": 0.017037573433065042,
+          "sd": 0.1601057678889178
+        },
+        "field_bits_needed": 156,
+        "n_inputs": 16,
+        "n_parties": 7,
+        "named_the_substituting_node": true,
+        "over_aggregate": {
+          "build": 63.75,
+          "verify": 7.15
+        },
+        "verify_ms": {
+          "max": 5.524458,
+          "mean": 5.2714998,
+          "median": 5.200791,
+          "min": 5.0455,
+          "n": 5,
+          "rsd": 0.036040928129991136,
+          "sd": 0.18998974542906263
+        }
+      },
+      {
+        "build_ms": {
+          "max": 36.02075,
+          "mean": 35.5608668,
+          "median": 35.451208,
+          "min": 35.275833999999996,
+          "n": 5,
+          "rsd": 0.008086460675493434,
+          "sd": 0.28756155096466
+        },
+        "field_bits_needed": 158,
+        "n_inputs": 64,
+        "n_parties": 7,
+        "named_the_substituting_node": true,
+        "over_aggregate": {
+          "build": 99.99,
+          "verify": 7.08
+        },
+        "verify_ms": {
+          "max": 19.559917,
+          "mean": 18.8889416,
+          "median": 19.164334,
+          "min": 17.855708,
+          "n": 5,
+          "rsd": 0.03797640802760988,
+          "sd": 0.7173341534112943
+        }
+      },
+      {
+        "build_ms": {
+          "max": 90.802041,
+          "mean": 90.2817748,
+          "median": 90.491792,
+          "min": 89.55125,
+          "n": 5,
+          "rsd": 0.006019296390044163,
+          "sd": 0.54343276114042
+        },
+        "field_bits_needed": 160,
+        "n_inputs": 166,
+        "n_parties": 7,
+        "named_the_substituting_node": true,
+        "over_aggregate": {
+          "build": 114.18,
+          "verify": 7.09
+        },
+        "verify_ms": {
+          "max": 48.270083,
+          "mean": 47.8530084,
+          "median": 48.198875,
+          "min": 47.003084,
+          "n": 5,
+          "rsd": 0.011502690329667633,
+          "sd": 0.550438336968184
+        }
+      },
+      {
+        "build_ms": {
+          "max": 280.365708,
+          "mean": 278.35420839999995,
+          "median": 278.42645799999997,
+          "min": 275.787334,
+          "n": 5,
+          "rsd": 0.006609464486412248,
+          "sd": 1.8397722550631934
+        },
+        "field_bits_needed": 161,
+        "n_inputs": 512,
+        "n_parties": 7,
+        "named_the_substituting_node": true,
+        "over_aggregate": {
+          "build": 124.5,
+          "verify": 6.96
+        },
+        "verify_ms": {
+          "max": 147.817875,
+          "mean": 145.50394160000002,
+          "median": 145.761292,
+          "min": 143.499583,
+          "n": 5,
+          "rsd": 0.011289226227939873,
+          "sd": 1.6426269137793519
+        }
+      }
+    ],
+    "what": "one opening per party instead of one over all inputs, so a failing check names the node. The commitments it combines are the ones roles.Dealing already publishes, so this is the marginal cost."
   },
+  "repeats": 20,
   "schemes": {
     "pedersen": {
       "publicly_verifiable": true,
-      "scale_us": {
-        "n": 200,
-        "mean": 69.1702519543469,
-        "sd": 5.982903042169736,
-        "median": 68.16140376031399,
-        "min": 66.16022437810898,
-        "max": 144.44580301642418,
-        "rsd": 0.08649531949252572
-      },
       "rows": [
         {
-          "n_inputs": 16,
-          "build_ms": {
-            "n": 30,
-            "mean": 1.6865023722251256,
-            "sd": 0.011179233903645806,
-            "median": 1.6847020015120506,
-            "min": 1.669301651418209,
-            "max": 1.7299712635576725,
-            "rsd": 0.006628649972722083
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 1.432247009749214,
-            "sd": 0.00913770491369616,
-            "median": 1.431252807378769,
-            "min": 1.4158841222524643,
-            "max": 1.4529498293995857,
-            "rsd": 0.006379978349751395
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.183083,
+            "mean": 0.15286245,
+            "median": 0.14656200000000003,
+            "min": 0.142333,
+            "n": 20,
+            "rsd": 0.08208108193863703,
+            "sd": 0.012547115283790806
+          },
+          "n_inputs": 16,
+          "opening_bits": {
+            "exact": 116
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 608
           },
-          "opening_bits": {
-            "exact": 116
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 0.816416,
+            "mean": 0.73698325,
+            "median": 0.7274165,
+            "min": 0.6956659999999999,
+            "n": 20,
+            "rsd": 0.04796998804933895,
+            "sd": 0.035353077695062976
           }
         },
         {
-          "n_inputs": 64,
-          "build_ms": {
-            "n": 30,
-            "mean": 6.3885300265004235,
-            "sd": 0.012279544875635045,
-            "median": 6.387572735548019,
-            "min": 6.361526902765036,
-            "max": 6.409766152501106,
-            "rsd": 0.001922123684900588
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 5.426817449430625,
-            "sd": 0.016966909834069677,
-            "median": 5.425923503935337,
-            "min": 5.38585102185607,
-            "max": 5.461148917675018,
-            "rsd": 0.0031264935649990997
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.412208,
+            "mean": 0.36350825000000003,
+            "median": 0.3545625,
+            "min": 0.334167,
+            "n": 20,
+            "rsd": 0.0651030573856147,
+            "sd": 0.023665498459894376
+          },
+          "n_inputs": 64,
+          "opening_bits": {
+            "exact": 118
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 2144
           },
-          "opening_bits": {
-            "exact": 118
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 3.038042,
+            "mean": 2.7087877,
+            "median": 2.7083125,
+            "min": 2.561084,
+            "n": 20,
+            "rsd": 0.043881713932073824,
+            "sd": 0.11886624695412021
           }
         },
         {
-          "n_inputs": 166,
-          "build_ms": {
-            "n": 30,
-            "mean": 16.38811614053945,
-            "sd": 0.021597379482829842,
-            "median": 16.389736905694008,
-            "min": 16.333643812686205,
-            "max": 16.42963197082281,
-            "rsd": 0.0013178683442085322
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 13.9041759694616,
-            "sd": 0.03217265114964354,
-            "median": 13.90676642768085,
-            "min": 13.83348973467946,
-            "max": 13.96201178431511,
-            "rsd": 0.002313884060465421
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.945833,
+            "mean": 0.8141063000000001,
+            "median": 0.792541,
+            "min": 0.744792,
+            "n": 20,
+            "rsd": 0.07475414121363429,
+            "sd": 0.060857817313109325
+          },
+          "n_inputs": 166,
+          "opening_bits": {
+            "exact": 120
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 5408
           },
-          "opening_bits": {
-            "exact": 120
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 7.198417,
+            "mean": 6.8505041,
+            "median": 6.7961455,
+            "min": 6.699833,
+            "n": 20,
+            "rsd": 0.019201857513037275,
+            "sd": 0.13154240362067765
           }
         },
         {
-          "n_inputs": 512,
-          "build_ms": {
-            "n": 30,
-            "mean": 50.422896755238376,
-            "sd": 0.14425671195941414,
-            "median": 50.3734122030437,
-            "min": 50.25582807138562,
-            "max": 50.91521004214883,
-            "rsd": 0.002860936622893001
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 42.77717010118067,
-            "sd": 0.3301589267984284,
-            "median": 42.68664843402803,
-            "min": 42.619248386472464,
-            "max": 44.01980107650161,
-            "rsd": 0.00771811052525225
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 2.404125,
+            "mean": 2.24817285,
+            "median": 2.236396,
+            "min": 2.145,
+            "n": 20,
+            "rsd": 0.0307389008638596,
+            "sd": 0.0691063623609707
+          },
+          "n_inputs": 512,
+          "opening_bits": {
+            "exact": 121
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 16480
           },
-          "opening_bits": {
-            "exact": 121
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 21.701917,
+            "mean": 20.984218900000002,
+            "median": 20.9413755,
+            "min": 20.591375,
+            "n": 20,
+            "rsd": 0.013188795036778101,
+            "sd": 0.27675656207898525
           }
         }
-      ]
+      ],
+      "scale_us": {
+        "max": 49.25,
+        "mean": 36.601285,
+        "median": 35.75,
+        "min": 35.0,
+        "n": 200,
+        "rsd": 0.06048525870755603,
+        "sd": 2.2138381922539896
+      }
     },
     "vole": {
       "publicly_verifiable": false,
-      "scale_us": {
-        "n": 200,
-        "mean": 0.6722984835505486,
-        "sd": 0.5645485897632713,
-        "median": 0.605359673500061,
-        "min": 0.5662441253662109,
-        "max": 8.329283446073532,
-        "rsd": 0.8397290839952105
-      },
       "rows": [
         {
-          "n_inputs": 16,
-          "build_ms": {
-            "n": 30,
-            "mean": 0.041327765211462975,
-            "sd": 0.006187394376340924,
-            "median": 0.039438484236598015,
-            "min": 0.03755604848265648,
-            "max": 0.07084803655743599,
-            "rsd": 0.14971519376094264
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 0.03951719651619593,
-            "sd": 0.001867601691851902,
-            "median": 0.03884662874042988,
-            "min": 0.038038939237594604,
-            "max": 0.0455779954791069,
-            "rsd": 0.04726048041101485
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.026042,
+            "mean": 0.01995415,
+            "median": 0.019896,
+            "min": 0.017708,
+            "n": 20,
+            "rsd": 0.10514753700011895,
+            "sd": 0.0020981297254309235
+          },
+          "n_inputs": 16,
+          "opening_bits": {
+            "exact": 116
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 608
           },
-          "opening_bits": {
-            "exact": 116
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 0.020375,
+            "mean": 0.01735615,
+            "median": 0.0169585,
+            "min": 0.016166,
+            "n": 20,
+            "rsd": 0.0665779553897142,
+            "sd": 0.0011555369804371882
           }
         },
         {
-          "n_inputs": 64,
-          "build_ms": {
-            "n": 30,
-            "mean": 0.12774018881221613,
-            "sd": 0.003496608344797859,
-            "median": 0.12609106488525867,
-            "min": 0.12385798618197441,
-            "max": 0.1356932334601879,
-            "rsd": 0.027372813343324802
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 0.14265389181673527,
-            "sd": 0.0022982817716352883,
-            "median": 0.14185835607349873,
-            "min": 0.13981014490127563,
-            "max": 0.14774873852729797,
-            "rsd": 0.016110894293636567
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.11733299999999999,
+            "mean": 0.06862294999999999,
+            "median": 0.06422900000000001,
+            "min": 0.060625000000000005,
+            "n": 20,
+            "rsd": 0.182394201759596,
+            "sd": 0.012516428187638666
+          },
+          "n_inputs": 64,
+          "opening_bits": {
+            "exact": 118
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 2144
           },
-          "opening_bits": {
-            "exact": 118
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 0.076833,
+            "mean": 0.06582705,
+            "median": 0.064042,
+            "min": 0.060583,
+            "n": 20,
+            "rsd": 0.07230376709751699,
+            "sd": 0.004759543691916605
           }
         },
         {
-          "n_inputs": 166,
-          "build_ms": {
-            "n": 30,
-            "mean": 0.3100828578074773,
-            "sd": 0.0033157460291485534,
-            "median": 0.3094226121902466,
-            "min": 0.303629320114851,
-            "max": 0.31917309388518333,
-            "rsd": 0.010693096847060206
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 0.36115214849511784,
-            "sd": 0.003520981594849189,
-            "median": 0.36111148074269295,
-            "min": 0.35464391112327576,
-            "max": 0.36843307316303253,
-            "rsd": 0.009749302640232767
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.198583,
+            "mean": 0.16374575,
+            "median": 0.1593335,
+            "min": 0.152292,
+            "n": 20,
+            "rsd": 0.07762336231065141,
+            "sd": 0.012710495679079347
+          },
+          "n_inputs": 166,
+          "opening_bits": {
+            "exact": 120
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 5408
           },
-          "opening_bits": {
-            "exact": 120
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 0.20775000000000002,
+            "mean": 0.1689791,
+            "median": 0.162604,
+            "min": 0.156833,
+            "n": 20,
+            "rsd": 0.08134881311263631,
+            "sd": 0.013746249225841481
           }
         },
         {
-          "n_inputs": 512,
-          "build_ms": {
-            "n": 30,
-            "mean": 0.9251565517236789,
-            "sd": 0.016495243021621562,
-            "median": 0.9217543993145227,
-            "min": 0.9124330244958401,
-            "max": 1.0074712336063385,
-            "rsd": 0.017829677572826913
-          },
-          "verify_ms": {
-            "n": 30,
-            "mean": 1.1029424456258614,
-            "sd": 0.0057817035345134144,
-            "median": 1.1021075770258904,
-            "min": 1.091883983463049,
-            "max": 1.11855985596776,
-            "rsd": 0.005242071839236003
-          },
           "accepted": true,
+          "build_ms": {
+            "max": 0.5534589999999999,
+            "mean": 0.51254785,
+            "median": 0.5093955,
+            "min": 0.46508299999999997,
+            "n": 20,
+            "rsd": 0.05653636587811627,
+            "sd": 0.02897759277764186
+          },
+          "n_inputs": 512,
+          "opening_bits": {
+            "exact": 121
+          },
           "published_bytes_incremental": {
             "exact": 96
           },
           "published_bytes_standalone": {
             "exact": 16480
           },
-          "opening_bits": {
-            "exact": 121
-          },
           "soundness_bits": {
             "exact": 40
+          },
+          "verify_ms": {
+            "max": 0.628583,
+            "mean": 0.5351418,
+            "median": 0.5368335,
+            "min": 0.473958,
+            "n": 20,
+            "rsd": 0.07820746547458875,
+            "sd": 0.041852083847509276
           }
         }
-      ]
+      ],
+      "scale_us": {
+        "max": 0.041999999999999996,
+        "mean": 0.023729999999999998,
+        "median": 0.041,
+        "min": 0.0,
+        "n": 200,
+        "rsd": 0.8708694308432648,
+        "sd": 0.020665731593910674
+      }
     }
   },
   "vole_speedup": {
-    "scale": 112.6,
-    "verify_at_166": 38.5
+    "scale": 872.0,
+    "verify_at_166": 41.8
+  },
+  "width_budget": {
+    "challenge_bits": 40,
+    "field_bits_needed": 164,
+    "finding": "The check does not run in the field it was proposed to save. It needs about 164 bits against 253 for the group order, and at 253 the same widening also makes threshold_sigma assemble correctly --- so the question is whether 164 is worth it over 253, not whether the check avoids widening at all.",
+    "group_order": "fits",
+    "group_order_bits": 252,
+    "mask_bits": 119,
+    "mp_spdz_default_128": "refused: 166 inputs of 31 bits with 40-bit coefficients open to 120 bits, which fits --- but the 119-bit mask has to be dealt to 7 nodes with 40 bits of slack per share, and that needs 164 bits against the narrower of the MPC prime (127) and the group order (252). The hiding bits are spent twice, once on the combination and once on each share. Widen the field, or say in the artifact which of the two hidings was given up.",
+    "n_inputs": 166,
+    "opening_bits": 120,
+    "value_bits": 31,
+    "wide_enough": "fits"
   }
 }

@@ -1,10 +1,8 @@
-//! Rust port of `scripts/run_three_times.py`.
-
 use ed25519_dalek::SigningKey;
 use qomm_audit::receipts::{digest, sign_receipt, AuditLedger, SlotSpec, GENESIS};
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
 use qomm_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
-use qomm_sim::pyrandom::PyRandom;
+use qomm_sim::deterministic_random::DeterministicRng;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -36,7 +34,7 @@ fn main() {
 
 fn run_main() -> HarnessResult<()> {
     let options = parse_args()?;
-    let mut values = PyRandom::new(5);
+    let mut values = DeterministicRng::new(5);
     let mut rng = OsRng;
     let makers = (0..options.n_mm)
         .map(|_| MakerWitness {
@@ -66,7 +64,7 @@ fn run_main() -> HarnessResult<()> {
                 "  delay {delay}ms: all slots failed: {}",
                 samples
                     .first()
-                    .map_or_else(|| "None".into(), qomm_harness::py_display)
+                    .map_or_else(|| "None".into(), qomm_harness::value_display)
             );
             continue;
         }

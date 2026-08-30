@@ -89,6 +89,20 @@ fn main() {
     println!("cargo:rustc-link-lib=static=qomm_spdz");
     println!("cargo:rustc-link-search=native={}", root.display());
     println!("cargo:rustc-link-lib=dylib=SPDZ");
+    let engine_ldlibs = config_variable(&root, "LDLIBS");
+    // Cargo places `rustc-link-search` paths before linked libraries, whereas
+    // a raw `-L...` emitted as `rustc-link-arg` appears after every
+    // `rustc-link-lib`. That ordering is observable on a native Apple Silicon
+    // host driven by an x86_64 rustup toolchain: MP-SPDZ's Homebrew GMP exists,
+    // but `-lgmpxx` is searched before `/opt/homebrew/lib` and the link fails.
+    // Promote every search path from MP-SPDZ's own expanded LDLIBS into the
+    // Cargo model; the raw flags below remain for rpaths and other linker
+    // options.
+    for flag in &engine_ldlibs {
+        if let Some(path) = flag.strip_prefix("-L").filter(|path| !path.is_empty()) {
+            println!("cargo:rustc-link-search=native={path}");
+        }
+    }
     // The C++ runtime, whose name is not the same everywhere. Apple removed
     // libstdc++ years ago and ships libc++; naming `stdc++` there fails with
     // `library 'stdc++' not found`, which reads like a missing package and is
@@ -144,7 +158,7 @@ fn main() {
     // failure is a page of undefined symbols with names from Boost headers, not
     // anything that mentions MP-SPDZ. Passing the engine's own link line
     // through is both the fix and the guarantee that it stays the same line.
-    for flag in config_variable(&root, "LDLIBS") {
+    for flag in engine_ldlibs {
         println!("cargo:rustc-link-arg={flag}");
     }
     println!("cargo:rustc-cfg=have_spdz");
@@ -163,7 +177,10 @@ fn main() {
 /// `DEBUG` for every build script --- to `true` or `false`, meaning the Rust
 /// profile --- so an inherited environment silently appends the word `false` to
 /// the C++ compiler's arguments, where it is read as the name of an input file.
-/// Nothing about the resulting error mentions either make or cargo.
+/// Nothing about the resulting error mentions either make or cargo. `PATH` and
+/// the caller's unchanged `HOME` are retained because MP-SPDZ's Darwin CONFIG
+/// invokes `brew --prefix`; Homebrew refuses to run without HOME and would turn
+/// `-L`brew --prefix`/lib` into the unrelated `/lib`.
 fn engine_flags(root: &Path) -> Vec<String> {
     let flags = config_variable(root, "CFLAGS");
     // `-DGFP_MOD_SZ` is deliberately not required. An earlier version asserted
@@ -201,6 +218,7 @@ fn config_variable(root: &Path, name: &str) -> Vec<String> {
         .current_dir(root)
         .env_clear()
         .env("PATH", std::env::var_os("PATH").unwrap_or_default())
+        .env("HOME", std::env::var_os("HOME").unwrap_or_default())
         .arg("-s")
         .arg("-f")
         .arg(&path)

@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_identity.py`.
-
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::local_mpc::{maybe_run_party, LocalMpcRun};
@@ -93,11 +91,15 @@ fn run_main() -> HarnessResult<()> {
         check_mode: CheckMode::PerParty,
         binding_limit: false,
         user_limit: 100_000,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &config.check_coefficients,
         check_repeats: 1,
         policies: None,
         shamir_inputs: false,
         shamir_threshold: (options.parties - 1) / 2,
+        dvp: None,
+        quote_proof: None,
     };
     let generated = build_inputs(&input_config)?;
     let party_files = generated.party_files();
@@ -204,7 +206,7 @@ fn run_main() -> HarnessResult<()> {
             "checked_values": n_checked,
             "repeats": 1,
         },
-        "the_seam_that_was_open": "gen_qomm emitted a FIXTURE coefficient list with a comment saying so. With fixture coefficients the check proves nothing --- the argument is entirely that the coefficients arrive after the commitments, so a node knowing them in advance picks its error to cancel. This run derives them from the published commitments and hands the same list to the circuit, which is the first time a verification has run across that seam.",
+        "the_seam_that_was_open": "An earlier generator revision emitted a FIXTURE coefficient list with a comment saying so. With fixture coefficients the check proves nothing --- the argument is entirely that the coefficients arrive after the commitments, so a node knowing them in advance picks its error to cancel. This run derives them from the published commitments and hands the same list to the circuit, which closes and verifies that seam.",
         "honest": {
             "verified": honest_verdict.0,
             "culprits": honest_verdict.2,
@@ -228,14 +230,14 @@ fn run_main() -> HarnessResult<()> {
     });
     println!(
         "honest run:   verified={} culprits={}",
-        py_bool(honest_verdict.0),
-        qomm_harness::py_display(&json!(honest_verdict.2)),
+        display_bool(honest_verdict.0),
+        qomm_harness::value_display(&json!(honest_verdict.2)),
     );
     println!("node {} substitutes the taker's quantity:", tamper_party);
     println!(
         "  verified={}  named={}",
-        py_bool(tampered_verdict.0),
-        qomm_harness::py_display(&json!(tampered_verdict.2)),
+        display_bool(tampered_verdict.0),
+        qomm_harness::value_display(&json!(tampered_verdict.2)),
     );
     println!("  {}", tampered_verdict.1);
     write_pretty_json(Some(&options.out), &result)?;
@@ -467,7 +469,7 @@ fn value(raw: &[OsString], index: &mut usize, name: &str) -> HarnessResult<OsStr
         .ok_or_else(|| format!("{name} expects a value").into())
 }
 
-fn py_bool(value: bool) -> &'static str {
+fn display_bool(value: bool) -> &'static str {
     if value {
         "True"
     } else {

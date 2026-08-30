@@ -1,12 +1,10 @@
-//! Rust port of `scripts/run_block_range_query.py`.
-
 use qomm_harness::smallsample::{fsum, population_sd};
 use qomm_harness::{median, write_pretty_json, HarnessResult};
+use qomm_sim::deterministic_random::DeterministicRng;
 use qomm_sim::disclosure::{Disclosure, EntityAccountant, WindowObservation};
 use qomm_sim::engine::{run_arm, ArmOptions};
 use qomm_sim::lab::LabMarket;
 use qomm_sim::market::{build_market_makers, build_requests, ReferenceMarket, SimConfig};
-use qomm_sim::pyrandom::PyRandom;
 use qomm_sim::queries::{
     answer_block_range_query, event_count_sensitivity, noise_scale, windows_in_range,
     BlockRangeQuery, SENSITIVITY,
@@ -104,9 +102,7 @@ fn build_setup(tape_path: Option<&Path>) -> HarnessResult<Setup> {
             &cfg,
             &market,
             &tape,
-            // The Python calls `lab.build(tape=...)` and takes its default, so
             // this has to take the same one. Hardcoding `RoundRobin(24)` here
-            // agreed with the Python only while the Python's default was also
             // twenty-four; when that moved, this arm silently kept measuring a
             // different population.
             Entities::PerAddress,
@@ -125,7 +121,7 @@ fn build_setup(tape_path: Option<&Path>) -> HarnessResult<Setup> {
         let makers = build_market_makers(&loaded.cfg, loaded.cfg.seed + 1);
         Ok(Setup {
             cfg: loaded.cfg,
-            market: LabMarket::Tape(market),
+            market: LabMarket::Tape(Box::new(market)),
             makers,
             requests: loaded.requests,
             meta: Value::Object(meta),
@@ -234,7 +230,7 @@ fn noise_check(
     if windows.is_empty() || draws == 0 {
         return Err("noise check needs at least one window and one draw".into());
     }
-    let mut rng = PyRandom::new(seed);
+    let mut rng = DeterministicRng::new(seed);
     let query = BlockRangeQuery::new(windows[0].start_step, windows[windows.len() - 1].end_step)?;
     let truth = windows_in_range(windows, &query)
         .into_iter()
@@ -364,7 +360,7 @@ fn real_identity_arm(
         if samples > population {
             return Err(format!("cannot sample {samples} starts from {population}").into());
         }
-        let starts: Vec<usize> = PyRandom::new(seed + width as u64)
+        let starts: Vec<usize> = DeterministicRng::new(seed + width as u64)
             .sample(population, samples)
             .into_iter()
             .map(|offset| lo_block + offset)
@@ -383,7 +379,7 @@ fn real_identity_arm(
         let distinct: Vec<f64> = pairs.iter().map(|pair| pair.1).collect();
         let mean_fills = fsum(fills.iter().copied()) / fills.len() as f64;
         let mean_distinct = fsum(distinct.iter().copied()) / distinct.len() as f64;
-        // CPython 3.13's built-in float `sum` uses compensated summation.
+        // The metric contract uses compensated summation.
         let sxy = fsum(
             pairs
                 .iter()

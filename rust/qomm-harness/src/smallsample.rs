@@ -1,6 +1,5 @@
 //! Student-t intervals used by the artifact harnesses.
 //!
-//! This is the Rust port of `scripts/smallsample.py`. The inverse incomplete
 //! beta comes from `qomm-sim`, the same numerical implementation used by the
 //! DP audit, rather than being copied into the harness.
 
@@ -153,13 +152,13 @@ mod tests {
     }
 
     #[test]
-    fn empty_and_singleton_shapes_match_python() {
+    fn empty_and_singleton_shapes_match_the_contract() {
         assert_eq!(mean_ci(&[], 0.05)["n"], 0);
         assert_eq!(mean_ci(&[3.0], 0.05)["multiplier"], Value::Null);
     }
 
     #[test]
-    fn population_spread_rounds_like_python_statistics() {
+    fn population_spread_uses_locked_rounding() {
         let values = [
             f64::from_bits(0x4025_0364_8ca5_520c),
             f64::from_bits(0xc016_8d43_3d11_e3a0),

@@ -1,13 +1,16 @@
 //! Command-line MP-SPDZ program generator.
 
-use qomm_mpc::inputs::{build_inputs, finish_reference, parse_policies, policy_count, InputConfig};
+use qomm_mpc::inputs::{
+    build_inputs, finish_reference, parse_policies, policy_count, DvpInputs, InputConfig,
+    QuoteProofInputs, QUOTE_POLICY_BLINDING_FIELDS,
+};
 use qomm_mpc::program::{
     build_program, ed25519_lagrange_at_zero, pow2_ceil, sentinel_for, CheckMode, Disclosure, Mode,
     ProgramConfig, Reference, StopAfter,
 };
 use std::path::PathBuf;
 
-const AGGREGATE_WARNING: &str = "the AGGREGATE input check is unsound as emitted. Its coefficients are fixed before the circuit reads its inputs, so a node that has seen them can substitute two values whose errors cancel --- see artifacts/coefficient_timing_flaw.json. --check-mode per-party draws its challenge after the input phase.";
+const AGGREGATE_WARNING: &str = "the AGGREGATE input check is unsound as emitted. Its coefficients are fixed before the circuit reads its inputs, so a node that has seen them can substitute two values whose errors cancel. The measured correction is artifacts/input_check.json: --check-mode per-party draws its challenge after the input phase.";
 
 #[derive(Debug)]
 struct Cli {
@@ -28,14 +31,25 @@ struct Cli {
     out_reference: PathBuf,
     inputs_only: bool,
     shamir_inputs: bool,
+    shamir_threshold: Option<usize>,
     unsound_check_for_measurement: bool,
+    taker_securities_reserve: Option<i128>,
+    taker_securities_blinding: Option<i128>,
+    taker_cash_reserve: Option<i128>,
+    taker_cash_blinding: Option<i128>,
+    maker_securities_reserve: Option<i128>,
+    maker_securities_blinding: Option<i128>,
+    maker_cash_reserve: Option<i128>,
+    maker_cash_blinding: Option<i128>,
 }
 
 impl Default for Cli {
     fn default() -> Self {
-        let mut config = ProgramConfig::default();
         // argparse's CLI default differs from build_program's direct default.
-        config.check_mode = CheckMode::PerParty;
+        let config = ProgramConfig {
+            check_mode: CheckMode::PerParty,
+            ..ProgramConfig::default()
+        };
         Self {
             config,
             real_mm: 16,
@@ -54,7 +68,16 @@ impl Default for Cli {
             out_reference: PathBuf::new(),
             inputs_only: false,
             shamir_inputs: false,
+            shamir_threshold: None,
             unsound_check_for_measurement: false,
+            taker_securities_reserve: None,
+            taker_securities_blinding: None,
+            taker_cash_reserve: None,
+            taker_cash_blinding: None,
+            maker_securities_reserve: None,
+            maker_securities_blinding: None,
+            maker_cash_reserve: None,
+            maker_cash_blinding: None,
         }
     }
 }
@@ -74,6 +97,15 @@ fn main() {
 
 fn run() -> Result<(), (i32, String)> {
     let mut cli = parse_args()?;
+    if cli.config.persist_dvp_wires {
+        cli.config.persist_zkpi_wires = true;
+        cli.config.persist_wires = true;
+    }
+    if cli.config.persist_quote_proof_wires {
+        cli.config.persist_zkpi_wires = true;
+        cli.config.persist_wires = true;
+        cli.config.public_maker_assets = true;
+    }
     if cli.config.input_check && cli.config.check_mode != CheckMode::PerParty {
         if !cli.unsound_check_for_measurement {
             return Err((
@@ -105,6 +137,21 @@ fn run() -> Result<(), (i32, String)> {
             ),
         ));
     }
+    if cli.config.persist_zkpi_wires {
+        if cli.config.mode != Mode::Rfq {
+            return Err((
+                2,
+                "error: --persist-zkpi-wires is currently defined for RFQ only".into(),
+            ));
+        }
+        if !cli.shamir_inputs {
+            return Err((
+                2,
+                "error: --persist-zkpi-wires requires --shamir-inputs so MPC shares and Ristretto commitments use the same field".into(),
+            ));
+        }
+        cli.config.persist_wires = true;
+    }
     // `--check-repeats 0` emitted `CHECK_REPEATS = 0`, so the mask line was
     // still there, the loop body never ran, and the program still announced an
     // input check while performing none.
@@ -119,6 +166,35 @@ fn run() -> Result<(), (i32, String)> {
 
     let padded = pow2_ceil(cli.real_mm).map_err(|e| (2, format!("error: {e}")))?;
     cli.config.n_mm = padded;
+    let required = |value: Option<i128>, name: &str| {
+        value.ok_or_else(|| (2, format!("error: --persist-dvp-wires requires --{name}")))
+    };
+    let dvp = if cli.config.persist_dvp_wires {
+        let maker_securities = required(cli.maker_securities_reserve, "maker-securities-reserve")?;
+        let maker_securities_blinding =
+            required(cli.maker_securities_blinding, "maker-securities-blinding")?;
+        let maker_cash = required(cli.maker_cash_reserve, "maker-cash-reserve")?;
+        let maker_cash_blinding = required(cli.maker_cash_blinding, "maker-cash-blinding")?;
+        Some(DvpInputs {
+            taker_securities_reserve: required(
+                cli.taker_securities_reserve,
+                "taker-securities-reserve",
+            )?,
+            taker_securities_blinding: required(
+                cli.taker_securities_blinding,
+                "taker-securities-blinding",
+            )?,
+            taker_cash_reserve: required(cli.taker_cash_reserve, "taker-cash-reserve")?,
+            taker_cash_blinding: required(cli.taker_cash_blinding, "taker-cash-blinding")?,
+            maker_securities_reserves: vec![maker_securities; padded],
+            maker_securities_blindings: vec![maker_securities_blinding; padded],
+            maker_cash_reserves: vec![maker_cash; padded],
+            maker_cash_blindings: vec![maker_cash_blinding; padded],
+            maker_handle_scalars: (0..padded).map(|maker| 21_i128 + maker as i128).collect(),
+        })
+    } else {
+        None
+    };
     if cli.config.ref_table.is_empty() {
         cli.config.ref_table = (0..cli.config.n_assets)
             .map(|asset| cli.config.ref_mid + 5_000 * asset as i128)
@@ -211,6 +287,9 @@ fn run() -> Result<(), (i32, String)> {
         .bit_length
         .checked_add(1)
         .ok_or_else(|| (1, "value bit width overflow".into()))?;
+    let shamir_threshold = cli
+        .shamir_threshold
+        .unwrap_or_else(|| (cli.config.n_parties - 1) / 2);
     let input_config = InputConfig {
         n_mm: padded,
         n_real_mm: cli.real_mm,
@@ -234,11 +313,26 @@ fn run() -> Result<(), (i32, String)> {
         check_mode: cli.config.check_mode,
         binding_limit: cli.config.binding_limit,
         user_limit: cli.user_limit,
+        user_limit_blinding: 1,
+        user_qty_blinding: 1,
         check_coefficients: &cli.config.check_coefficients,
         check_repeats: cli.config.check_repeats,
         policies: policies.as_deref(),
         shamir_inputs: cli.shamir_inputs,
-        shamir_threshold: (cli.config.n_parties - 1) / 2,
+        shamir_threshold,
+        dvp,
+        quote_proof: cli
+            .config
+            .persist_quote_proof_wires
+            .then(|| QuoteProofInputs {
+                maker_policy_blindings: (0..padded)
+                    .map(|maker| {
+                        std::array::from_fn(|field| {
+                            1_000_i128 + (maker * QUOTE_POLICY_BLINDING_FIELDS + field) as i128
+                        })
+                    })
+                    .collect(),
+            }),
     };
     let mut generated = build_inputs(&input_config).map_err(|e| (1, e.to_string()))?;
     finish_reference(&mut generated, &input_config, sentinel, cli.config.mode)
@@ -332,6 +426,28 @@ fn parse_args() -> Result<Cli, (i32, String)> {
             }
             "--use-ref" => number!(cli.use_ref, i128),
             "--persist-wires" => flag(&name, attached.as_deref(), &mut cli.config.persist_wires)?,
+            "--persist-zkpi-wires" => flag(
+                &name,
+                attached.as_deref(),
+                &mut cli.config.persist_zkpi_wires,
+            )?,
+            "--persist-quote-proof-wires" => flag(
+                &name,
+                attached.as_deref(),
+                &mut cli.config.persist_quote_proof_wires,
+            )?,
+            "--persist-dvp-wires" => flag(
+                &name,
+                attached.as_deref(),
+                &mut cli.config.persist_dvp_wires,
+            )?,
+            "--zkpi-amount-bits" => number!(cli.config.zkpi_amount_bits, usize),
+            "--zkpi-price-bits" => number!(cli.config.zkpi_price_bits, usize),
+            "--quote-eligibility-bits" => {
+                number!(cli.config.quote_eligibility_bits, usize)
+            }
+            "--quote-span-bits" => number!(cli.config.quote_span_bits, usize),
+            "--dvp-remainder-bits" => number!(cli.config.dvp_remainder_bits, usize),
             "--audit-gates" => flag(&name, attached.as_deref(), &mut cli.config.audit_gates)?,
             "--n-assets" => number!(cli.config.n_assets, usize),
             "--band-bps" => number!(cli.config.band_bps, i128),
@@ -341,6 +457,26 @@ fn parse_args() -> Result<Cli, (i32, String)> {
             "--user-dir" => number!(cli.user_dir, i128),
             "--user-asset" => number!(cli.user_asset, usize),
             "--user-entity" => number!(cli.user_entity, i128),
+            "--taker-securities-reserve" => {
+                cli.taker_securities_reserve = Some(parse_i128(&name, &value!())?)
+            }
+            "--taker-securities-blinding" => {
+                cli.taker_securities_blinding = Some(parse_i128(&name, &value!())?)
+            }
+            "--taker-cash-reserve" => cli.taker_cash_reserve = Some(parse_i128(&name, &value!())?),
+            "--taker-cash-blinding" => {
+                cli.taker_cash_blinding = Some(parse_i128(&name, &value!())?)
+            }
+            "--maker-securities-reserve" => {
+                cli.maker_securities_reserve = Some(parse_i128(&name, &value!())?)
+            }
+            "--maker-securities-blinding" => {
+                cli.maker_securities_blinding = Some(parse_i128(&name, &value!())?)
+            }
+            "--maker-cash-reserve" => cli.maker_cash_reserve = Some(parse_i128(&name, &value!())?),
+            "--maker-cash-blinding" => {
+                cli.maker_cash_blinding = Some(parse_i128(&name, &value!())?)
+            }
             "--seed" => number!(cli.seed, i128),
             "--field-bits" => number!(cli.field_bits, i128),
             "--bit-length" => number!(cli.config.bit_length, u32),
@@ -400,6 +536,15 @@ fn parse_args() -> Result<Cli, (i32, String)> {
                 out_input_dir = true;
             }
             "--shamir-inputs" => flag(&name, attached.as_deref(), &mut cli.shamir_inputs)?,
+            "--shamir-threshold" => {
+                let raw_value = value!();
+                cli.shamir_threshold = Some(raw_value.parse::<usize>().map_err(|_| {
+                    (
+                        2,
+                        format!("error: argument {name}: invalid integer value: '{raw_value}'"),
+                    )
+                })?);
+            }
             "--ref-table" => {
                 let value = value!();
                 cli.config.ref_table = value
@@ -481,6 +626,15 @@ fn choice_error(name: &str, value: &str, choices: &str) -> (i32, String) {
     )
 }
 
+fn parse_i128(name: &str, value: &str) -> Result<i128, (i32, String)> {
+    value.parse::<i128>().map_err(|_| {
+        (
+            2,
+            format!("error: argument {name}: invalid integer value: '{value}'"),
+        )
+    })
+}
+
 fn parse_json_integer_array(text: &str) -> Result<Vec<i128>, String> {
     serde_json::from_str(text).map_err(|error| {
         if text.trim() == "[01]" {
@@ -495,7 +649,13 @@ fn usage() -> &'static str {
     "usage: qomm-gen [--n-mm N] [--n-parties N] [--mode {rfq,rfm,rfs}]\n\
      [--rfs-steps N] [--disclose {none,threshold}] [--now-t N] [--ref-mid N]\n\
      [--n-requests N] [--public-maker-assets] [--reference {anchored,none}]\n\
-     [--use-ref N] [--persist-wires] [--audit-gates] [--n-assets N]\n\
+     [--use-ref N] [--persist-wires] [--persist-zkpi-wires] [--persist-dvp-wires]\n\
+     [--zkpi-amount-bits N] [--zkpi-price-bits N] [--dvp-remainder-bits N]\n\
+     [--taker-securities-reserve N] [--taker-securities-blinding N]\n\
+     [--taker-cash-reserve N] [--taker-cash-blinding N]\n\
+     [--maker-securities-reserve N] [--maker-securities-blinding N]\n\
+     [--maker-cash-reserve N] [--maker-cash-blinding N]\n\
+     [--audit-gates] [--n-assets N]\n\
      [--band-bps N] [--threshold-k N] [--threshold-v N] [--user-qty N]\n\
      [--user-dir N] [--user-asset N] [--user-entity N] [--seed N]\n\
      [--field-bits N] [--bit-length N] [--price-conditionals N]\n\
@@ -504,6 +664,6 @@ fn usage() -> &'static str {
      [--unsound-check-for-measurement] [--input-check] [--trunc-pr] [--edabit]\n\
      [--is-real {0,1}] [--no-public-check]\n\
      [--stop-after {price,direction,gates,tournament}] [--inputs-only]\n\
-     --out-program PATH --out-input-dir PATH [--shamir-inputs]\n\
+     --out-program PATH --out-input-dir PATH [--shamir-inputs] [--shamir-threshold N]\n\
      [--ref-table CSV] [--policies PATH] --out-reference PATH"
 }

@@ -1,5 +1,3 @@
-//! Rust port of `scripts/run_staleness.py`.
-
 use qomm_harness::{median, parse_value, write_pretty_json, HarnessResult};
 use serde::Deserialize;
 use serde_json::{json, Map, Value};
@@ -162,7 +160,7 @@ fn series(path: &std::path::Path) -> HarnessResult<PairSeries> {
         } else {
             (token_in, token_out)
         };
-        let rate = python_integer_ratio(amount_out, amount_in)?;
+        let rate = correctly_rounded_integer_ratio(amount_out, amount_in)?;
         let log_rate = if flip { (1.0 / rate).ln() } else { rate.ln() };
         let block = record.block.ok_or("fill record has no integer block")?;
         if let Some((_, values)) = by_pair.iter_mut().find(|(existing, _)| *existing == key) {
@@ -174,11 +172,11 @@ fn series(path: &std::path::Path) -> HarnessResult<PairSeries> {
     Ok(by_pair)
 }
 
-/// Match CPython's correctly-rounded true division for the positive integer
-/// token amounts in the fill feed. Converting each JSON integer to `f64` first
+/// Correctly rounded division for the positive integer token amounts in the
+/// fill feed. Converting each JSON integer to `f64` first
 /// loses low limbs before the division; double-double parsing and correction
 /// retain them, including values wider than `u128`.
-fn python_integer_ratio(
+fn correctly_rounded_integer_ratio(
     numerator: &serde_json::Number,
     denominator: &serde_json::Number,
 ) -> HarnessResult<f64> {

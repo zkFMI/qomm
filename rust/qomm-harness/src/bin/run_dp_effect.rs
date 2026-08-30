@@ -1,7 +1,5 @@
-//! Rust port of `scripts/run_dp_effect.py`.
-
 use qomm_harness::smallsample::mean_ci;
-use qomm_harness::{python_version, write_pretty_json, HarnessResult};
+use qomm_harness::{rustc_version, write_pretty_json, HarnessResult};
 use qomm_sim::disclosure::{Disclosure, DpDisclosure};
 use qomm_sim::engine::{run_arm, ArmOptions};
 use qomm_sim::experiment::{build_probes, DpParams};
@@ -68,7 +66,7 @@ fn run_main() -> HarnessResult<()> {
     }
     let payload = json!({
         "host": qomm_measure::hosts::this_host(),
-        "python": python_version(),
+        "rustc": rustc_version(),
         "seeds": options.seeds,
         "arms": arms,
     });
@@ -164,7 +162,7 @@ fn run_arm_set(
             }
             (
                 loaded.cfg,
-                LabMarket::Tape(tape_market),
+                LabMarket::Tape(Box::new(tape_market)),
                 loaded.requests,
                 Value::Object(values),
             )

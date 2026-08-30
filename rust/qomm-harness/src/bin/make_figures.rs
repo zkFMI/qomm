@@ -1,7 +1,5 @@
-//! Rust port of `scripts/make_figures.py`.
 //!
 //! Plot construction is native Rust/SVG. The final SVG is rendered to the two
-//! publication formats with `rsvg-convert`; no Python or Matplotlib process is
 //! involved.
 
 use qomm_harness::{measurement_value, repo_root, run_checked, unique_temp_dir, HarnessResult};
@@ -32,6 +30,8 @@ struct Series {
     dashed: bool,
 }
 
+type FigureFactory = (&'static str, fn(&Path) -> Figure);
+
 struct Canvas {
     width: u32,
     height: u32,
@@ -47,6 +47,9 @@ impl Canvas {
         }
     }
 
+    // SVG line primitives are clearest with their two points and three style
+    // attributes visible at each call site.
+    #[allow(clippy::too_many_arguments)]
     fn line(&mut self, x1: f64, y1: f64, x2: f64, y2: f64, colour: &str, width: f64, dash: bool) {
         self.body.push_str(&format!(
             "<line x1=\"{x1:.2}\" y1=\"{y1:.2}\" x2=\"{x2:.2}\" y2=\"{y2:.2}\" stroke=\"{colour}\" stroke-width=\"{width:.2}\"{} />\n",
@@ -129,6 +132,9 @@ fn bounds(series: &[Series], y_range: Option<(f64, f64)>) -> (f64, f64, f64, f64
     (xmin, xmax, ymin, ymax)
 }
 
+// A chart call names its panel, labels, data, range, and reference line. These
+// are independent visual choices, so defaults would hide figure intent.
+#[allow(clippy::too_many_arguments)]
 fn line_chart(
     canvas: &mut Canvas,
     panel: Rect,
@@ -443,7 +449,7 @@ fn run() -> HarnessResult<()> {
         index += 1;
     }
     let temp = unique_temp_dir("qomm-rust-figures")?;
-    let figures: [(&str, fn(&Path) -> Figure); 13] = [
+    let figures: [FigureFactory; 12] = [
         ("fig_rho", fig_rho),
         ("fig_settlement_cost", fig_settlement_cost),
         ("fig_parallel", fig_parallel),
@@ -453,7 +459,6 @@ fn run() -> HarnessResult<()> {
         ("fig_wasm", fig_wasm),
         ("fig_notes", fig_notes),
         ("fig_rings", fig_rings),
-        ("fig_evm", fig_evm),
         ("fig_placement", fig_placement),
         ("fig_state_audit", fig_state_audit),
         ("fig_dp_effect", fig_dp_effect),
@@ -472,7 +477,6 @@ fn run() -> HarnessResult<()> {
                     "wasm" => "wasm_vs_native",
                     "notes" => "anonymity_set",
                     "rings" => "ring_anonymity",
-                    "evm" => "evm_blocks",
                     "placement" => "node_placement",
                     other => other,
                 };
@@ -546,54 +550,34 @@ fn fig_rho(art: &Path) -> Figure {
 }
 
 fn fig_settlement_cost(art: &Path) -> Figure {
-    let Some(python) = load(art, "defmi.json")? else {
-        return Ok(Err("defmi.json (make defmi)".into()));
+    // This plotted the retired prototype's series against the Rust one. The
+    // prototype is gone, so the comparison is one nobody can re-run; what the
+    // figure is for is how settlement scales with balance width, and that is
+    // the Rust series on its own.
+    let Some(rust) = load(art, "rust_bench.json")? else {
+        return Ok(Err("rust_bench.json (make rust-bench)".into()));
     };
-    let rust = load(art, "rust_bench.json")?;
-    let scaling = python["scaling"]
+    let rows = rust["scaling"]
         .as_array()
-        .ok_or("defmi scaling is not an array")?;
-    let mut left = vec![Series {
-        label: "Python, bit decomposition".into(),
-        colour: PLAIN,
-        points: scaling
+        .ok_or("rust scaling is not an array")?;
+    let left = vec![Series {
+        label: "aggregated range proofs".into(),
+        colour: OBLIVIOUS,
+        points: rows
             .iter()
-            .map(|r| Ok((center(&r["bits"])?, center(&r["settle"])?)))
+            .map(|r| Ok((center(&r["bits"])?, center(&r["settle_ms"])?)))
             .collect::<HarnessResult<_>>()?,
         dashed: false,
     }];
-    let mut right = vec![Series {
-        label: "Python".into(),
-        colour: PLAIN,
-        points: scaling
+    let right = vec![Series {
+        label: "package".into(),
+        colour: OBLIVIOUS,
+        points: rows
             .iter()
             .map(|r| Ok((center(&r["bits"])?, center(&r["package_bytes"])? / 1024.0)))
             .collect::<HarnessResult<_>>()?,
         dashed: false,
     }];
-    if let Some(rust) = rust {
-        let rows = rust["scaling"]
-            .as_array()
-            .ok_or("rust scaling is not an array")?;
-        left.push(Series {
-            label: "Rust, aggregated range proofs".into(),
-            colour: OBLIVIOUS,
-            points: rows
-                .iter()
-                .map(|r| Ok((center(&r["bits"])?, center(&r["settle_ms"])?)))
-                .collect::<HarnessResult<_>>()?,
-            dashed: false,
-        });
-        right.push(Series {
-            label: "Rust".into(),
-            colour: OBLIVIOUS,
-            points: rows
-                .iter()
-                .map(|r| Ok((center(&r["bits"])?, center(&r["package_bytes"])? / 1024.0)))
-                .collect::<HarnessResult<_>>()?,
-            dashed: false,
-        });
-    }
     let mut canvas = Canvas::new(1440, 560);
     line_chart(
         &mut canvas,
@@ -639,18 +623,8 @@ fn fig_parallel(art: &Path) -> Figure {
     else {
         return Ok(Err("defmi.json with a parallel section".into()));
     };
-    let big = load(art, "defmi_host_a.json")?;
     let mut series = Vec::new();
-    for (rows, colour, name) in [
-        (Some(local_rows), PLAIN, "host-c"),
-        (
-            big.as_ref()
-                .and_then(|v| v.get("parallel"))
-                .and_then(Value::as_array),
-            OBLIVIOUS,
-            "host-a",
-        ),
-    ] {
+    for (rows, colour, name) in [(Some(local_rows), PLAIN, "current host")] {
         let Some(rows) = rows.filter(|v| !v.is_empty()) else {
             continue;
         };
@@ -1102,40 +1076,6 @@ fn fig_rings(art: &Path) -> Figure {
         &series,
         Some((0.0, 1.05)),
         None,
-    );
-    Ok(Ok(canvas))
-}
-
-fn fig_evm(art: &Path) -> Figure {
-    let Some(data) = load(art, "evm_settlement.json")? else {
-        return Ok(Err("evm_settlement.json (make evm-gas)".into()));
-    };
-    let rows = data["scaling"]
-        .as_array()
-        .ok_or("evm scaling is not array")?;
-    let labels = rows
-        .iter()
-        .map(|r| r["bits"].as_i64().unwrap_or(0).to_string())
-        .collect::<Vec<_>>();
-    let values = rows
-        .iter()
-        .map(|r| center(&r["blocks"]))
-        .collect::<HarnessResult<Vec<_>>>()?;
-    let gas = data["unit"]["gas"].as_i64().unwrap_or(0);
-    let mut canvas = Canvas::new(800, 560);
-    bar_chart(
-        &mut canvas,
-        Rect {
-            x: 10.0,
-            y: 10.0,
-            w: 770.0,
-            h: 530.0,
-        },
-        &format!("one settlement verified on an EVM, at {gas} gas a scalar multiplication"),
-        "blocks of gas",
-        &labels,
-        &[("settlement", PLAIN, values)],
-        Some(1.0),
     );
     Ok(Ok(canvas))
 }

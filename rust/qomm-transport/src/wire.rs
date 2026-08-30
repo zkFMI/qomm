@@ -5,18 +5,31 @@ use sha2::{Digest, Sha256};
 use std::fmt;
 
 pub const MAGIC: [u8; 8] = *b"QOMMWIRE";
-pub const VERSION: u8 = 1;
-pub const PAYLOAD_BYTES: usize = 256;
+/// Version 4 carries fourteen fixed field elements. In addition to the ten v3
+/// request fields it contains the Taker's two pre-authorized reserve values and
+/// blindings. Maker reserves remain resident standing state; Taker reserves are
+/// job-specific and therefore must travel with the signed RFQ rather than being
+/// frozen into the node's long-lived MPC state.
+pub const VERSION: u8 = 4;
+pub const PAYLOAD_BYTES: usize = 448;
 pub const MAC_BYTES: usize = 32;
 pub const HEADER_BYTES: usize = 8 + 1 + 4 + 2;
 pub const FRAME_BYTES: usize = HEADER_BYTES + PAYLOAD_BYTES + MAC_BYTES;
 
-/// `2^255 - 19`, represented little-endian in four limbs.
+/// The Ed25519 scalar-field order used by the pinned MP-SPDZ Shamir build,
+/// represented little-endian in four limbs.
+///
+/// The fixed frames are additive *input* shares: the MPC circuit reads one
+/// value from every party and adds them.  Sharing in the Curve25519 base field
+/// (`2^255 - 19`) used to reconstruct correctly in this module's tests but
+/// produced a different value once MP-SPDZ reduced the sum in its scalar
+/// field.  Using the execution field here makes the wire value and the value
+/// consumed by `secret_input()` identical, including wraparound.
 const FIELD: FieldElement = FieldElement([
-    0xffff_ffff_ffff_ffed,
-    0xffff_ffff_ffff_ffff,
-    0xffff_ffff_ffff_ffff,
-    0x7fff_ffff_ffff_ffff,
+    0x5812_631a_5cf5_d3ed,
+    0x14de_f9de_a2f7_9cd6,
+    0x0000_0000_0000_0000,
+    0x1000_0000_0000_0000,
 ]);
 
 #[derive(Clone, Copy, Default, Eq, PartialEq)]
@@ -81,14 +94,16 @@ impl FieldElement {
         loop {
             let mut bytes = [0_u8; 32];
             rng.fill_bytes(&mut bytes);
-            bytes[0] &= 0x7f;
+            // The modulus is just above 2^252.  Masking to 253 bits keeps
+            // rejection bounded to roughly two draws without bias.
+            bytes[0] &= 0x1f;
             if let Ok(value) = Self::from_be_bytes(bytes) {
                 return value;
             }
         }
     }
 
-    fn add_mod(self, other: Self) -> Self {
+    pub(crate) fn add_mod(self, other: Self) -> Self {
         let (sum, overflow) = add_raw(self, other);
         debug_assert!(!overflow);
         if sum >= FIELD {
@@ -233,6 +248,29 @@ pub fn share_request_with_rng(
     n_nodes: usize,
     rng: &mut impl RngCore,
 ) -> Result<Vec<[u8; PAYLOAD_BYTES]>, WireError> {
+    let values = values
+        .iter()
+        .copied()
+        .map(FieldElement::from_u128)
+        .collect::<Vec<_>>();
+    share_field_elements_with_rng(&values, n_nodes, rng)
+}
+
+/// Share canonical execution-field elements without narrowing a Pedersen
+/// blinding to `u128`. This is the product path; `share_request` remains the
+/// convenient small-integer fixture API.
+pub fn share_field_elements(
+    values: &[FieldElement],
+    n_nodes: usize,
+) -> Result<Vec<[u8; PAYLOAD_BYTES]>, WireError> {
+    share_field_elements_with_rng(values, n_nodes, &mut OsRng)
+}
+
+pub fn share_field_elements_with_rng(
+    values: &[FieldElement],
+    n_nodes: usize,
+    rng: &mut impl RngCore,
+) -> Result<Vec<[u8; PAYLOAD_BYTES]>, WireError> {
     if n_nodes < 2 {
         return Err(WireError::NodeCount);
     }
@@ -241,7 +279,6 @@ pub fn share_request_with_rng(
     }
     let mut columns = Vec::with_capacity(values.len());
     for value in values {
-        let value = FieldElement::from_u128(*value);
         let mut shares = Vec::with_capacity(n_nodes);
         let mut sum = FieldElement::ZERO;
         for _ in 0..n_nodes - 1 {

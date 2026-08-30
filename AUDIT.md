@@ -13,10 +13,10 @@ A secret `is_real` bit goes into the circuit and is never branched on. The shape
 
 | | rounds | sent per party | wall clock, median |
 |---|---:|---:|---:|
-| real slot | 287 | 17.9016 MB | 1.3187 s |
-| cover slot | 287 | 17.9016 MB | 1.3196 s |
+| real slot | 286 | 22.2045 MB | 1.6493 s |
+| cover slot | 286 | 22.2045 MB | 1.6390 s |
 
-Compiler statistics, runtime round count and bytes sent all agree (True). The wall-clock gap of 0.0008 s is smaller than the 0.0015 s spread seen when the same condition is repeated.
+Compiler statistics, runtime round count and bytes sent all agree (true). The wall-clock gap of 0.0103 s is smaller than the 0.0852 s spread seen when the same condition is repeated.
 
 **Boundary**: this is the trace of the MPC job. The path from a user to the nodes is measured separately in section 3.
 
@@ -37,7 +37,7 @@ Dropping an eligible market maker is caught by fixing the set to a single digest
 | stale_state | 4 | 3 |
 | missing_receipt | 5 | 4 |
 
-- all detected: **True**, missed **0**
+- all detected: **true**, missed **0**
 - wrongly accused honest nodes: **0**
 - 1 consequential findings: a node that double-signs also signs a state the quorum does not take, so it is guilty twice. That is not a false positive.
 
@@ -61,9 +61,9 @@ The penalties differ by the nature of the fault. A double signature is self-cont
 
 | hops | sent per user per slot | origin-linking AUC | one relay can recover an order | slot wall clock |
 |---|---:|---:|---|---:|
-| 1 | 2121 B | 0.500 | False | 36.2 ms |
-| 2 | 2121 B | 0.500 | False | 76.0 ms |
-| 3 | 2121 B | 0.500 | False | 108.4 ms |
+| 1 | 2121 B | 0.500 | false | 27.8 ms |
+| 2 | 2121 B | 0.500 | false | 49.3 ms |
+| 3 | 2121 B | 0.500 | false | 69.3 ms |
 
 A user who sent an order (2121 B) and one who did not (2121 B) send the same amount. The batch a node sees is [12] regardless of how active anyone was.
 
@@ -81,10 +81,9 @@ The statement proved is that applying the committed policy to the committed requ
 
 | makers | prove | verify | winner matches the cleartext minimum |
 |---:|---:|---:|---|
-| 4 | 152 ± 0 (n=15) ms | 173 ± 0 (n=15) ms | True |
-| 8 | 307 ± 0 (n=15) ms | 350 ± 1 (n=15) ms | True |
-| 16 | 622 ± 0 (n=15) ms | 707 ± 0 (n=15) ms | True |
-| 32 | 1259 ± 3 (n=15) ms | 1430 ± 1 (n=15) ms | True |
+| 4 | 62 ± 0 (n=15) ms | 19 ± 0 (n=15) ms | true |
+| 8 | 124 ± 0 (n=15) ms | 36 ± 0 (n=15) ms | true |
+| 16 | 247 ± 2 (n=15) ms | 71 ± 1 (n=15) ms | true |
 
 Linear in the number of makers. That fits a 60-second disclosure or a one-second RFS update; it does not fit under 200 ms.
 
@@ -92,12 +91,12 @@ Linear in the number of makers. That fits a 60-second disclosure or a one-second
 
 | control | rejected | why |
 |---|---|---|
-| winner swapped to a non-minimal maker | **True** | the published winner value is not what the commitmen |
-| expired maker appears and cannot win | **True** | gated off; winner is maker 5 |
-| request nobody can fill answers `no quote` | **True** | every maker gated to the sentinel |
-| the winning maker switched off | **True** | maker 5: eligibility is not the conjunction of its t |
-| minimality proofs swapped between makers | **True** | maker 0: not shown to be at least the winner |
-| minimality for a false winner | **True** | value -1 outside [0, 2^25) |
+| winner swapped to a non-minimal maker | **true** | the published winner value is not what the commitmen |
+| expired maker appears and cannot win | **true** | gated off; winner is maker 5 |
+| request nobody can fill answers `no quote` | **true** | every maker gated to the sentinel |
+| the winning maker switched off | **true** | maker 5: eligibility is not the conjunction of its t |
+| minimality proofs swapped between makers | **true** | maker 0: not shown to be at least the winner |
+| minimality for a false winner | **true** | value -1 outside [0, 2^25) |
 
 ### Assembled jointly by the nodes --- one opening, not the proof
 
@@ -105,8 +104,8 @@ What is assembled jointly is **one Pedersen opening**: a single scalar dealt to 
 
 | quorum | assemble | an ordinary verifier accepts | no node holds the witness |
 |---|---:|---|---|
-| 3 | 1.827 ± 0.008 (n=20) ms | True | True |
-| 7 | 4.303 ± 0.014 (n=20) ms | True | True |
+| 3 | 4.789 ± 0.059 (n=20) ms | true | true |
+| 7 | 20.229 ± 0.073 (n=20) ms | true | true |
 
 Below the threshold (two nodes) the assembled proof does not verify; that is checked too.
 
@@ -200,7 +199,7 @@ eligible = (qty <= maxqty) and (expiry > now) and (active == 1)
 
 The `use_ref * ref_mid` term survives in both because the checker refuses a rule that declares a value it does not price with; at `use_ref[0,0]` it contributes exactly zero. The circuit does not carry the term at all under `--reference none`, which is why the two agree on the value while disagreeing share by share --- a multiplication re-randomises, so even a sharing of zero is a fresh one.
 
-The instructions are `+ - *`, comparison, `and`, and `min` `max` `clamp` `signed`. There is no division, no loop, no indexing and no attribute access. The surface is a subset of Python expressions parsed with the standard `ast`, and **only the permitted node types pass**. The allowlist is itself the safety argument.
+The instructions are `+ - *`, comparison, `and`, and `min` `max` `clamp` `signed`. There is no division, no loop, no indexing and no attribute access. The grammar is written out rather than borrowed from a host language, so **the subset is what the parser accepts and nothing else**.
 
 ### What the checker derives, with no proof involved
 
@@ -245,12 +244,12 @@ That is a secret bit times a public constant, so it costs no multiplication; the
 
 | assets | rounds | sent per party | median |
 |---:|---:|---:|---:|
-| 1 | 70 | 3.19 MB | 0.567 s |
-| 2 | 70 | 3.2309 MB | 0.567 s |
-| 4 | 70 | 3.31269 MB | 0.567 s |
-| 8 | 70 | 3.47634 MB | 0.566 s |
-| 16 | 70 | 3.80363 MB | 0.566 s |
-| 32 | 70 | 4.45816 MB | 0.566 s |
+| 1 | 64 | 3.91566 MB | 0.669 s |
+| 2 | 64 | 3.96498 MB | 0.687 s |
+| 4 | 64 | 4.0636 MB | 0.668 s |
+| 8 | 64 | 4.26091 MB | 0.689 s |
+| 16 | 64 | 4.65554 MB | 0.687 s |
+| 32 | 64 | 5.44472 MB | 0.668 s |
 
 **The round count does not depend on the number of assets.** Where latency dominates, oblivious reference selection is effectively free. Only the traffic grows, by about 0.04 MB per asset.
 
@@ -258,9 +257,9 @@ That is a secret bit times a public constant, so it costs no multiplication; the
 
 | assets probed | rounds | sent | wall-clock spread | distinct answers | all verified |
 |---:|---|---|---:|---:|---|
-| 8 | [70] | [4.45816] | 0.0500 s | 5 | True |
+| 8 | [64] | [5.44472] | 0.0110 s | 5 | true |
 
-Rounds and bytes are identical across every asset (True / True). The answers differ per market while the trace does not. The 0.0500 s spread comes from one outlying sample and is the same size as the run-to-run variation seen in other sweeps.
+Rounds and bytes are identical across every asset (true / true). The answers differ per market while the trace does not. The 0.0110 s spread comes from one outlying sample and is the same size as the run-to-run variation seen in other sweeps.
 
 **Boundary**: what is hidden is the market selection inside the MPC. Settling on chain as-is would reveal the market from the asset that moves; secrecy after a trade is not a goal of this stage. Also, when few makers serve an asset the answer is 'no quote', and that fact is itself a hint about how thin the market is. The circuit runs the same shape in that case and returns a sentinel.
 
@@ -272,10 +271,10 @@ Allowing settlement before the proof is complete gives up the guarantee, so the 
 
 | delay | priced | proved | settleable | total | meets an audited 1 s RFS slot |
 |---|---:|---:|---:|---:|---|
-| 1 ms one way | 940 ± 32 (n=5) ms | +623 ± 1 (n=5) ms | +714 ± 11 (n=5) ms | **2277 ± 39 (n=5)** ms | False |
-| 15 ms one way | 4007 ± 77 (n=5) ms | +623 ± 1 (n=5) ms | +709 ± 1 (n=5) ms | **5340 ± 78 (n=5)** ms | False |
+| 1 ms one way | 961 ± 13 (n=5) ms | +248 ± 1 (n=5) ms | +71 ± 1 (n=5) ms | **1281 ± 14 (n=5)** ms | false |
+| 15 ms one way | 4328 ± 48 (n=5) ms | +248 ± 1 (n=5) ms | +71 ± 0 (n=5) ms | **4647 ± 49 (n=5)** ms | false |
 
-**An audited RFS does not make a one-second slot.** After the price comes back, completing the proof takes 623--623 ms and verifying it plus reaching a quorum of receipts a further 709--714 ms --- and neither depends on the delay, so neither shrinks with a closer deployment. At one millisecond one way the total is still 2.28 s.
+**An audited RFS does not make a one-second slot.** After the price comes back, completing the proof takes 248--248 ms and verifying it plus reaching a quorum of receipts a further 71--71 ms --- and neither depends on the delay, so neither shrinks with a closer deployment. At one millisecond one way the total is still 1.28 s.
 
 How to read it: 'priced' includes compiling the circuit and starting the processes on every run, so it is an upper bound. 'Proved' and 'settleable' are the cost of the computation itself and do not shrink with deployment. The remedies are to make the proof lighter in the number of makers --- it is `O(M)` today --- or to set the update interval to what is measured.
 
@@ -290,7 +289,7 @@ Response time is dominated by `rounds x RTT`. So: can the rounds come down? Comp
 | inputs, reference lookup and price arithmetic | 10 | — | — |
 | + direction selection | 11 | +1 | 2% |
 | + eligibility gates | 20 | +9 | 17% |
-| + binary tournament | 53 | +33 | 62% |
+| + binary tournament | 52 | +32 | 62% |
 
 **The tournament is 62% and the eligibility layer 17%; the price arithmetic is effectively nothing.** Only the sequential depth of the comparisons matters; the width of a layer does not.
 
@@ -300,17 +299,15 @@ The compiler's count is a property of the circuit. What the parties actually do 
 
 | protocol | channel | rounds | share | sent per party |
 |---|---|---:|---:|---:|
-| malicious-shamir | Partial broadcasting | 49 | 70% | 0.367 MB |
-| malicious-shamir | Sending/receiving | 10 | 14% | 1.845 MB |
-| malicious-shamir | Receiving directly | 6 | 9% | 0.000 MB |
-| malicious-shamir | Broadcasting | 5 | 7% | 0.000 MB |
-| malicious-shamir | *total* | 70 | 100% | 3.313 MB |
-| semi-honest-shamir | Sending/receiving | 49 | 79% | 1.136 MB |
-| semi-honest-shamir | Sending to all | 7 | 11% | 0.001 MB |
-| semi-honest-shamir | Receiving directly | 6 | 10% | 0.000 MB |
-| semi-honest-shamir | *total* | 62 | 100% | 1.143 MB |
+| malicious-shamir | Partial broadcasting | 49 | 77% | 0.368 MB |
+| malicious-shamir | Sending/receiving | 10 | 16% | 1.856 MB |
+| malicious-shamir | Broadcasting | 5 | 8% | 0.000 MB |
+| malicious-shamir | *total* | 64 | 100% | 4.064 MB |
+| semi-honest-shamir | Sending/receiving | 49 | 88% | 1.146 MB |
+| semi-honest-shamir | Sending to all | 7 | 12% | 0.001 MB |
+| semi-honest-shamir | *total* | 56 | 100% | 1.153 MB |
 
-The opening channel --- the comparison chain --- is **49 rounds under both protocols**. Dropping malicious security takes rounds out of everything else (70 to 62) and cuts bytes by **2.90x**. The security model is paid in bandwidth; the latency is owed to depth either way.
+The opening channel --- the comparison chain --- is **49 rounds under both protocols**. Dropping malicious security takes rounds out of everything else (64 to 56) and cuts bytes by **3.53x**. The security model is paid in bandwidth; the latency is owed to depth either way.
 
 ### What did not work
 

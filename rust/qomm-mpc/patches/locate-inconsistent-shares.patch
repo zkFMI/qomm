@@ -40,6 +40,11 @@ degree-`2t` sharing and exactly one share short of locating two liars in a
 degree-`t` one. `finalize_raw()` correspondingly reads `n` shares rather than
 `2t+1`.
 
+Because `finalize_raw()` now checks every prefix through all `n` shares,
+`init_open()` also constructs Lagrange reconstruction factors through `n`.
+Leaving the stock `2t+1` upper bound here would index empty coefficient vectors
+for shares six and seven and crash every party before the consistency check.
+
 An earlier draft of this patch changed only the read side, on the reading that
 `POpen_Begin` calls `P.send_all()` so every share was already on the wire. That
 is the unbatched path. The batched one is `exchange`, and it is what runs.
@@ -74,8 +79,8 @@ It also cannot see a party that substituted its *input*. `secret_input()` sums
 one additive share per party, so a substituted input is a valid sharing of a
 different value: nothing is inconsistent and there is no codeword to decode.
 
-A verifiable Python model of the same decode, with 26 tests covering the
-capacity boundaries, is `qomm_audit/locate.py`.
+A native verification model of the same decode covers the capacity boundaries
+in the QOMM audit tests.
 
 --- /tmp/msmc.h.bak	2026-08-22 00:04:19.427078217 +0000
 +++ Protocols/MaliciousShamirMC.h	2026-08-22 00:07:30.147604393 +0000
@@ -96,7 +101,21 @@ capacity boundaries, is `qomm_audit/locate.py`.
  #endif /* PROTOCOLS_MALICIOUSSHAMIRMC_H_ */
 --- /tmp/msmc.hpp.bak	2026-08-22 00:04:19.428078243 +0000
 +++ Protocols/MaliciousShamirMC.hpp	2026-08-22 00:07:30.147604393 +0000
-@@ -37,10 +37,31 @@
+@@ -20,10 +20,16 @@
+ {
+     int threshold = ShamirMachine::s().threshold;
+     if (reconstructions.empty())
+     {
+-        reconstructions.resize(2 * threshold + 2);
+-        for (int i = threshold + 1; i <= 2 * threshold + 1; i++)
++        // finalize_raw() checks every prefix through all n shares. The stock
++        // code only needed prefixes through 2t+1 because that was all it read.
++        reconstructions.resize(P.num_players() + 1);
++        for (int i = threshold + 1; i <= P.num_players(); i++)
+         {
+             reconstructions[i] = ShamirMC<T>::get_reconstruction(P, i);
+         }
+@@ -37,10 +43,31 @@
  }
  
  template<class T>

@@ -17,7 +17,10 @@ serde_json.workspace = true
 rand_core.workspace = true
 thiserror.workspace = true
 hex.workspace = true
+libc.workspace = true
+rand.workspace = true
 
 [dev-dependencies]
 rand.workspace = true
 curve25519-dalek.workspace = true
+tempfile = "3"

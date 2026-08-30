@@ -91,6 +91,7 @@ Rust crates:
 - `rust/qomm-audit`
 - `rust/qomm-demo`
 - `rust/qomm-zk`
+- `rust/qomm-zkpi`
 - `rust/qomm-measure`
 - `rust/qomm-harness`
 
@@ -110,20 +111,23 @@ Measurement binaries carried by `qomm-harness`:
 - `run_bitdec_rounds`
 - `run_block_range_query`
 - `run_circuit_bound_proof`
-- `run_clob_baseline`
 - `run_disclosure_ceiling`
 - `run_distributed_assembly`
+- `run_distributed_dp`
+- `run_distributed_publication`
 - `run_dp_audit`
 - `run_dp_effect`
 - `run_entity_behavior`
 - `run_identity`
 - `run_input_check`
+- `run_locate`
 - `run_maker_updates`
 - `run_market_thickness`
 - `run_multi_asset`
 - `run_multiplication_cost`
 - `run_placement`
 - `run_probe_budget`
+- `run_price_conditionals`
 - `run_qomm`
 - `run_rho_sweep`
 - `run_robust_atlas`
@@ -136,6 +140,7 @@ Measurement binaries carried by `qomm-harness`:
 - `run_three_times`
 - `run_threshold_assembly`
 - `run_transport`
+- `rust_only_guard`
 - `scrub_artifacts`
 - `serve_demo`
 - `sweep`
@@ -156,6 +161,7 @@ to real machines is not published.
 - [`ACCOUNTABILITY.md`](ACCOUNTABILITY.md) --- what happens when a node misbehaves: the five rungs from abort to guaranteed output delivery, and which one each mechanism here reaches
 - [`DEMO.md`](DEMO.md) --- a demonstration a room can operate one seat each, and what is real in it
 - [`REVIEW.md`](REVIEW.md) --- what two rounds of review found, including what was checked and found sound
+- [`ZKPI_WIRE.md`](ZKPI_WIRE.md) --- the bytes an instruction travels as, the vectors to check an implementation against, and where it can run
 
 ## Running it
 

@@ -1,5 +1,3 @@
-//! Run the browser-operated QOMM demo without a Python runtime.
-
 use qomm_demo::mpc::MpcEngine;
 use qomm_demo::room::{DemoConfig, Room};
 use qomm_demo::web::DemoServer;
@@ -26,7 +24,6 @@ fn run() -> HarnessResult<()> {
     let mut input_check = true;
     let mut engine = "sim".to_string();
     let mut mp_spdz_root = None::<String>;
-    // Python passes its CLI values into Demo; the Rust library owns the same
     // defaults, so changes to the library cannot leave this entrypoint stale.
     let mut config = DemoConfig::default();
 
@@ -86,7 +83,7 @@ fn run() -> HarnessResult<()> {
 
     if nodes < 4 * threshold + 1 {
         println!(
-            "note: {nodes} nodes with a threshold of {threshold} is below n >= 4T+1, so a wrong share in a multiplication will be detected and not corrected. That is a fine thing to demonstrate deliberately and a confusing one to hit by accident."
+            "note: {nodes} nodes with threshold {threshold} cannot run the optional n >= 4T+1 Atlas identify-and-correct demonstration; MP-SPDZ malicious-Shamir remains the execution protocol, and deliberate party-corruption injection is disabled."
         );
     }
 
@@ -97,7 +94,6 @@ fn run() -> HarnessResult<()> {
         let root = mp_spdz_root
             .or_else(|| std::env::var("MP_SPDZ_ROOT").ok())
             .ok_or("--engine mpc requires --mp-spdz-root or MP_SPDZ_ROOT")?;
-        // Python uses len(DEFAULT_ASSETS) and its reference table. Read both
         // from the room created by the library instead of copying those
         // defaults into this binary.
         let references = room
@@ -124,15 +120,13 @@ fn run() -> HarnessResult<()> {
         "QOMM demo --- {makers} makers, {nodes} nodes, threshold {threshold}, engine {engine}"
     );
     io::stdout().flush()?;
-    serve_python_compatible(DemoServer::new(room, config), &host, port)
+    serve_http_loop(DemoServer::new(room, config), &host, port)
 }
 
-/// The shared demo server deliberately adds two browser-hardening headers.
-/// `serve_demo.py` predates them, and this measurement port has to preserve its
-/// wire response exactly, so the harness strips only those two lines at its
-/// compatibility boundary. The body and WebSocket stream remain byte-for-byte
-/// the shared Rust server's output.
-fn serve_python_compatible(server: DemoServer, host: &str, port: u16) -> HarnessResult<()> {
+/// The shared demo server adds two browser-hardening headers. This benchmark
+/// strips only those headers at its measurement boundary; the body and
+/// WebSocket stream remain the shared Rust server's exact output.
+fn serve_http_loop(server: DemoServer, host: &str, port: u16) -> HarnessResult<()> {
     let public = TcpListener::bind((host, port))?;
     let probe = TcpListener::bind(("127.0.0.1", 0))?;
     let backend_port = probe.local_addr()?.port();
