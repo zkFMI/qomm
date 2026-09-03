@@ -93,6 +93,8 @@ fn run_main() -> HarnessResult<()> {
         user_limit: 100_000,
         user_limit_blinding: 1,
         user_qty_blinding: 1,
+        response_mask: None,
+        fill_mask: None,
         check_coefficients: &config.check_coefficients,
         check_repeats: 1,
         policies: None,

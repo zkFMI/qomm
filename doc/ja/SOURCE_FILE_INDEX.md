@@ -259,6 +259,8 @@
 | `rust/qomm-defmi/src/netting.rs` | BIS Model 1/2/3、参加者別差額、サイクル宣誓 |
 | `rust/qomm-defmi/src/ccp.rs` | 署名債務、更改、清算参加者、ウォーターフォール、破綻分離 |
 | `rust/qomm-defmi/src/credit.rs` | 担保ヘアカット、秘密信用枠、階層順序、再適用防止 |
+| `rust/qomm-defmi/src/central_bank_liquidity.rs` | 日銀型の法人単位共通担保、国債評価、日中貸越予約、国債・担保・貸越・資金の同時更新、担保返却、入金・返済、他の日銀与信、営業日切替 |
+| `rust/qomm-defmi/src/cross_domain.rs` | 異なるDeFMIの予約・確定証明・claim・返却、公開共通取引IDを持たない相手先別結合値 |
 | `rust/qomm-defmi/src/pvp.rs` | 二台帳間のアダプター署名型payment-versus-payment |
 | `rust/qomm-defmi/src/chain.rs` | チェーン中立のメモリ状態、状態根、エスクロー遷移、拒否理由 |
 | `rust/qomm-defmi/src/facility.rs` | SQLite永続資産・口座・保証主体・法人合算枠・予約・受付順・商品バッチ・受領記録 |
@@ -281,6 +283,8 @@
 | `rust/qomm-defmi/tests/netting.rs` | Model 1/2/3、差額、閉鎖、残高不足、サイクル |
 | `rust/qomm-defmi/tests/ccp.rs` | 債務署名、更改、宣誓、参加者別ウォーターフォール |
 | `rust/qomm-defmi/tests/credit.rs` | 信用枠、担保価値、階層順序、解決ID再利用 |
+| `rust/qomm-defmi/src/central_bank_liquidity.rs`内試験 | 国債評価、法人合算予約、同時担保DVP、全体巻戻し、価格下落、予約失効後の回復、担保返却、入金・返済、日末延滞、翌営業日開始 |
+| `rust/qomm-defmi/tests/cross_domain.rs` | 二つの独立DeFMIの予約、k-of-n確定証明、claim、分断時返却 |
 | `rust/qomm-defmi/tests/pvp.rs` | 署名適応、秘密抽出、二脚完成、時間切れ解放 |
 | `rust/qomm-defmi/tests/chain.rs` | 状態根、遷移、エスクロー、期限、ヌリファイア整理 |
 | `rust/qomm-defmi/tests/facility.rs` | 資産・口座、k-of-n、旧状態、冪等性、rollback、受領記録鎖 |

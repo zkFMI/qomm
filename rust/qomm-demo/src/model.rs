@@ -16,6 +16,9 @@ pub const FIELDS: [&str; 10] = [
 ];
 pub const BUY: i64 = 0;
 pub const SELL: i64 = 1;
+/// Stable end of the public demo epoch. Production policies use a
+/// governance-issued validity interval instead of this development bound.
+pub const DEMO_POLICY_VALID_UNTIL: i64 = 4_102_444_800;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Policy {
@@ -41,7 +44,7 @@ impl Default for Policy {
             invcoef: 1,
             inv: 0,
             maxqty: 200,
-            expiry: 1_000_000_000,
+            expiry: DEMO_POLICY_VALID_UNTIL,
             active: 1,
             use_ref: 1,
         }

@@ -120,7 +120,7 @@ pub fn websocket_handshake(headers: &BTreeMap<String, String>) -> Option<Vec<u8>
 
 pub fn http_reply(status: &str, body: &[u8], kind: &str) -> Vec<u8> {
     let mut out = format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'self'; connect-src 'self' ws: wss:; script-src 'self'; style-src 'self'\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\nContent-Type: {kind}\r\nContent-Length: {}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nContent-Security-Policy: default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; script-src 'self'; style-src 'self'\r\nConnection: close\r\n\r\n",
         body.len()
     )
     .into_bytes();
@@ -160,6 +160,10 @@ pub fn parse_query(raw: &str) -> BTreeMap<String, String> {
 }
 
 pub fn static_response(path: &str) -> Vec<u8> {
+    static_response_for_gateway(path, None)
+}
+
+pub fn static_response_for_gateway(path: &str, gateway_port: Option<u16>) -> Vec<u8> {
     let path = unquote(path);
     if path.contains("..") || path.contains('\\') || path.bytes().any(|byte| byte == 0) {
         return http_reply(
@@ -169,11 +173,22 @@ pub fn static_response(path: &str) -> Vec<u8> {
         );
     }
     match path.as_str() {
-        "" | "/" | "/index.html" => http_reply(
-            "200 OK",
-            include_bytes!("../../../qomm_demo/static/index.html"),
-            "text/html; charset=utf-8",
-        ),
+        "" | "/" | "/index.html" => {
+            let source = include_str!("../../../qomm_demo/static/index.html");
+            let body = gateway_port.map_or_else(
+                || source.as_bytes().to_vec(),
+                |port| {
+                    source
+                        .replacen(
+                            "<meta name=\"qomm-gateway-port\" content=\"\">",
+                            &format!("<meta name=\"qomm-gateway-port\" content=\"{port}\">"),
+                            1,
+                        )
+                        .into_bytes()
+                },
+            );
+            http_reply("200 OK", &body, "text/html; charset=utf-8")
+        }
         "/demo.css" => http_reply(
             "200 OK",
             include_bytes!("../../../qomm_demo/static/demo.css"),
@@ -184,12 +199,129 @@ pub fn static_response(path: &str) -> Vec<u8> {
             include_bytes!("../../../qomm_demo/static/demo.js"),
             "application/javascript; charset=utf-8",
         ),
+        "/react-flow.css" => http_reply(
+            "200 OK",
+            include_bytes!("../../../qomm_demo/static/react-flow.css"),
+            "text/css; charset=utf-8",
+        ),
+        "/react-flow.js" => http_reply(
+            "200 OK",
+            include_bytes!("../../../qomm_demo/static/react-flow.js"),
+            "application/javascript; charset=utf-8",
+        ),
         _ => http_reply(
             "404 Not Found",
             b"no such page",
             "text/plain; charset=utf-8",
         ),
     }
+}
+
+/// Relay one browser WebSocket to the private gateway without terminating the
+/// RFC 6455 stream.  Keeping this hop inside the Docker network lets the public
+/// demo expose one origin only; a browser must never guess a second host port.
+pub fn proxy_websocket_connection(
+    mut browser: TcpStream,
+    request: &[u8],
+    gateway_host: &str,
+    gateway_port: u16,
+) -> Result<(), String> {
+    browser
+        .set_read_timeout(None)
+        .map_err(|error| error.to_string())?;
+    browser
+        .set_write_timeout(None)
+        .map_err(|error| error.to_string())?;
+    let mut gateway = TcpStream::connect((gateway_host, gateway_port))
+        .map_err(|error| format!("frontend cannot reach its private gateway: {error}"))?;
+    gateway
+        .write_all(request)
+        .map_err(|error| error.to_string())?;
+    gateway.flush().map_err(|error| error.to_string())?;
+
+    let mut browser_reader = browser.try_clone().map_err(|error| error.to_string())?;
+    let mut gateway_writer = gateway.try_clone().map_err(|error| error.to_string())?;
+    let upstream = thread::spawn(move || {
+        let result = std::io::copy(&mut browser_reader, &mut gateway_writer);
+        let _ = gateway_writer.shutdown(Shutdown::Write);
+        result
+    });
+    let downstream = std::io::copy(&mut gateway, &mut browser).map_err(|error| error.to_string());
+    let _ = browser.shutdown(Shutdown::Write);
+    upstream
+        .join()
+        .map_err(|_| "frontend WebSocket relay panicked".to_string())?
+        .map_err(|error| error.to_string())?;
+    downstream.map(|_| ())
+}
+
+pub fn serve_static_frontend(
+    host: &str,
+    port: u16,
+    gateway_host: &str,
+    gateway_port: u16,
+) -> Result<(), String> {
+    if gateway_host.trim().is_empty() || gateway_port == 0 {
+        return Err("frontend private gateway address must be non-empty".into());
+    }
+    let listener = TcpListener::bind((host, port)).map_err(|error| error.to_string())?;
+    println!(
+        "QOMM static frontend listening at http://{} and proxying /ws to {gateway_host}:{gateway_port}",
+        listener.local_addr().map_err(|error| error.to_string())?
+    );
+    let gateway_host = gateway_host.to_string();
+    for stream in listener.incoming() {
+        match stream {
+            Ok(mut stream) => {
+                let gateway_host = gateway_host.clone();
+                thread::spawn(move || {
+                    let result = (|| {
+                        stream
+                            .set_read_timeout(Some(Duration::from_secs(10)))
+                            .map_err(|error| error.to_string())?;
+                        let request = read_headers(&mut stream)?;
+                        let text = String::from_utf8_lossy(&request);
+                        let first = text.lines().next().unwrap_or_default();
+                        let mut fields = first.split_whitespace();
+                        let method = fields.next().unwrap_or_default();
+                        let target = fields.next().unwrap_or_default();
+                        let path = target.split_once('?').map_or(target, |value| value.0);
+                        if method == "GET" && path == "/ws" {
+                            return proxy_websocket_connection(
+                                stream,
+                                &request,
+                                &gateway_host,
+                                gateway_port,
+                            );
+                        }
+                        let reply = if method != "GET" {
+                            http_reply("405 Method Not Allowed", b"", "text/plain")
+                        } else if path == "/health" {
+                            http_reply(
+                                "200 OK",
+                                b"{\"ok\":true,\"service\":\"qomm-frontend\"}",
+                                "application/json",
+                            )
+                        } else {
+                            // The empty browser-facing gateway port makes the
+                            // JavaScript use this same public origin.  `/ws`
+                            // above is the only route forwarded privately.
+                            static_response(path)
+                        };
+                        stream
+                            .write_all(&reply)
+                            .map_err(|error| error.to_string())?;
+                        stream.flush().map_err(|error| error.to_string())
+                    })();
+                    if let Err(error) = result {
+                        eprintln!("frontend request failed: {error}");
+                    }
+                });
+            }
+            Err(error) => eprintln!("frontend accept failed: {error}"),
+        }
+    }
+    Ok(())
 }
 
 type Connections = Arc<Mutex<BTreeMap<String, Arc<Mutex<TcpStream>>>>>;
@@ -241,6 +373,27 @@ impl DemoServer {
         let next_round = Arc::clone(&self.next_round);
         thread::spawn(move || loop {
             thread::sleep(Duration::from_millis(500));
+            // Corporate requests outlive a browser session. Poll one fixed
+            // cover slot even when nobody is seated, and replay only after the
+            // complete MPC committee is healthy again.
+            let replayed = {
+                let mut room = room.lock().expect("demo room lock");
+                if room.busy {
+                    false
+                } else {
+                    match room.drain_mpc_queue() {
+                        Ok(replayed) => replayed,
+                        Err(error) => {
+                            eprintln!("corporate queue replay failed: {error}");
+                            false
+                        }
+                    }
+                }
+            };
+            if replayed {
+                broadcast(&room, &config, &connections, &next_round);
+                continue;
+            }
             // A person in the taker seat decides when to ask; the clock only
             // moves the room while nobody is doing that, and never while a
             // round is still being shown.
@@ -442,7 +595,19 @@ impl DemoServer {
                 }
             }
             "submit" if seat.as_ref().is_some_and(|(kind, _)| kind == TAKER) => {
-                wants_round = true;
+                // Apply the complete visible form and submit under the same
+                // room lock. Separate WebSocket messages can otherwise race:
+                // a user may edit the limit and immediately submit while the
+                // coordinator still holds the previous value.
+                if let Some(values) = message.get("values") {
+                    if let Err(error) = room.set_request(values) {
+                        action_error = Some(error);
+                    } else {
+                        wants_round = true;
+                    }
+                } else {
+                    wants_round = true;
+                }
             }
             "submit_any" if watching => wants_round = true,
             "force" => room.set_forced_manual(
@@ -493,6 +658,13 @@ impl DemoServer {
             }
         }
         if let Some(reason) = action_error {
+            // Keep the role-facing response deliberately terse, but preserve the
+            // complete internal failure at the coordinator boundary.  Without
+            // this record a post-reserve failure is correctly fail-closed into
+            // the corporate reconciliation queue yet is operationally
+            // indistinguishable from an unavailable MPC node.  Do not include
+            // the WebSocket session or any plaintext request fields here.
+            eprintln!("qomm-demo action {kind:?} failed: {reason}");
             let payload = serde_json::to_vec(&json!({
                 "type": "refused",
                 "reason": reason,

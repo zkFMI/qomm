@@ -93,6 +93,8 @@ Rust crates:
 - `rust/qomm-zk`
 - `rust/qomm-zkpi`
 - `rust/qomm-measure`
+- `rust/qomm-defmi`
+- `rust/zkpi-defmi-sdk`
 - `rust/qomm-harness`
 
 Measurement binaries carried by `qomm-harness`:

@@ -431,6 +431,8 @@ fn generate(
         user_limit: options.user_limit,
         user_limit_blinding: 1,
         user_qty_blinding: 1,
+        response_mask: None,
+        fill_mask: None,
         check_coefficients: &config.check_coefficients,
         check_repeats: config.check_repeats,
         policies: None,

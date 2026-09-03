@@ -1,8 +1,10 @@
 //! Seats and server-side projections: a browser receives only its own business.
 
 use crate::bots::{maker_filled, step_maker, step_taker};
-use crate::model::{price_one, Policy, Request, BUY, FIELDS, SELL};
-use crate::mpc::MpcEngine;
+use crate::model::{price_one, Policy, Request, BUY, DEMO_POLICY_VALID_UNTIL, FIELDS, SELL};
+use crate::mpc::{
+    is_corporate_queue_pending, MpcProductHandoff, MpcQuoteEngine, MpcSettlementInputs,
+};
 use crate::portfolio::{MakerReserve, Portfolio, SettlementRecord, TakerReservation};
 use crate::protocol::{Session, BEHAVIOURS, HONEST, LIE_PRODUCT};
 use rand::rngs::StdRng;
@@ -79,6 +81,9 @@ pub struct RoundResult {
     pub engine: String,
     pub request: Request,
     pub outcome: crate::model::Outcome,
+    /// A verified no-fill remains a successful round but must not expose a
+    /// counterparty or enter settlement as a trade.
+    pub filled: bool,
     pub masked_key: i128,
     pub mask: u64,
     pub padded: usize,
@@ -102,10 +107,14 @@ pub struct RoundResult {
     pub verified: Option<bool>,
     pub verified_detail: String,
     pub engine_stats: Value,
+    pub product_handoff: Option<MpcProductHandoff>,
 }
 
 impl RoundResult {
     pub fn unpack(&self) -> (Option<i64>, Option<usize>) {
+        if !self.filled {
+            return (None, None);
+        }
         let Some(winner) = self.outcome.winner else {
             return (None, None);
         };
@@ -175,6 +184,7 @@ pub struct Room {
     pub taker_reservation: Option<TakerReservation>,
     pub request_limit: i64,
     pub settlements: Vec<SettlementRecord>,
+    pub infrastructure: Value,
     pub behaviours: BTreeMap<usize, String>,
     pub request: Request,
     pub seats: BTreeMap<String, Seat>,
@@ -182,7 +192,7 @@ pub struct Room {
     pub last: Option<RoundResult>,
     pub history: Vec<RoundResult>,
     pub notices: BTreeMap<String, Vec<Notice>>,
-    pub engine: Option<MpcEngine>,
+    pub engine: Option<Box<dyn MpcQuoteEngine>>,
     pub phase: String,
     pub phase_note: String,
     pub phase_fields: Map<String, Value>,
@@ -215,7 +225,7 @@ impl Room {
                 invcoef: 1,
                 inv: rng.gen_range(-50..=50),
                 maxqty: [50, 100, 200, 500][rng.gen_range(0..4)],
-                expiry: 1_000_000_000,
+                expiry: DEMO_POLICY_VALID_UNTIL,
                 active: 1,
                 use_ref: 1,
             })
@@ -276,6 +286,11 @@ impl Room {
             taker_reservation: None,
             request_limit,
             settlements: Vec::new(),
+            infrastructure: json!({
+                "mode": "local",
+                "defmi": false,
+                "participant_registry": false,
+            }),
             behaviours: (0..n_nodes).map(|node| (node, HONEST.into())).collect(),
             request: Request::default(),
             seats,
@@ -298,11 +313,115 @@ impl Room {
         Ok(room)
     }
 
-    pub fn install_mpc_engine(&mut self, engine: MpcEngine) -> Result<(), String> {
+    pub fn install_mpc_engine(
+        &mut self,
+        mut engine: impl MpcQuoteEngine + 'static,
+    ) -> Result<(), String> {
         if engine.input_check() != self.input_check {
             return Err("the MP-SPDZ circuit input-check shape differs from the room".into());
         }
-        self.engine = Some(engine);
+        let settlement = self.maker_preauthorization_inputs()?;
+        engine.preauthorize_maker_policies(&self.policies, &settlement, self.now)?;
+        self.engine = Some(Box::new(engine));
+        Ok(())
+    }
+
+    /// Replace the explanatory room's bootstrap balances with the capacities
+    /// read from the legal-entity participant modules.  This must happen
+    /// before an MPC engine is installed: Maker policy reserves are rebuilt
+    /// against those real caps, and an already queued Taker request is then
+    /// restored by `drain_mpc_queue` from its signed durable envelope.
+    pub fn configure_participant_capacities(
+        &mut self,
+        maker_capacities: &[(u64, u64)],
+        taker_capacity: (u64, u64),
+    ) -> Result<(), String> {
+        if self.engine.is_some()
+            || self.taker_reservation.is_some()
+            || self.last.is_some()
+            || !self.history.is_empty()
+            || self.busy
+        {
+            return Err("participant capacities can only be configured before execution".into());
+        }
+        if maker_capacities.len() != self.n_makers {
+            return Err("participant capacity count differs from the Maker count".into());
+        }
+        let convert = |(cash, inventory): (u64, u64)| -> Result<Portfolio, String> {
+            Portfolio::funded_with(
+                self.assets.len(),
+                i64::try_from(cash)
+                    .map_err(|_| "participant cash capacity exceeds the demo integer range")?,
+                i64::try_from(inventory)
+                    .map_err(|_| "participant inventory capacity exceeds the demo integer range")?,
+            )
+        };
+        let replacement_makers = maker_capacities
+            .iter()
+            .copied()
+            .map(convert)
+            .collect::<Result<Vec<_>, _>>()?;
+        let replacement_taker = convert(taker_capacity)?;
+        let previous_makers = std::mem::replace(&mut self.maker_portfolios, replacement_makers);
+        let previous_reserves = std::mem::replace(
+            &mut self.maker_reserves,
+            vec![MakerReserve::default(); self.n_makers],
+        );
+        let previous_taker = std::mem::replace(&mut self.taker_portfolio, replacement_taker);
+        for maker in 0..self.n_makers {
+            if let Err(error) = self.refresh_maker_reserve(maker) {
+                self.maker_portfolios = previous_makers;
+                self.maker_reserves = previous_reserves;
+                self.taker_portfolio = previous_taker;
+                return Err(error);
+            }
+        }
+        Ok(())
+    }
+
+    /// Replace only the Taker projection with holdings reconstructed by its
+    /// participant module from canonical DeFMI settlement claims. Capacity is
+    /// a genesis/facility limit; it is not a current balance after prior DvP.
+    pub fn configure_taker_canonical_portfolio(
+        &mut self,
+        cash: u64,
+        inventory: &[u64],
+    ) -> Result<(), String> {
+        if self.engine.is_some()
+            || self.taker_reservation.is_some()
+            || self.last.is_some()
+            || !self.history.is_empty()
+            || self.busy
+        {
+            return Err("canonical Taker holdings can only be configured before execution".into());
+        }
+        if inventory.len() != self.assets.len() {
+            return Err("canonical Taker inventory differs from the room asset count".into());
+        }
+        let replacement = Portfolio {
+            cash_available: i64::try_from(cash)
+                .map_err(|_| "canonical Taker cash exceeds the demo integer range")?,
+            cash_reserved: 0,
+            inventory_available: inventory
+                .iter()
+                .copied()
+                .map(|value| {
+                    i64::try_from(value)
+                        .map_err(|_| "canonical Taker inventory exceeds the demo integer range")
+                })
+                .collect::<Result<Vec<_>, _>>()?,
+            inventory_reserved: vec![0; inventory.len()],
+        };
+        replacement.validate()?;
+        self.taker_portfolio = replacement;
+        Ok(())
+    }
+
+    pub fn set_infrastructure(&mut self, value: Value) -> Result<(), String> {
+        if !value.is_object() {
+            return Err("infrastructure description must be a JSON object".into());
+        }
+        self.infrastructure = value;
         Ok(())
     }
 
@@ -462,11 +581,23 @@ impl Room {
             .ok_or_else(|| "Maker policy names an unknown asset".to_string())?;
         let wanted_inventory = if policy.active == 0 { 0 } else { policy.maxqty };
         let wanted_cash = self.maker_cash_requirement(&policy)?;
+        let policy_key = hex::encode(Sha256::digest(
+            serde_json::to_vec(&policy).map_err(|error| error.to_string())?,
+        ));
         let old = self
             .maker_reserves
             .get(maker)
             .ok_or_else(|| "unknown Maker reserve".to_string())?
             .clone();
+        if old.policy_key == policy_key
+            && old.asset == asset
+            && old.standing_inventory == wanted_inventory
+            && old.standing_cash == wanted_cash
+        {
+            // Same registered policy, same standing mandate: the remaining
+            // balance already reflects the fills DeFMI and the MPC nodes carry.
+            return Ok(());
+        }
         let mut candidate = self
             .maker_portfolios
             .get(maker)
@@ -508,6 +639,9 @@ impl Room {
             asset,
             inventory: wanted_inventory,
             cash: wanted_cash,
+            standing_inventory: wanted_inventory,
+            standing_cash: wanted_cash,
+            policy_key,
         };
         Ok(())
     }
@@ -548,7 +682,10 @@ impl Room {
         (policies, reasons)
     }
 
-    fn prepare_taker_reservation(&mut self) -> Result<(), String> {
+    /// Sign and reserve the current Taker maximum before the RFQ enters MPC.
+    /// This is the only public direct-round prerequisite; settlement never
+    /// asks the Taker or Maker for another signature after a match is known.
+    pub fn prepare_taker_reservation(&mut self) -> Result<(), String> {
         if self.taker_reservation.is_some() {
             return Err("the previous Taker reservation is still active".into());
         }
@@ -706,7 +843,15 @@ impl Room {
             automatic: status == "settled",
             state_root: self.ledger_root(),
         };
-        self.settlements.push(record);
+        if let Some(existing) = self
+            .settlements
+            .iter_mut()
+            .find(|existing| existing.round == round)
+        {
+            *existing = record;
+        } else {
+            self.settlements.push(record);
+        }
         if self.settlements.len() > 40 {
             self.settlements.drain(..self.settlements.len() - 40);
         }
@@ -718,6 +863,8 @@ impl Room {
             .get(maker)
             .ok_or_else(|| "unknown maker".to_string())?
             .clone();
+        let previous_portfolio = self.maker_portfolios[maker].clone();
+        let previous_reserve = self.maker_reserves[maker].clone();
         let policy = self.policies.get_mut(maker).expect("checked Maker policy");
         let object = values
             .as_object()
@@ -738,7 +885,44 @@ impl Room {
             self.policies[maker] = previous;
             return Err(error);
         }
+        let settlement = self.maker_preauthorization_inputs()?;
+        if let Some(engine) = self.engine.as_mut() {
+            if let Err(error) =
+                engine.preauthorize_maker_policies(&self.policies, &settlement, self.now)
+            {
+                self.policies[maker] = previous;
+                self.maker_portfolios[maker] = previous_portfolio;
+                self.maker_reserves[maker] = previous_reserve;
+                return Err(format!(
+                    "Maker policy was not activated because pre-trade authority failed: {error}"
+                ));
+            }
+        }
         Ok(())
+    }
+
+    /// The Maker amounts handed to the MPC engine are the signed standing
+    /// maxima, not the remaining balances: the mandate, the DeFMI pool, and the
+    /// nodes' resident remainder shares are keyed by the maximum, while fills
+    /// advance the pool sequence without re-signing anything.
+    fn maker_preauthorization_inputs(&self) -> Result<MpcSettlementInputs, String> {
+        let settlement = MpcSettlementInputs {
+            user_limit: 0,
+            taker_securities_reserve: 0,
+            taker_cash_reserve: 0,
+            maker_securities_reserves: self
+                .maker_reserves
+                .iter()
+                .map(|reserve| reserve.standing_inventory)
+                .collect(),
+            maker_cash_reserves: self
+                .maker_reserves
+                .iter()
+                .map(|reserve| reserve.standing_cash)
+                .collect(),
+        };
+        settlement.validate(self.n_makers)?;
+        Ok(settlement)
     }
 
     pub fn set_behaviour(&mut self, node: usize, behaviour: &str) -> Result<(), String> {
@@ -812,6 +996,11 @@ impl Room {
             .iter()
             .map(|asset| asset.reference)
             .collect::<Vec<_>>();
+        let settlement_inputs = self
+            .engine
+            .is_some()
+            .then(|| self.mpc_settlement_inputs(&request))
+            .transpose()?;
         let mut result = if let Some(engine) = self.engine.as_mut() {
             let robust = engine.robust();
             let corrupt = self
@@ -826,7 +1015,15 @@ impl Room {
                     (behaviour != HONEST && !(robust && behaviour == LIE_PRODUCT)).then_some(*node)
                 })
                 .collect::<Vec<_>>();
-            match engine.quote(&policies, &request, self.now, &corrupt) {
+            match engine.quote(
+                &policies,
+                &request,
+                settlement_inputs
+                    .as_ref()
+                    .expect("external MPC has settlement inputs"),
+                self.now,
+                &corrupt,
+            ) {
                 Ok(round) => {
                     let mut stats = round.stats;
                     if !inert.is_empty() {
@@ -839,6 +1036,7 @@ impl Room {
                         engine: "mpc".into(),
                         request,
                         outcome: round.outcome,
+                        filled: round.filled,
                         masked_key: round.masked_key,
                         mask: round.mask,
                         padded,
@@ -873,6 +1071,7 @@ impl Room {
                         verified: Some(round.verified),
                         verified_detail: round.detail,
                         engine_stats: stats,
+                        product_handoff: round.product_handoff,
                     }
                 }
                 Err(error) => RoundResult {
@@ -880,6 +1079,7 @@ impl Room {
                     engine: "mpc".into(),
                     request,
                     outcome: crate::model::Outcome::default(),
+                    filled: false,
                     masked_key: i128::from(self.rng.gen::<u32>()),
                     mask: self.rng.gen::<u32>() as u64,
                     padded,
@@ -889,7 +1089,11 @@ impl Room {
                     corrections: 0,
                     aborted: true,
                     abort_reason: error.clone(),
-                    abort_code: "engine".into(),
+                    abort_code: if is_corporate_queue_pending(&error) {
+                        "queued".into()
+                    } else {
+                        "engine".into()
+                    },
                     abort_fields: BTreeMap::new(),
                     product_capacity: 0,
                     open_capacity: 0,
@@ -903,6 +1107,7 @@ impl Room {
                     verified: Some(false),
                     verified_detail: error.clone(),
                     engine_stats: json!({"error": error}),
+                    product_handoff: None,
                 },
             }
         } else {
@@ -926,11 +1131,19 @@ impl Room {
             } else {
                 i128::from(self.rng.gen::<u32>())
             };
+            let filled = !protocol.transcript.aborted
+                && request.is_real != 0
+                && match (request.direction, protocol.outcome.price) {
+                    (BUY, Some(price)) => price <= self.request_limit,
+                    (SELL, Some(price)) => price >= self.request_limit,
+                    _ => false,
+                };
             RoundResult {
                 number: self.round_number,
                 engine: "sim".into(),
                 request,
                 outcome: protocol.outcome,
+                filled,
                 masked_key,
                 mask,
                 padded,
@@ -954,6 +1167,7 @@ impl Room {
                 verified: None,
                 verified_detail: String::new(),
                 engine_stats: json!({}),
+                product_handoff: None,
             }
         };
         for quote in &mut result.outcome.quotes {
@@ -966,7 +1180,18 @@ impl Room {
         if self.history.len() > 20 {
             self.history.drain(..self.history.len() - 20);
         }
-        if result.aborted {
+        if result.aborted && result.abort_code == "queued" {
+            // The public view intentionally reduces every post-reserve failure
+            // to one reconciliation state.  Preserve the internal cause at the
+            // coordinator boundary so operators can distinguish a node outage
+            // from a proof, policy, or DeFMI consistency failure without
+            // logging the plaintext RFQ.
+            eprintln!(
+                "qomm-demo round {} awaiting reconciliation: {}",
+                result.number, result.abort_reason
+            );
+            self.note_all("reserve_queued", "warn", json!({"number": result.number}));
+        } else if result.aborted {
             self.note_all(
                 "stopped",
                 "bad",
@@ -1009,6 +1234,281 @@ impl Room {
         Ok(result)
     }
 
+    /// A Taker reserve kept for a replay that will never come: the round
+    /// ended awaiting canonical reconciliation, but the corporate request has
+    /// since been finalized on canonical state without a replay (the
+    /// participant module released it after the gateway's no-fill refund lost
+    /// a race to its own).  Nothing in the queue can be claimed, so the local
+    /// projection is released here and the round recorded as released; the
+    /// next signed request is admitted again.  A `consumed` entry the room
+    /// never settled is left alone and reported, since the fill it would
+    /// need is not known here.
+    fn drop_finalized_taker_reservation(&mut self) -> Result<bool, String> {
+        if self.taker_reservation.is_none() {
+            return Ok(false);
+        }
+        let finalized = match self.engine.as_mut() {
+            Some(engine) => engine.retained_corporate_finalized()?,
+            None => None,
+        };
+        let Some(status) = finalized else {
+            return Ok(false);
+        };
+        if status != "released" {
+            eprintln!(
+                "qomm-demo: the retained corporate request is `{status}` on canonical state but the room never settled it; the Taker reserve is kept for the operator"
+            );
+            return Ok(false);
+        }
+        let Some(reservation) = self.release_taker_reservation()? else {
+            return Ok(false);
+        };
+        self.record_settlement(
+            reservation.round,
+            "released",
+            "corporate_finalized",
+            "the corporate outbox entry was released on canonical state without a replay; the retained Taker reserve is dropped",
+            None,
+            reservation.asset,
+            reservation.direction,
+            reservation.quantity,
+            None,
+            None,
+            reservation.limit_price,
+        );
+        eprintln!(
+            "qomm-demo round {} released on canonical state; the retained Taker reserve is dropped",
+            reservation.round
+        );
+        Ok(true)
+    }
+
+    /// Let the distributed engine replay one participant-owned corporate
+    /// request without requiring another browser click. The replayed request
+    /// carries its original policy/request/reserve snapshot; current screen
+    /// controls are never substituted into an older queued RFQ.
+    pub fn drain_mpc_queue(&mut self) -> Result<bool, String> {
+        if self.busy {
+            return Ok(false);
+        }
+        let started = Instant::now();
+        let queued = match self.engine.as_mut() {
+            Some(engine) => engine.replay_queued()?,
+            None => None,
+        };
+        let Some(queued) = queued else {
+            return self.drop_finalized_taker_reservation();
+        };
+        let asset = usize::try_from(queued.request.asset)
+            .ok()
+            .filter(|asset| *asset < self.assets.len())
+            .ok_or_else(|| "queued request names an unknown asset".to_string())?;
+        let (rail, amount) = if queued.request.direction == BUY {
+            let expected = queued
+                .request
+                .qty
+                .checked_mul(queued.settlement.user_limit)
+                .ok_or_else(|| "queued Taker cash reserve overflowed".to_string())?;
+            if queued.settlement.taker_cash_reserve != expected
+                || queued.settlement.taker_securities_reserve != 0
+            {
+                return Err("queued buy differs from its signed cash reserve".into());
+            }
+            ("cash".to_string(), expected)
+        } else if queued.request.direction == SELL {
+            if queued.settlement.taker_securities_reserve != queued.request.qty
+                || queued.settlement.taker_cash_reserve != 0
+            {
+                return Err("queued sell differs from its signed inventory reserve".into());
+            }
+            ("inventory".to_string(), queued.request.qty)
+        } else {
+            return Err("queued request direction is outside buy or sell".into());
+        };
+        if amount <= 0 || queued.settlement.user_limit <= 0 {
+            return Err("queued request has no valid Taker reserve".into());
+        }
+        let result_number = if let Some(reservation) = self.taker_reservation.as_ref() {
+            if reservation.asset != asset
+                || reservation.direction != queued.request.direction
+                || reservation.quantity != queued.request.qty
+                || reservation.limit_price != queued.settlement.user_limit
+                || reservation.amount != amount
+                || reservation.rail != rail
+            {
+                return Err("queued request differs from the retained Taker reserve".into());
+            }
+            reservation.round
+        } else {
+            // The corporate queue and DeFMI reserve survive a gateway restart,
+            // while this explanatory portfolio does not. Restore only the
+            // matching local projection from the queued signed envelope.
+            let round = self
+                .round_number
+                .checked_add(1)
+                .ok_or_else(|| "round number overflowed while replaying the queue".to_string())?;
+            if rail == "cash" {
+                if self.taker_portfolio.cash_available < amount {
+                    return Err(
+                        "local Taker projection cannot restore the queued cash reserve".into(),
+                    );
+                }
+                self.taker_portfolio.cash_available -= amount;
+                self.taker_portfolio.cash_reserved += amount;
+            } else {
+                if self.taker_portfolio.inventory_available[asset] < amount {
+                    return Err(
+                        "local Taker projection cannot restore the queued inventory reserve".into(),
+                    );
+                }
+                self.taker_portfolio.inventory_available[asset] -= amount;
+                self.taker_portfolio.inventory_reserved[asset] += amount;
+            }
+            self.taker_portfolio.validate()?;
+            self.taker_reservation = Some(TakerReservation {
+                round,
+                asset,
+                direction: queued.request.direction,
+                quantity: queued.request.qty,
+                limit_price: queued.settlement.user_limit,
+                amount,
+                rail,
+            });
+            round
+        };
+        self.round_number = self.round_number.max(result_number);
+        self.now = self.now.max(queued.market_time);
+        let mut round = queued.round;
+        let aborted = !round.verified;
+        let abort_code = if aborted && is_corporate_queue_pending(&round.detail) {
+            "queued"
+        } else if aborted {
+            "mismatch"
+        } else {
+            ""
+        };
+        let corrections = round.named.len();
+        round.stats["corporate_queue_replay"] = json!({
+            "automatic": true,
+            "original_market_time": queued.market_time,
+            "current_controls_substituted": false,
+            "settlement_input": {
+                "user_limit": queued.settlement.user_limit,
+                "taker_securities_reserve": queued.settlement.taker_securities_reserve,
+                "taker_cash_reserve": queued.settlement.taker_cash_reserve,
+            },
+        });
+        let result = RoundResult {
+            number: result_number,
+            engine: "mpc".into(),
+            request: queued.request,
+            outcome: round.outcome,
+            filled: round.filled,
+            masked_key: round.masked_key,
+            mask: round.mask,
+            padded: self.padded(),
+            named: round.named,
+            rejected: Vec::new(),
+            reductions: 0,
+            corrections,
+            aborted,
+            abort_reason: if aborted {
+                round.detail.clone()
+            } else {
+                String::new()
+            },
+            abort_code: abort_code.into(),
+            abort_fields: BTreeMap::new(),
+            product_capacity: qomm_audit::locate::capacity(self.n_nodes, 2 * self.threshold),
+            open_capacity: qomm_audit::locate::capacity(self.n_nodes, self.threshold),
+            silent: Vec::new(),
+            corrupted_inputs: Vec::new(),
+            input_check: self.input_check,
+            elapsed_ms: started.elapsed().as_secs_f64() * 1_000.0,
+            settled: false,
+            node_shares: round.node_shares,
+            used_policies: queued.policies,
+            verified: Some(round.verified),
+            verified_detail: round.detail,
+            engine_stats: round.stats,
+            product_handoff: round.product_handoff,
+        };
+        self.last = Some(result.clone());
+        if let Some(existing) = self
+            .history
+            .iter_mut()
+            .find(|existing| existing.number == result.number)
+        {
+            *existing = result.clone();
+        } else {
+            self.history.push(result.clone());
+        }
+        if self.history.len() > 20 {
+            self.history.drain(..self.history.len() - 20);
+        }
+        if result.aborted {
+            eprintln!(
+                "qomm-demo replay round {} awaiting reconciliation: {}",
+                result.number, result.abort_reason
+            );
+            self.note_all(
+                "stopped",
+                "bad",
+                json!({
+                    "number": result.number,
+                    "detail": result.abort_reason,
+                    "corporate_queue_replay": true,
+                }),
+            );
+        } else {
+            self.note_all(
+                "finished",
+                "info",
+                json!({
+                    "number": result.number,
+                    "real": true,
+                    "corporate_queue_replay": true,
+                }),
+            );
+        }
+        self.settle_last()?;
+        self.end_round();
+        Ok(true)
+    }
+
+    fn mpc_settlement_inputs(&self, request: &Request) -> Result<MpcSettlementInputs, String> {
+        let mut taker_securities_reserve = 0;
+        let mut taker_cash_reserve = 0;
+        if request.is_real != 0 {
+            let reserve = self
+                .taker_reservation
+                .as_ref()
+                .ok_or_else(|| "real MPC request has no signed Taker reserve".to_string())?;
+            if reserve.direction == BUY {
+                taker_cash_reserve = reserve.amount;
+            } else {
+                taker_securities_reserve = reserve.amount;
+            }
+        }
+        let settlement = MpcSettlementInputs {
+            user_limit: self.request_limit,
+            taker_securities_reserve,
+            taker_cash_reserve,
+            maker_securities_reserves: self
+                .maker_reserves
+                .iter()
+                .map(|reserve| reserve.standing_inventory)
+                .collect(),
+            maker_cash_reserves: self
+                .maker_reserves
+                .iter()
+                .map(|reserve| reserve.standing_cash)
+                .collect(),
+        };
+        settlement.validate(self.n_makers)?;
+        Ok(settlement)
+    }
+
     pub fn note(&mut self, seat: &str, code: &str, tone: &str, fields: Value) {
         let line = Notice {
             at: SystemTime::now()
@@ -1039,11 +1539,18 @@ impl Room {
     }
 
     /// Move only the seats that are not currently held by a person.
-    pub fn step_bots(&mut self) {
+    pub fn step_bots(&mut self) -> Result<(), String> {
+        let previous_policies = self.policies.clone();
+        let previous_portfolios = self.maker_portfolios.clone();
+        let previous_reserves = self.maker_reserves.clone();
         for maker in 0..self.n_makers {
             if self.seats[&format!("maker:{maker}")].mode() == "auto" {
                 let previous = self.policies[maker].clone();
                 step_maker(&mut self.policies[maker], self.assets.len(), &mut self.rng);
+                // A Maker policy is compiled and registered for one instrument.
+                // Automatic quote refreshes may move prices and inventory state,
+                // but must not silently switch the circuit's bound instrument.
+                self.policies[maker].asset = previous.asset;
                 if self.refresh_maker_reserve(maker).is_err() {
                     self.policies[maker] = previous;
                 }
@@ -1056,6 +1563,20 @@ impl Room {
                 self.request.direction,
             );
         }
+        let settlement = self.maker_preauthorization_inputs()?;
+        if let Some(engine) = self.engine.as_mut() {
+            if let Err(error) =
+                engine.preauthorize_maker_policies(&self.policies, &settlement, self.now)
+            {
+                self.policies = previous_policies;
+                self.maker_portfolios = previous_portfolios;
+                self.maker_reserves = previous_reserves;
+                return Err(format!(
+                    "scheduled Maker policy refresh failed before the fixed slot: {error}"
+                ));
+            }
+        }
+        Ok(())
     }
 
     /// A cover round computes identically but has no settlement side effect.
@@ -1097,10 +1618,32 @@ impl Room {
         {
             return Err("Taker reservation does not bind the completed request".into());
         }
-        if result.aborted || result.outcome.winner.is_none() || result.outcome.price.is_none() {
+        if result.aborted && result.abort_code == "queued" {
+            self.record_settlement(
+                result.number,
+                "queued",
+                "mpc_queued",
+                &result.abort_reason,
+                None,
+                asset,
+                result.request.direction,
+                result.request.qty,
+                None,
+                None,
+                reservation.limit_price,
+            );
+            return Ok(());
+        }
+        if result.aborted
+            || !result.filled
+            || result.outcome.winner.is_none()
+            || result.outcome.price.is_none()
+        {
             self.release_taker_reservation()?;
             let (reason_code, detail) = if result.aborted {
                 ("mpc_aborted", result.abort_reason.as_str())
+            } else if result.outcome.winner.is_some() && result.outcome.price.is_some() {
+                ("price_limit", "")
             } else {
                 ("no_maker", "")
             };
@@ -1113,7 +1656,7 @@ impl Room {
                 asset,
                 result.request.direction,
                 result.request.qty,
-                result.outcome.price,
+                None,
                 None,
                 reservation.limit_price,
             );
@@ -1400,7 +1943,7 @@ impl Room {
         if self.busy {
             return Err("a round is already in progress".into());
         }
-        self.step_bots();
+        self.step_bots()?;
         self.prepare_taker_reservation()?;
         let result = match self.run_round() {
             Ok(result) => result,
@@ -1520,6 +2063,7 @@ impl Room {
                 },
             ),
             ("public".into(), self.public_view(result)),
+            ("infrastructure".into(), self.infrastructure.clone()),
             (
                 "history".into(),
                 json!(self
@@ -1587,7 +2131,14 @@ impl Room {
             })).collect::<Vec<_>>(),
             "ms": (result.elapsed_ms * 10.0).round() / 10.0,
             "verified": result.verified,
-            "verified_detail": result.verified_detail,
+            // The verifier's internal detail can contain the unpacked key or
+            // why a private order did not fill. Every seat receives this
+            // projection, so expose integrity only, never execution content.
+            "verified_detail": result.verified.map(|verified| if verified {
+                "MPC output verification passed"
+            } else {
+                "MPC output verification failed"
+            }).unwrap_or(""),
             "engine_stats": result.engine_stats,
             "inert": result.engine_stats.get("inert_behaviours").is_some(),
             "settlement": settlement.map(|settlement| json!({
@@ -1636,6 +2187,11 @@ impl Room {
         });
         if let Some(result) = result {
             let (cost, maker) = result.unpack();
+            let (price, winner) = if result.filled {
+                (result.outcome.price, result.outcome.winner)
+            } else {
+                (None, None)
+            };
             value["last"] = json!({
                 "number": result.number,
                 "asset": result.request.asset,
@@ -1643,8 +2199,8 @@ impl Room {
                 "direction": result.request.direction,
                 "is_real": result.request.is_real,
                 "mask": result.mask.to_string(),
-                "price": result.outcome.price,
-                "winner": result.outcome.winner,
+                "price": price,
+                "winner": winner,
                 "unpacked_cost": cost,
                 "unpacked_maker": maker,
                 "eligible": result.outcome.eligible,

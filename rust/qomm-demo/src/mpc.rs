@@ -8,6 +8,7 @@ use crate::model::{evaluate, Outcome, Policy, Request};
 use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::inputs::{build_inputs, finish_reference, parse_policies, InputConfig};
 use qomm_mpc::program::{build_program, pow2_ceil, sentinel_for, CheckMode, Mode, ProgramConfig};
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fs::{self, File};
@@ -16,6 +17,20 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+
+pub const CORPORATE_QUEUE_UNAVAILABLE: &str =
+    "MPC nodes are unavailable; the signed RFQ is durably queued and no local execution was attempted";
+pub const CORPORATE_QUEUE_WAITING_SLOT: &str =
+    "the signed RFQ is durably queued and is waiting for its fixed-rate dispatch slot";
+pub const CORPORATE_QUEUE_RECONCILING: &str =
+    "the signed RFQ remains reserved in DeFMI and is awaiting canonical reconciliation";
+
+pub fn is_corporate_queue_pending(error: &str) -> bool {
+    matches!(
+        error,
+        CORPORATE_QUEUE_UNAVAILABLE | CORPORATE_QUEUE_WAITING_SLOT
+    ) || error.starts_with(CORPORATE_QUEUE_RECONCILING)
+}
 
 struct TempRoot(PathBuf);
 
@@ -27,6 +42,10 @@ impl Drop for TempRoot {
 
 pub struct MpcRound {
     pub outcome: Outcome,
+    /// True only when the MPC fill bit is one. Verification success and trade
+    /// execution are separate states: a price-limit rejection is valid but is
+    /// not a fill.
+    pub filled: bool,
     pub masked_key: i128,
     pub mask: u64,
     pub node_shares: BTreeMap<usize, Vec<String>>,
@@ -34,6 +53,212 @@ pub struct MpcRound {
     pub verified: bool,
     pub detail: String,
     pub stats: Value,
+    /// Public handoff to the settlement coordinator.  It contains only
+    /// commitments to each node-local persistence file, never the persisted
+    /// Shamir evaluations themselves.
+    pub product_handoff: Option<MpcProductHandoff>,
+}
+
+/// A corporate request recovered from its durable participant-owned outbox and
+/// executed after the MPC committee becomes healthy again.
+pub struct QueuedMpcRound {
+    pub policies: Vec<Policy>,
+    pub request: Request,
+    pub settlement: MpcSettlementInputs,
+    pub market_time: i64,
+    pub round: MpcRound,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct MpcProductHandoff {
+    pub round_id: String,
+    pub source_sha256: String,
+    pub persistence_sha256: BTreeMap<usize, String>,
+    /// Public fingerprint of the durable 3-of-7 signing group.  The key shares
+    /// remain encrypted inside the seven node-local proof-party states.
+    pub frost_public_sha256: String,
+    /// Present for real requests after all seven proof nodes have loaded their
+    /// own persistence file and jointly proved the winning registered quote.
+    pub proof_job_id: Option<String>,
+    pub quote_proof_digest: Option<String>,
+    /// Canonical private verifier-complete record.  It contains commitments,
+    /// threshold proofs and recipient-encrypted openings, but no clear amount,
+    /// price, reserve or policy opening.  DeFMI typing and execution receipts
+    /// are attached before it becomes an admissible settlement transaction.
+    pub settlement_record: Option<Vec<u8>>,
+    /// Seven node-identity-signed receipts over the exact MP-SPDZ inputs,
+    /// stdout/stderr and node-local persistence used by this proof job.
+    pub execution_attestations: Option<Vec<u8>>,
+    pub execution_node_keys: Option<Vec<[u8; 32]>>,
+    /// Seven node-identity signatures over the pre-MPC legal-entity claim,
+    /// content-independent order and each node's distinct input-share batch.
+    pub admission_attestations: Option<Vec<u8>>,
+    pub admission_node_keys: Option<Vec<[u8; 32]>>,
+    /// Present only for a real request: canonical Taker mandate body followed
+    /// by its Ed25519 signature.  It was signed before any MPC node executed.
+    pub signed_taker_mandate: Option<Vec<u8>>,
+    /// Canonical standing Maker mandates.  Each active two-sided policy has
+    /// one inventory-backed sell authorization and one cash-backed buy
+    /// authorization, both signed before the RFQ reaches the MPC service.
+    pub signed_maker_mandates: Vec<Vec<u8>>,
+}
+
+/// Pre-trade amounts already reserved under Maker and Taker mandates.
+///
+/// The matching circuit persists the selected price and the remainders against
+/// these exact limits.  A later zkPI/DvP proof therefore cannot substitute a
+/// larger reserve or a different Taker limit after seeing the match.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+pub struct MpcSettlementInputs {
+    pub user_limit: i64,
+    pub taker_securities_reserve: i64,
+    pub taker_cash_reserve: i64,
+    pub maker_securities_reserves: Vec<i64>,
+    pub maker_cash_reserves: Vec<i64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct MaskedExecutionOpening {
+    pub padded_makers: usize,
+    pub masked_key: i128,
+    pub key_mask: u64,
+    pub masked_fill: i128,
+    pub fill_mask: u64,
+}
+
+/// Verify the two Taker-masked public outputs.  The fill bit is checked
+/// separately from the packed quote so an executable zero-price quote cannot
+/// be confused with a non-fill.
+pub(crate) fn verify_masked_execution(
+    outcome: &Outcome,
+    request: &Request,
+    user_limit: i64,
+    opening: MaskedExecutionOpening,
+) -> Result<(bool, String, bool), String> {
+    let MaskedExecutionOpening {
+        padded_makers,
+        masked_key,
+        key_mask,
+        masked_fill,
+        fill_mask,
+    } = opening;
+    let opened_fill = masked_fill
+        .checked_sub(i128::from(fill_mask))
+        .ok_or_else(|| "masked fill underflowed its Taker mask".to_string())?;
+    let filled = match opened_fill {
+        0 => false,
+        1 => true,
+        _ => return Err("MPC opened a fill value outside zero or one".into()),
+    };
+    let opened_key = masked_key
+        .checked_sub(i128::from(key_mask))
+        .ok_or_else(|| "masked quote underflowed its Taker mask".to_string())?;
+    let expected_fill = if request.is_real == 0 {
+        false
+    } else {
+        match (request.direction, outcome.price) {
+            (_, None) => false,
+            (0, Some(price)) => price <= user_limit,
+            (1, Some(price)) => price >= user_limit,
+            _ => return Err("request direction is outside buy or sell".into()),
+        }
+    };
+    if !filled {
+        return Ok((
+            !expected_fill && opened_key == 0,
+            if expected_fill {
+                "MPC reported no fill for an executable best quote".into()
+            } else if opened_key != 0 {
+                "MPC exposed a packed quote despite reporting no fill".into()
+            } else {
+                "no executable quote; the Taker-masked fill and key agree".into()
+            },
+            false,
+        ));
+    }
+    let Some((cost, winner)) = outcome.cost.zip(outcome.winner) else {
+        return Ok((
+            false,
+            "MPC reported a fill when no eligible Maker exists".into(),
+            true,
+        ));
+    };
+    let unpacked = unpack_key(opened_key, padded_makers);
+    let wanted = (i128::from(cost), winner);
+    Ok((
+        expected_fill && unpacked == wanted,
+        if !expected_fill {
+            "MPC reported a fill outside the Taker's signed price limit".into()
+        } else {
+            format!("got={unpacked:?} want={wanted:?}")
+        },
+        true,
+    ))
+}
+
+impl MpcSettlementInputs {
+    pub fn validate(&self, makers: usize) -> Result<(), String> {
+        if self.user_limit < 0
+            || self.taker_securities_reserve < 0
+            || self.taker_cash_reserve < 0
+            || self.maker_securities_reserves.len() != makers
+            || self.maker_cash_reserves.len() != makers
+            || self
+                .maker_securities_reserves
+                .iter()
+                .chain(&self.maker_cash_reserves)
+                .any(|value| *value < 0)
+        {
+            return Err("pre-trade settlement inputs do not match the Maker population".into());
+        }
+        Ok(())
+    }
+}
+
+/// Execution boundary used by the browser room.  The local implementation
+/// starts every stock MP-SPDZ party on one host, while the Docker deployment
+/// installs an implementation that sends only one party's share to each
+/// independently running node service.  Both implementations return the same
+/// fail-closed round receipt to the UI and settlement layer.
+pub trait MpcQuoteEngine: Send {
+    fn name(&self) -> &'static str;
+    fn note(&self) -> String;
+    fn robust(&self) -> bool;
+    fn robust_reason(&self) -> &str;
+    fn input_check(&self) -> bool;
+    /// Register or refresh standing Maker policy authority before an RFQ can
+    /// run. Local/simulation engines have no external custody boundary and use
+    /// the default no-op; the distributed engine fails closed on stale policy
+    /// authority inside `quote`.
+    fn preauthorize_maker_policies(
+        &mut self,
+        _policies: &[Policy],
+        _settlement: &MpcSettlementInputs,
+        _now: i64,
+    ) -> Result<(), String> {
+        Ok(())
+    }
+    /// Poll one fixed-rate corporate outbox slot. Engines without an external
+    /// participant package have no queue and therefore return `None`.
+    fn replay_queued(&mut self) -> Result<Option<QueuedMpcRound>, String> {
+        Ok(None)
+    }
+    /// When a round ended with its corporate request retained for a replay,
+    /// report the request's canonical status once the participant module has
+    /// finalized it (`released` or `consumed`) without any replay, so the
+    /// room can drop the Taker reserve it kept for that replay.  Engines
+    /// without a corporate queue never retain anything.
+    fn retained_corporate_finalized(&mut self) -> Result<Option<String>, String> {
+        Ok(None)
+    }
+    fn quote(
+        &mut self,
+        policies: &[Policy],
+        request: &Request,
+        settlement: &MpcSettlementInputs,
+        now: i64,
+        corrupt: &[usize],
+    ) -> Result<MpcRound, String>;
 }
 
 pub struct MpcEngine {
@@ -109,6 +334,12 @@ impl MpcEngine {
             bit_length,
             input_check,
             check_mode: CheckMode::PerParty,
+            // A real Taker reserve is authorized against `user_limit`.  The
+            // MPC circuit must therefore compute the masked fill bit against
+            // that same limit; otherwise the verifier asks for an output the
+            // circuit never emits and, more importantly, matching ignores the
+            // signed maximum/minimum price.
+            binding_limit: true,
             ..ProgramConfig::default()
         };
         let source = build_program(&config).map_err(|error| error.to_string())?;
@@ -205,12 +436,14 @@ impl MpcEngine {
         &mut self,
         policies: &[Policy],
         request: &Request,
+        settlement: &MpcSettlementInputs,
         now: i64,
         corrupt: &[usize],
     ) -> Result<MpcRound, String> {
         if policies.len() != self.n_makers {
             return Err("the live policy count differs from the compiled shape".into());
         }
+        settlement.validate(self.n_makers)?;
         let policy_json = serde_json::to_string(policies).map_err(|error| error.to_string())?;
         let mpc_policies = parse_policies(&policy_json).map_err(|error| error.to_string())?;
         let seed = i128::from(self.served.saturating_add(7));
@@ -237,9 +470,11 @@ impl MpcEngine {
             input_check: self.input_check,
             check_mode: self.config.check_mode,
             binding_limit: self.config.binding_limit,
-            user_limit: 100_000,
-            user_limit_blinding: 1,
-            user_qty_blinding: 1,
+            user_limit: i128::from(settlement.user_limit),
+            user_limit_blinding: i128::from(self.served.saturating_add(101)),
+            user_qty_blinding: i128::from(self.served.saturating_add(151)),
+            response_mask: None,
+            fill_mask: None,
             check_coefficients: &self.config.check_coefficients,
             check_repeats: self.config.check_repeats,
             policies: Some(&mpc_policies),
@@ -260,6 +495,11 @@ impl MpcEngine {
             reference
                 .get("mask")
                 .ok_or_else(|| "generated reference has no mask".to_string())?,
+        )?;
+        let fill_mask = json_u64(
+            reference
+                .get("fill_mask")
+                .ok_or_else(|| "generated reference has no fill mask".to_string())?,
         )?;
 
         let round_dir = self.work.0.join(format!("round-{}", self.served));
@@ -363,6 +603,13 @@ impl MpcEngine {
                 "the MP-SPDZ parties disagreed on the opened masked key: party 0={masked_key}, others={disagreements:?}"
             ));
         }
+        let opened_fills = logs.iter().map(|log| opened_fill(log)).collect::<Vec<_>>();
+        let Some(masked_fill) = opened_fills.first().copied().flatten() else {
+            return Err("the MP-SPDZ parties emitted no QOMM_MASKED_FILL".into());
+        };
+        if opened_fills.iter().any(|value| *value != Some(masked_fill)) {
+            return Err("the MP-SPDZ parties disagreed on the opened masked fill".into());
+        }
         let references = self
             .references
             .iter()
@@ -370,20 +617,18 @@ impl MpcEngine {
             .map(|value| value as i64)
             .collect::<Vec<_>>();
         let outcome = evaluate(policies, request, &references, now);
-        let (verified, detail) = if let (Some(cost), Some(winner)) = (outcome.cost, outcome.winner)
-        {
-            let unpacked = unpack_key(masked_key - i128::from(mask), self.config.n_mm);
-            let wanted = (i128::from(cost), winner);
-            (
-                unpacked == wanted,
-                format!("got={unpacked:?} want={wanted:?}"),
-            )
-        } else {
-            (
-                reference.get("no_eligible_maker").and_then(Value::as_bool) == Some(true),
-                "no eligible maker; the circuit opened its masked sentinel".into(),
-            )
-        };
+        let (verified, detail, filled) = verify_masked_execution(
+            &outcome,
+            request,
+            settlement.user_limit,
+            MaskedExecutionOpening {
+                padded_makers: self.config.n_mm,
+                masked_key,
+                key_mask: mask,
+                masked_fill,
+                fill_mask,
+            },
+        )?;
         let named = logs
             .iter()
             .flat_map(|log| corrected_players(log))
@@ -394,6 +639,7 @@ impl MpcEngine {
         self.served += 1;
         Ok(MpcRound {
             outcome,
+            filled,
             masked_key,
             mask,
             node_shares,
@@ -407,7 +653,41 @@ impl MpcEngine {
                 "parties": self.n_parties,
                 "binary": self.binary.file_name().and_then(|name| name.to_str()),
             }),
+            product_handoff: None,
         })
+    }
+}
+
+impl MpcQuoteEngine for MpcEngine {
+    fn name(&self) -> &'static str {
+        MpcEngine::name(self)
+    }
+
+    fn note(&self) -> String {
+        MpcEngine::note(self)
+    }
+
+    fn robust(&self) -> bool {
+        MpcEngine::robust(self)
+    }
+
+    fn robust_reason(&self) -> &str {
+        MpcEngine::robust_reason(self)
+    }
+
+    fn input_check(&self) -> bool {
+        MpcEngine::input_check(self)
+    }
+
+    fn quote(
+        &mut self,
+        policies: &[Policy],
+        request: &Request,
+        settlement: &MpcSettlementInputs,
+        now: i64,
+        corrupt: &[usize],
+    ) -> Result<MpcRound, String> {
+        MpcEngine::quote(self, policies, request, settlement, now, corrupt)
     }
 }
 
@@ -499,6 +779,14 @@ fn opened_key(log: &str) -> Option<i128> {
         .ok()
 }
 
+fn opened_fill(log: &str) -> Option<i128> {
+    log.lines()
+        .find_map(|line| line.trim().strip_prefix("QOMM_MASKED_FILL="))?
+        .trim()
+        .parse()
+        .ok()
+}
+
 fn corrected_players(log: &str) -> BTreeSet<usize> {
     const PREFIX: &str = "ROBUST_ATLAS_CORRECTED player ";
     log.lines()
@@ -542,11 +830,16 @@ fn low_72_hex(decimal: &str) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{corrected_players, low_72_hex, opened_key, unpack_key};
+    use super::{
+        corrected_players, is_corporate_queue_pending, low_72_hex, opened_fill, opened_key,
+        unpack_key, verify_masked_execution, MaskedExecutionOpening, CORPORATE_QUEUE_RECONCILING,
+    };
+    use crate::model::{Outcome, Request};
 
     #[test]
     fn log_and_field_helpers_fail_closed_and_match_the_packing() {
         assert_eq!(opened_key("x\nQOMM_MASKED_KEY=-17\n"), Some(-17));
+        assert_eq!(opened_fill("x\nQOMM_MASKED_FILL=19\n"), Some(19));
         assert_eq!(opened_key("QOMM_MASKED_KEY=no"), None);
         assert_eq!(unpack_key(-17, 8), (-3, 7));
         assert_eq!(low_72_hex("-1").unwrap(), "ffffffffffffffffff");
@@ -559,5 +852,88 @@ mod tests {
             .collect::<Vec<_>>(),
             vec![1, 4]
         );
+    }
+
+    #[test]
+    fn canonical_reconciliation_errors_keep_the_corporate_reserve_pending() {
+        assert!(is_corporate_queue_pending(&format!(
+            "{CORPORATE_QUEUE_RECONCILING}: consensus rejected the settlement"
+        )));
+        assert!(!is_corporate_queue_pending(
+            "consensus rejected before the DeFMI reserve"
+        ));
+    }
+
+    #[test]
+    fn masked_fill_distinguishes_price_limit_rejection_from_a_zero_quote() {
+        let mut outcome = Outcome {
+            winner: Some(0),
+            price: Some(15_912),
+            cost: Some(15_912),
+            ..Outcome::default()
+        };
+        let request = Request::default();
+        let no_fill = verify_masked_execution(
+            &outcome,
+            &request,
+            15_907,
+            MaskedExecutionOpening {
+                padded_makers: 4,
+                masked_key: 500,
+                key_mask: 500,
+                masked_fill: 701,
+                fill_mask: 701,
+            },
+        )
+        .unwrap();
+        assert!(no_fill.0);
+        assert!(!no_fill.2);
+
+        outcome.price = Some(0);
+        outcome.cost = Some(0);
+        let zero_fill = verify_masked_execution(
+            &outcome,
+            &request,
+            15_907,
+            MaskedExecutionOpening {
+                padded_makers: 4,
+                masked_key: 500,
+                key_mask: 500,
+                masked_fill: 702,
+                fill_mask: 701,
+            },
+        )
+        .unwrap();
+        assert!(zero_fill.0);
+        assert!(zero_fill.2);
+    }
+
+    #[test]
+    fn sell_limit_is_a_minimum_price() {
+        let request = Request {
+            direction: 1,
+            ..Request::default()
+        };
+        let outcome = Outcome {
+            winner: Some(1),
+            price: Some(15_500),
+            cost: Some(-15_500),
+            ..Outcome::default()
+        };
+        let rejected = verify_masked_execution(
+            &outcome,
+            &request,
+            15_600,
+            MaskedExecutionOpening {
+                padded_makers: 4,
+                masked_key: 900,
+                key_mask: 900,
+                masked_fill: 1000,
+                fill_mask: 1000,
+            },
+        )
+        .unwrap();
+        assert!(rejected.0);
+        assert!(!rejected.2);
     }
 }

@@ -6,8 +6,13 @@ license.workspace = true
 
 [dependencies]
 qomm-transport.workspace = true
+zkpi-defmi-sdk.workspace = true
 qomm-audit.workspace = true
 qomm-mpc.workspace = true
+qomm-defmi.workspace = true
+qomm-proofs.workspace = true
+qomm-zk.workspace = true
+qomm-zkpi.workspace = true
 curve25519-dalek.workspace = true
 ed25519-dalek.workspace = true
 rand_core.workspace = true

@@ -374,6 +374,8 @@ fn generate_fixture(options: &Options, work: &Path, program: &str) -> HarnessRes
         user_limit: 100_000,
         user_limit_blinding: 1,
         user_qty_blinding: 1,
+        response_mask: None,
+        fill_mask: None,
         check_coefficients: &config.check_coefficients,
         check_repeats: config.check_repeats,
         policies: None,

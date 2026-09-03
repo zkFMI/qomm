@@ -30,6 +30,8 @@ header .sub{color:#b9c8e3;font-size:.76rem}
 header .spacer{flex:1}
 .badge{font-size:.72rem;padding:.16rem .5rem;border-radius:999px;
   background:rgba(255,255,255,.13);white-space:nowrap}
+.badge:empty{display:none}
+.tag.brand{text-transform:none}
 .badge.engine{background:var(--teal);color:#fff;font-weight:700}
 .badge.engine.mpc{background:var(--amber)}
 .badge.seat{background:var(--blue);font-weight:700}
@@ -71,7 +73,7 @@ button:focus-visible,input:focus-visible,select:focus-visible,
 /* --- controls ---------------------------------------------------------- */
 .row{display:flex;gap:.5rem;align-items:center;margin-bottom:.45rem;
   flex-wrap:wrap}
-.row label{font-size:.8rem;color:var(--gray);min-width:8.5rem}
+.row label,.row .field-label{font-size:.8rem;color:var(--gray);min-width:8.5rem}
 .row .val{font-family:var(--mono);font-size:.85rem;min-width:3.6rem;
   text-align:right;font-weight:700}
 .row .hint{font-size:.76rem;color:var(--gray)}
@@ -138,6 +140,7 @@ tr.mine td{background:var(--blue-pale)}
   font-size:.72rem;font-weight:750;background:var(--blue-pale);color:var(--blue)}
 .status-pill.settled{background:var(--teal-pale);color:var(--teal)}
 .status-pill.released{background:var(--amber-pale);color:var(--amber)}
+.status-pill.queued{background:var(--amber-pale);color:var(--amber)}
 .status-pill.cover{background:var(--mist);color:var(--gray)}
 .settlement-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.45rem;
   margin-top:.55rem}
@@ -177,6 +180,8 @@ footer{color:var(--gray);font-size:.72rem;text-align:center;padding:1rem}
   border:1px solid var(--line);color:var(--gray);background:#fff;white-space:nowrap}
 .phase-step.done{border-color:var(--blue-mid);color:var(--blue);background:var(--blue-pale)}
 .phase-step.on{border-color:var(--blue);background:var(--blue);color:#fff;font-weight:700}
+.phase-step.queued{border-color:var(--amber);background:var(--amber-pale);color:var(--amber);
+  font-weight:700}
 .phase-step.stopped{border-color:var(--bad);background:var(--bad-pale);color:var(--bad);
   font-weight:700}
 .phase-caption{font-size:.82rem;color:var(--ink);margin:0 0 .5rem;min-height:1.3em}
@@ -327,7 +332,7 @@ footer{color:var(--gray);font-size:.72rem;text-align:center;padding:1rem}
   .card{padding:.75rem;margin-bottom:.6rem}
   .balance-grid,.settlement-grid{grid-template-columns:1fr 1fr}
   .row{align-items:flex-start}
-  .row label{min-width:100%;margin-bottom:-.2rem}
+  .row label,.row .field-label{min-width:100%;margin-bottom:-.2rem}
   .seg{width:100%}.seg button{flex:1;min-height:44px}
   input[type=range],input[type=number],input[type=text],select{width:100%;min-height:44px}
   .go{width:100%;min-height:44px}

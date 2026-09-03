@@ -32,6 +32,10 @@ struct Session {
     truth: BTreeMap<(usize, u32), bool>,
     slot_wall: Vec<f64>,
     phases: Vec<f64>,
+    /// After each slot, per node chain, the connections every hop had
+    /// accepted so far: the first hop one per client, each later hop one per
+    /// closed slot.
+    connections: Vec<Vec<Vec<u64>>>,
 }
 
 fn main() {
@@ -131,6 +135,7 @@ fn run_session(options: &Options, hops: usize) -> HarnessResult<Session> {
 
     let mut truth = BTreeMap::new();
     let mut slot_wall = Vec::with_capacity(options.slots as usize);
+    let mut connections = Vec::with_capacity(options.slots as usize);
     for slot in 0..options.slots {
         let started = Instant::now();
         for client in &mut clients {
@@ -151,21 +156,39 @@ fn run_session(options: &Options, hops: usize) -> HarnessResult<Session> {
                 )
             })?;
         }
+        // The slot stays open for `slot_ms`, and it does not close before every
+        // frame sent into it has arrived: a slot that closed on the clock alone
+        // dropped frames on a loaded host, which measured the host, not the
+        // transport.  Each hop then forwards in one connection and the next hop
+        // is closed only once that batch has arrived there too.
         thread::sleep(Duration::from_secs_f64(options.slot_ms / 1_000.0));
+        for chain in &cascades {
+            wait_for_frames(&chain[0], slot, options.clients)?;
+        }
         for hop in 0..hops {
+            let mut forwarded = Vec::with_capacity(cascades.len());
             for chain in &cascades {
-                chain[hop].close_slot(slot).map_err(|error| {
+                forwarded.push(chain[hop].close_slot(slot).map_err(|error| {
                     format!("relay hop {hop} could not close slot {slot}: {error}")
-                })?;
+                })?);
             }
             if hop + 1 < hops {
                 thread::sleep(Duration::from_secs_f64(options.link_ms / 1_000.0));
                 thread::sleep(Duration::from_secs_f64(phases[hop + 1] / 1_000.0));
+                for (chain, count) in cascades.iter().zip(&forwarded) {
+                    wait_for_frames(&chain[hop + 1], slot, *count)?;
+                }
             } else {
                 thread::sleep(Duration::from_millis(2));
             }
         }
         slot_wall.push(started.elapsed().as_secs_f64());
+        connections.push(
+            cascades
+                .iter()
+                .map(|chain| chain.iter().map(Relay::accepted).collect::<Vec<_>>())
+                .collect::<Vec<_>>(),
+        );
     }
 
     for client in &mut clients {
@@ -183,7 +206,28 @@ fn run_session(options: &Options, hops: usize) -> HarnessResult<Session> {
         truth,
         slot_wall,
         phases,
+        connections,
     })
+}
+
+/// Wait until `relay` holds `count` frames for `slot`, or fail after a bound
+/// that is generous on any host and still finite.
+fn wait_for_frames(relay: &Relay, slot: u32, count: usize) -> HarnessResult<()> {
+    let deadline = Instant::now() + Duration::from_secs(10);
+    loop {
+        let pending = relay.pending_frames(slot);
+        if pending >= count {
+            return Ok(());
+        }
+        if Instant::now() >= deadline {
+            return Err(format!(
+                "relay hop {} on node {} received {pending} of {count} frames for slot {slot}",
+                relay.hop, relay.node
+            )
+            .into());
+        }
+        thread::sleep(Duration::from_millis(1));
+    }
 }
 
 fn analyse(session: &Session, options: &Options) -> HarnessResult<Value> {
@@ -277,6 +321,10 @@ fn analyse(session: &Session, options: &Options) -> HarnessResult<Value> {
         "batch_sizes_at_node": batch_sizes,
         "frames_delivered": delivered,
         "expected_frames": options.clients * options.nodes * options.slots as usize,
+        // What every hop had accepted once the last slot closed, per node
+        // chain: the first hop one connection per client, each later hop one
+        // per closed slot.  Counted, not timed, so it says the same on any host.
+        "connections_per_hop": session.connections.last().cloned().unwrap_or_default(),
         "linkage_auc": linkage_auc,
         "linkage_base_rate": base_rate,
         "linkage_advantage": linkage_auc.map(|value| (value - 0.5).abs() * 2.0),
@@ -457,13 +505,15 @@ mod tests {
         values[values.len() / 2]
     }
 
-    /// This regression runs eight slots and no link delay. It asserts an exact
-    /// delivery count, so the
-    /// delay has to stay out of it: three hops at 5 ms against a 10 ms slot is a
-    /// race, and it loses --- 67 of 72 frames arrived on the measurement host
-    /// while all 72 arrived on the laptop. What the delay is for is
-    /// `a_link_delay_between_relays_is_actually_paid`, which measures time
-    /// rather than counting frames.
+    /// This regression runs eight slots and no link delay and asserts an
+    /// exact delivery count.  It used to close each slot on the clock alone
+    /// and compare wall times, and both parts measured the host: 67 of 72
+    /// frames arrived on a loaded measurement host while all 72 arrived on
+    /// the laptop, and a busy host could order the two medians either way.
+    /// `run_session` now closes a slot only once every frame sent into it has
+    /// arrived, and what a hop costs is counted rather than timed: every hop
+    /// after the first accepts exactly one connection per closed slot, on
+    /// every node chain, and the first hop exactly one per client.
     #[test]
     fn every_relay_hop_costs_a_connection() {
         let _serial = one_at_a_time();
@@ -476,7 +526,18 @@ mod tests {
             assert_eq!(report["frames_delivered"], report["expected_frames"]);
             assert_eq!(report["traffic_identical"], true);
         }
-        assert!(median(&three.slot_wall) > median(&one.slot_wall));
+        for (hops, session) in [(1_usize, &one), (3, &three)] {
+            for (slot, per_chain) in session.connections.iter().enumerate() {
+                assert_eq!(per_chain.len(), options.nodes);
+                for accepted in per_chain {
+                    assert_eq!(accepted.len(), hops);
+                    assert_eq!(accepted[0], options.clients as u64);
+                    for later_hop in accepted.iter().skip(1) {
+                        assert_eq!(*later_hop, slot as u64 + 1);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

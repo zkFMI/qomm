@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["qomm-dsl", "qomm-law", "qomm-proofs", "qomm-sim", "qomm-mpc", "qomm-transport", "qomm-audit", "qomm-demo", "qomm-zk", "qomm-zkpi", "qomm-measure", "qomm-harness"]
+members = ["qomm-dsl", "qomm-law", "qomm-proofs", "qomm-sim", "qomm-mpc", "qomm-transport", "qomm-audit", "qomm-demo", "qomm-zk", "qomm-zkpi", "qomm-measure", "qomm-defmi", "zkpi-defmi-sdk", "qomm-harness"]
 
 [workspace.package]
 version = "0.1.0"
@@ -36,10 +36,12 @@ libc = "0.2"
 qomm-zk = { path = "qomm-zk" }
 qomm-zkpi = { path = "qomm-zkpi" }
 qomm-proofs = { path = "qomm-proofs" }
+qomm-defmi = { path = "qomm-defmi" }
 qomm-dsl = { path = "qomm-dsl" }
 qomm-law = { path = "qomm-law" }
 qomm-sim = { path = "qomm-sim" }
 qomm-measure = { path = "qomm-measure" }
 qomm-mpc = { path = "qomm-mpc" }
 qomm-transport = { path = "qomm-transport" }
+zkpi-defmi-sdk = { path = "zkpi-defmi-sdk" }
 qomm-audit = { path = "qomm-audit" }

@@ -59,6 +59,8 @@ fn demo_prices_exactly_what_the_rust_circuit_generator_prices() {
             user_limit: 100_000,
             user_limit_blinding: 1,
             user_qty_blinding: 1,
+            response_mask: None,
+            fill_mask: None,
             check_coefficients: &[],
             check_repeats: 7,
             policies: Some(&parsed),

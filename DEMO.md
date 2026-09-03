@@ -191,6 +191,46 @@ script agree, that the chat rules are deterministic, and that every seat
 renders every phase of a round the Rust server actually sent (the fixtures
 under `qomm_demo/tests/fixtures/` were recorded from it).
 
+## Where a maker's reserve lives in the Docker demo
+
+In the `distributed` Docker deployment a maker's standing reserve is not a
+number the gateway holds. Each maker's signed pool exists as a note on the
+DeFMI ledger, and the opening of that note --- the amount still available and
+its blinding --- is split across the seven MPC nodes as additive shares, each
+kept in that node's own encrypted file. The gateway deals the initial opening
+once, when the pool is first registered, and never sees the opening again.
+
+Every round, each node splices its own shares over the placeholder segment of
+the party input the gateway sent, so the reserve enters MP-SPDZ node by node.
+When a trade settles on DeFMI, the pool advances to a remainder note, and each
+node commits its share of that remainder from the same execution's persistence
+under a compare-and-swap on the generation it just proved with. The gateway
+learns only that a node advanced, never by how much.
+
+This is what makes a restart safe. The earlier build re-injected the pool's
+initial balance into the nodes after a gateway restart, so a pool that had
+already been drawn down no longer conserved its parent note --- parent minus
+delivery did not equal the remainder --- and the order stalled. Now the balance
+is node-resident, and before any real request the gateway reconciles the seven
+nodes against canonical DeFMI: a pool the nodes are behind on is caught up from
+the accepted execution that produced its current note, located through the
+remainder note's identifier, and the seven shares must add back to the
+canonical pool note before an order is allowed to run. A pool whose persistence
+no node still holds cannot be reconciled and needs the maker to re-register it;
+that is why the nodes keep their round directories after settlement.
+
+A signed request does not need the committee to be accepted. The gateway
+writes the signed envelope into the Taker module's encrypted outbox before it
+reconciles the nodes, so a request signed while every node is down stays
+`queued` there; once all seven answer `/health` again, the gateway's replay
+ticker re-executes the same bytes --- same nullifier, same reserve id, no new
+signature --- through to the DeFMI settlement. `demo-network/live_acceptance.sh`
+drives that outage, a gateway kill after the reserve, node stops in the middle
+of a round, concurrent requests over one pool or one corporate cap, and a
+restart across the nodes, the gateway and DeFMI, without a browser; the
+`qomm-live-acceptance` binary in the app image records and judges each run.
+The 2026-09-02 run is under `artifacts/live_acceptance/2026-09-02/`.
+
 ## Options worth knowing
 
     --nodes 9 --threshold 2     the design point. n >= 4T+1 is what lets a wrong

@@ -12,6 +12,7 @@ fn round(
     for (node, behaviour) in behaviours {
         room.set_behaviour(*node, behaviour).unwrap();
     }
+    room.prepare_taker_reservation().unwrap();
     room.run_round().unwrap()
 }
 

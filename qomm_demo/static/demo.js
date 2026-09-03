@@ -13,7 +13,7 @@ const S = {
 ja: {
   title:"QOMM", subtitle:"分割したまま計算して最良気配を選ぶ取引照合",
   engineSim:"Rust試作", engineSimShort:"Rust試作", engineSimNote:"分割計算は実装どおり。照合の比較は平文",
-  engineMpc:"MP-SPDZ実行（価格照合）", engineMpcShort:"MPC価格照合", engineMpcNote:"価格照合まで秘密計算で実行。決済表示は説明用台帳",
+  engineMpc:"MP-SPDZ実行（価格照合）", engineMpcShort:"MPC価格照合", engineMpcNote:"価格照合を秘密計算し、証明済みzkPIをDeFMIへ送ります。",
   leave:"離席", langOther:"EN",
   connecting:"サーバーに接続しています…",
   reconnecting:"接続が切れました。再接続しています…",
@@ -29,9 +29,9 @@ ja: {
   taken:"使用中", auto:"自動", manual:"操作中",
   seatTaker:"注文者", seatMaker:"値付け", seatNode:"計算ノード", seatObserver:"全体表示",
   // phases
-  phaseDeal:"分割して配布", phaseCheck:"入力の検査", phaseReduce:"価格計算と照合",
-  phaseOpen:"結果を読めない形で公開", phaseSettle:"結果検査とデモ決済", phaseIdle:"待機中", phaseDone:"完了",
-  stopped:"停止", silent:"不参加", opened:"暗号化された結果", everyoneSees:"全員に公開",
+  phaseDeal:"注文と価格方針を分割", phaseCheck:"不正な入力を検査", phaseReduce:"非公開のまま価格を比較",
+  phaseOpen:"注文者だけが読める結果を返す", phaseSettle:"zkPIを検証してDeFMIで決済", phaseIdle:"待機中", phaseDone:"完了", phaseQueued:"復旧待ち",
+  stopped:"停止", silent:"不参加", opened:"公開される暗号文", everyoneSees:"平文は非公開",
   idleManual:"注文者の送信を待っています。",
   idleAuto:"次のラウンドを待っています。",
   noRoundYet:"まだラウンドがありません。",
@@ -42,29 +42,31 @@ ja: {
   ph_reduce:(f)=>`分割したまま${f.products}回の掛け算を実行し、開いた値を検査しています。`,
   ph_reduce_mpc:(f)=>`MP-SPDZ が回路を実行しました（${f.rounds}ラウンド・${f.mb} MB）。`,
   ph_reduce_corrected:(f)=>` ${f.corrections}回を訂正し、${nodeList(f.named)}を特定しました。`,
-  ph_open:"結果に注文者だけが外せる鍵を掛けて、全員へ開示しています。",
-  ph_settle_settled:"結果検査を通過。説明用台帳が予約済みの在庫と資金を同時に更新しました。",
+  ph_open:"照合結果を注文者だけが読める形にして返しています。",
+  ph_settle_settled:"zkPIの検証に合格しました。DeFMIが予約済みの在庫と資金を一つの取引で同時に更新しました。",
+  ph_settle_queued:"計算ノードの復旧待ちです。注文と法人内の予約枠を保持し、復旧後にDeFMI正式予約を作って自動再送します。",
   ph_settle_released:(f)=>`予約を解放しました。${f.reason}`,
   ph_settle_cover:"ダミー通信のため、台帳は変更しません。",
   ph_done:(f)=>`ラウンド #${f.number} 完了。`,
-  computeMs:(ms)=>`計算 ${ms} ms`,
+  ph_queued:(f)=>`ラウンド #${f.number} はまだ完了していません。`,
+  computeMs:(ms)=>`処理完了まで ${formatDuration(ms, 'ja')}`,
   // graph
   graphAria:"取引の流れを示すネットワーク図",
-  gTaker:"注文者", gMaker:"値付け", gNode:"ノード", gMatcher:"照合",
-  gZkpi:"結果検査（説明用）", gLedger:"決済（説明用台帳）", you:"あなた",
-  productBoundary:"この画面は、DeFMI/Avalanche専用VMで実装したzkPI検証と決済の流れを説明します。画面の台帳はRustメモリ上のモデルで、実L1へは送信しません。",
+  gTaker:"注文者", gMaker:"値付け", gNode:"MPCノード", gMatcher:"価格照合",
+  gZkpi:"zkPI証明検証", gLedger:"DeFMI決済台帳", you:"あなた",
+  productBoundary:"注文順、法人の予約枠、証明済みzkPI、DvP決済はAvalanche上のDeFMI専用VMへ記録します。MPCノードは資産を保有しません。",
   legendNoCustody:"計算ノードは在庫も資金も保有しません。届くのは分割された値だけです。",
   legendLines:"動く線: いま流れている情報 ・ 淡い線: この席には見えない経路",
   eShares:"分割した値", eMyOrder:"あなたの注文を分割", eMyPolicy:"あなたの方針を分割",
   eCompute:"分割したまま計算", eOpen:"鍵付きの結果", eVerify:"検証", eLedger:"台帳を更新",
-  eSettleTaker:"決済: 在庫と資金", eRelease:"予約を解放", eSettleMaker:"決済: 約定分",
+  eSettleTaker:"決済: 在庫と資金", eRelease:"予約を解放", eQueued:"予約を保持して復旧待ち", eSettleMaker:"決済: 約定分",
   eNoChange:"変更なし",
   nIdle:"待機", nReceiving:"受取中", nChecking:"検査中", nComputing:"計算中",
-  nDone:"完了", nSilent:"不参加", nRejected:"除外", nNamed:"不正を訂正", nStopped:"停止",
+  nDone:"完了", nSilent:"不参加", nRejected:"除外", nNamed:"不正を訂正", nStopped:"停止", nQueued:"復旧待ち",
   mCompare:"全社の気配を比較", mPick:"最良気配を選定", mNone:"該当なし",
   zPass:"参照値と一致", zFail:"参照値と不一致", zDecoded:"開示値の検査を通過",
   zStopped:"不合格・停止", zWait:"待機",
-  lSettled:"決済完了", lReleased:"予約を解放", lCover:"ダミー・変更なし", lWait:"待機",
+  lSettled:"決済完了", lReleased:"予約を解放", lQueued:"予約を保持", lCover:"ダミー・変更なし", lWait:"待機",
   orderHidden:"注文は非公開", policyHidden:"方針は非公開",
   activeShort:"稼働", inactiveShort:"停止", maxShort:"最大", winner:"約定相手",
   // portfolio
@@ -105,20 +107,21 @@ ja: {
   limitBuy:"この価格以下なら自動決済", limitSell:"この価格以上なら自動決済",
   kind:"種別", real:"実注文", cover:"ダミー通信",
   coverWhy:"ダミー通信は実注文と同じ計算・通信量・時間で走ります。外からは区別できません。",
-  automaticSettle:"約定すると、説明用台帳が予約済みの在庫と資金を同時に更新します。追加の署名は要りません。実DeFMI/Avalanche経路は別の受入試験で動作します。",
+  automaticSettle:"送信時に法人内の枠を確保します。MPCが停止中なら暗号化キューで保持し、復旧後にDeFMI正式予約とMPC受付へ自動で進みます。追加の署名は要りません。",
   submit:"送信する", waiting:"実行中…", reserveOnSend:"送信時に予約",
-  openedTitle:"開示された結果",
-  openedWhy:"全員がこの値を見ています。読めるのは鍵を持つあなただけです。",
+  openedTitle:"暗号化された約定結果",
+  openedWhy:"全員が見られるのは暗号文だけです。約定価格を読めるのは、鍵を持つ注文者だけです。",
   minusMask:"あなたの鍵で読む",
   yourPrice:"約定価格", winnerIs:"約定相手",
-  noMaker:"条件に合う相手がいませんでした",
+  noMaker:"価格条件に合う約定はありませんでした",
   eligible:"条件を満たした相手数",
   coverRound:"このラウンドはダミー通信でした。価格は使われません。",
   settlementTitle:"照合と決済", noSettlement:"まだ決済結果はありません。",
-  status:"状態", settled:"決済完了", released:"予約を解放", coverStatus:"ダミー（残高変更なし）",
-  settlementCash:"受渡資金", stateRoot:"台帳ハッシュ", automatic:"追加署名なしで決済",
+  status:"状態", settled:"決済完了", released:"予約を解放", queued:"MPC復旧待ち", coverStatus:"ダミー（残高変更なし）",
+  settlementCash:"受渡資金", stateRoot:"台帳ハッシュ", queueStateRoot:"画面上の予約記録", automatic:"追加署名なしで決済",
   sr_cover:"ダミー通信のため台帳は変更していません。",
   sr_mpc_aborted:"計算が安全に停止したため予約を解放しました。",
+  sr_mpc_queued:"注文と法人内の予約枠を暗号化キューに保持しています。復旧後にDeFMI正式予約を作り、自動再送します。",
   sr_no_maker:"条件を満たす相手がいないため予約を解放しました。",
   sr_price_limit:"約定価格が上限の外だったため予約を解放しました。",
   sr_automatic_dvp:"予約済みの在庫と資金を台帳が同時に更新しました。",
@@ -165,7 +168,7 @@ ja: {
   observerWhy:"実運用にこの画面はありません。デモのための全情報表示です。",
   allQuotes:"全参加者の気配", maker:"値付け", node:"ノード",
   reason:"理由", request:"注文", behaviours:"ノードの動作", settings:"設定",
-  roundEvery:"自動ラウンド間隔（秒）", stepMs:"段階ごとの表示時間（ms）",
+  roundEvery:"自動ラウンド間隔（秒）", stepMs:"段階ごとの表示時間（ミリ秒）",
   autoRounds:"自動ラウンド", inputCheck:"入力の検査",
   inputCheckWhy:"無効にすると、配られたのと違う入力を使うノードを誰も止められなくなります。",
   runNow:"いま1回実行",
@@ -181,10 +184,12 @@ ja: {
   n_stopped:(f)=>`#${f.number} 停止 — ` + abortWhy(f),
   n_refused:(f)=>`${nodeList(f.who)} を除外しました`,
   n_unchecked:(f)=>`${nodeList(f.who)} が配られたのと違う入力を使いました。検査が無効のため検出されていません。結果は不正確です`,
-  n_claimed:(f)=>`${f.seat} に着席${f.label?"："+f.label:""}`,
+  n_claimed:(f)=>`${seatName(f.seat)}の席に着席${f.label?"："+f.label:""}`,
+  vdPassed:"MPC出力は参照値と一致しました",
   n_you_won:(f)=>`#${f.number} あなたが約定しました`,
   n_settled:(f)=>`#${f.number} 予約済みの在庫と資金を追加署名なしで決済しました`,
   n_reserve_released:(f)=>`#${f.number} ${t('sr_' + (f.reason||'no_maker'))}`,
+  n_reserve_queued:(f)=>`#${f.number} 法人キューで復旧待ち。予約は保持しています。`,
   n_limit_released:(f)=>`#${f.number} 約定価格が上限の外だったため予約を解放しました`,
   a_beyond_capacity:(f)=>`応答${f.answered}台に対し、訂正できるのは${f.capacity}台まで`,
   a_absent:(f)=>`${nodeList(f.who)} が不参加。入力は全${f.n}台の値の和なので、1つ欠けると値が失われます`,
@@ -192,6 +197,7 @@ ja: {
   a_too_few:(f)=>`${f.answered}台では復元に足りません（${f.needed}台必要）`,
   a_mismatch:(f)=>`結果が参照値と一致しません${f.detail?"："+f.detail:""}`,
   a_engine:(f)=>`外部エンジンが失敗しました${f.detail?"："+f.detail:""}`,
+  a_queued:()=>"計算ノードの復旧待ち。法人キューから自動再送します。",
   explain:[
     ["注文者","注文を出す側です。注文は分割されて送られ、どの計算ノードにも全体は渡りません。約定価格を受け取れるのはこの席だけです。"],
     ["値付け参加者","価格方針と最大数量を先に登録します。注文は見えません。約定すると予約枠から自動で決済されます。"],
@@ -201,7 +207,7 @@ ja: {
 en: {
   title:"QOMM", subtitle:"best-quote matching computed on split values",
   engineSim:"Rust simulation", engineSimShort:"Rust test", engineSimNote:"real share layer; the comparison is in the clear",
-  engineMpc:"MP-SPDZ (quote matching)", engineMpcShort:"MPC matching", engineMpcNote:"the quote circuit runs under secure computation; settlement shown here uses the demo ledger",
+  engineMpc:"MP-SPDZ (quote matching)", engineMpcShort:"MPC matching", engineMpcNote:"the quote circuit runs under secure computation and sends a proved zkPI to DeFMI",
   leave:"leave", langOther:"JA",
   connecting:"connecting to the server…",
   reconnecting:"connection lost — reconnecting…",
@@ -217,8 +223,8 @@ en: {
   taken:"taken", auto:"auto", manual:"held",
   seatTaker:"taker", seatMaker:"maker", seatNode:"node", seatObserver:"observer",
   phaseDeal:"split & deal", phaseCheck:"check inputs", phaseReduce:"price & match",
-  phaseOpen:"masked result", phaseSettle:"check & demo settlement", phaseIdle:"idle", phaseDone:"done",
-  stopped:"stopped", silent:"absent", opened:"revealed", everyoneSees:"everyone sees this",
+  phaseOpen:"masked result", phaseSettle:"check & demo settlement", phaseIdle:"idle", phaseDone:"done", phaseQueued:"waiting for recovery",
+  stopped:"stopped", silent:"absent", opened:"public ciphertext", everyoneSees:"plaintext stays private",
   idleManual:"Waiting for the taker to send.",
   idleAuto:"Waiting for the next round.",
   noRoundYet:"No round yet.",
@@ -230,27 +236,29 @@ en: {
   ph_reduce_mpc:(f)=>`MP-SPDZ ran the circuit (${f.rounds} rounds, ${f.mb} MB).`,
   ph_reduce_corrected:(f)=>` ${f.corrections} corrected, named ${nodeList(f.named)}.`,
   ph_open:"The result is revealed under a key only the taker can remove.",
-  ph_settle_settled:"Checked. The explanatory ledger moved both pre-reserved legs at once.",
+  ph_settle_settled:"Checked. DeFMI moved both pre-reserved legs atomically in one transaction.",
+  ph_settle_queued:"Waiting for the MPC committee. The corporate outbox retains the order and internal reserve, then creates the DeFMI reservation during automatic replay.",
   ph_settle_released:(f)=>`Reserve released. ${f.reason}`,
   ph_settle_cover:"Dummy traffic: the ledger is unchanged.",
   ph_done:(f)=>`Round #${f.number} done.`,
-  computeMs:(ms)=>`compute ${ms} ms`,
+  ph_queued:(f)=>`Round #${f.number} is not complete yet.`,
+  computeMs:(ms)=>`completed in ${formatDuration(ms, 'en')}`,
   graphAria:"network diagram of the trade flow",
   gTaker:"Taker", gMaker:"Maker", gNode:"Node", gMatcher:"Match",
-  gZkpi:"Result check (demo)", gLedger:"Settlement (demo ledger)", you:"you",
-  productBoundary:"This screen explains the zkPI verification and settlement flow implemented by the DeFMI/Avalanche custom VM. Its ledger is an in-memory Rust model and does not submit to the live L1.",
+  gZkpi:"zkPI proof verification", gLedger:"DeFMI settlement ledger", you:"you",
+  productBoundary:"Request order, corporate reserve limits, proved zkPI instructions and DvP settlement are recorded by the DeFMI custom VM on Avalanche. MPC nodes never custody assets.",
   legendNoCustody:"Nodes hold no inventory or cash; only split values reach them.",
   legendLines:"moving line: information in flight · faint line: a path this seat cannot see",
   eShares:"split values", eMyOrder:"your order, split", eMyPolicy:"your policy, split",
   eCompute:"computed on split values", eOpen:"keyed result", eVerify:"verify", eLedger:"ledger update",
-  eSettleTaker:"settle: inventory & cash", eRelease:"reserve released", eSettleMaker:"settle: fill",
+  eSettleTaker:"settle: inventory & cash", eRelease:"reserve released", eQueued:"reserve held; awaiting recovery", eSettleMaker:"settle: fill",
   eNoChange:"no change",
   nIdle:"idle", nReceiving:"receiving", nChecking:"checking", nComputing:"computing",
-  nDone:"done", nSilent:"absent", nRejected:"excluded", nNamed:"corrected", nStopped:"stopped",
+  nDone:"done", nSilent:"absent", nRejected:"excluded", nNamed:"corrected", nStopped:"stopped", nQueued:"awaiting recovery",
   mCompare:"comparing quotes", mPick:"best quote picked", mNone:"no match",
   zPass:"matches reference", zFail:"does not match", zDecoded:"openings decoded",
   zStopped:"failed — stopped", zWait:"idle",
-  lSettled:"settled", lReleased:"released", lCover:"dummy — unchanged", lWait:"idle",
+  lSettled:"settled", lReleased:"released", lQueued:"reserve held", lCover:"dummy — unchanged", lWait:"idle",
   orderHidden:"order not visible", policyHidden:"policy not visible",
   activeShort:"on", inactiveShort:"off", maxShort:"max", winner:"winner",
   pfCash:"settlement cash", pfAvailable:"available", pfReserved:"reserved", pfTotal:"total",
@@ -288,20 +296,21 @@ en: {
   limitBuy:"auto-settles at or below", limitSell:"auto-settles at or above",
   kind:"kind", real:"live order", cover:"dummy traffic",
   coverWhy:"Dummy traffic uses the same circuit, bytes and time. Nothing outside can tell them apart.",
-  automaticSettle:"On a match the explanatory ledger moves both pre-reserved legs at once. No further signature. The real DeFMI/Avalanche path runs in a separate acceptance test.",
+  automaticSettle:"Sending secures the corporate limit. If MPC is down, the encrypted outbox retains it and automatically proceeds to the DeFMI reservation and MPC admission after recovery. No further signature is needed.",
   submit:"send", waiting:"running…", reserveOnSend:"reserved on send",
-  openedTitle:"Revealed result",
-  openedWhy:"Everyone sees this value. Only you hold the key that reads it.",
+  openedTitle:"Encrypted match result",
+  openedWhy:"Everyone can see only the ciphertext. Only the taker holding the key can read the matched price.",
   minusMask:"read with your key",
   yourPrice:"matched price", winnerIs:"counterparty",
-  noMaker:"no eligible counterparty",
+  noMaker:"no trade met the price condition",
   eligible:"eligible counterparties",
   coverRound:"that round was dummy traffic; the price is not used.",
   settlementTitle:"Match & settlement", noSettlement:"No settlement result yet.",
-  status:"status", settled:"settled", released:"released", coverStatus:"dummy (no balance change)",
-  settlementCash:"cash delivered", stateRoot:"ledger hash", automatic:"settled without a further signature",
+  status:"status", settled:"settled", released:"released", queued:"waiting for MPC", coverStatus:"dummy (no balance change)",
+  settlementCash:"cash delivered", stateRoot:"ledger hash", queueStateRoot:"screen reserve record", automatic:"settled without a further signature",
   sr_cover:"Dummy traffic — the ledger is unchanged.",
   sr_mpc_aborted:"The computation stopped safely; the reserve was released.",
+  sr_mpc_queued:"The encrypted corporate outbox retains the order and internal reserve. After recovery it creates the DeFMI reservation and replays automatically.",
   sr_no_maker:"No eligible counterparty; the reserve was released.",
   sr_price_limit:"Price outside the limit; the reserve was released.",
   sr_automatic_dvp:"The ledger moved both pre-reserved legs at once.",
@@ -359,10 +368,12 @@ en: {
   n_stopped:(f)=>`#${f.number} stopped — ` + abortWhy(f),
   n_refused:(f)=>`${nodeList(f.who)} excluded`,
   n_unchecked:(f)=>`${nodeList(f.who)} used a value not dealt. Check is off — nobody noticed. Result is wrong`,
-  n_claimed:(f)=>`${f.seat} taken${f.label?" by "+f.label:""}`,
+  n_claimed:(f)=>`${seatName(f.seat)} seat taken${f.label?" by "+f.label:""}`,
+  vdPassed:"MPC output matches the reference",
   n_you_won:(f)=>`#${f.number} you were filled`,
   n_settled:(f)=>`#${f.number} settled without a further signature`,
   n_reserve_released:(f)=>`#${f.number} ${t('sr_' + (f.reason||'no_maker'))}`,
+  n_reserve_queued:(f)=>`#${f.number} queued until MPC recovery; the reserve remains held`,
   n_limit_released:(f)=>`#${f.number} released — price outside the limit`,
   a_beyond_capacity:(f)=>`${f.answered} nodes answered; capacity is ${f.capacity}`,
   a_absent:(f)=>`${nodeList(f.who)} absent; all ${f.n} inputs are needed`,
@@ -370,6 +381,7 @@ en: {
   a_too_few:(f)=>`${f.answered} nodes are not enough (need ${f.needed})`,
   a_mismatch:(f)=>`result does not match the reference${f.detail?": "+f.detail:""}`,
   a_engine:(f)=>`the external engine failed${f.detail?": "+f.detail:""}`,
+  a_queued:()=>"waiting for MPC recovery; automatic replay remains pending",
   explain:[
     ["Taker","sends the order. It is split so no single node sees it all. Only this seat gets the price."],
     ["Maker","registers a price policy and a maximum size; never sees the order. A win settles from the reserve automatically."],
@@ -390,6 +402,33 @@ if (hasDom){
 }
 function t(k){ return (S[lang] && S[lang][k]) !== undefined ? S[lang][k] : (S.ja[k] !== undefined ? S.ja[k] : k); }
 function tf(k, fields){ const f = t(k); return typeof f === 'function' ? f(fields || {}) : String(f); }
+function formatDuration(value, language){
+  const ms = Number(value);
+  if (!Number.isFinite(ms) || ms < 0) return '--';
+  const seconds = ms / 1000;
+  if (language === 'en'){
+    if (seconds < 60) return `${seconds < 1 ? seconds.toFixed(2) : seconds.toFixed(1)} s`;
+    const minutes = Math.floor(seconds / 60);
+    return `${minutes} min ${(seconds - minutes * 60).toFixed(1)} s`;
+  }
+  if (seconds < 60) return `${seconds < 1 ? seconds.toFixed(2) : seconds.toFixed(1)}秒`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}分${(seconds - minutes * 60).toFixed(1)}秒`;
+}
+// Seat identifiers on the wire are `taker`, `maker:N`, `node:N`, `observer`.
+// Notices must show the seat the way the rest of the page names it.
+function seatName(seat){
+  const [kind, index] = String(seat || '').split(':');
+  const label = kind === 'taker' ? t('seatTaker') : kind === 'maker' ? t('seatMaker')
+    : kind === 'node' ? t('seatNode') : kind === 'observer' ? t('seatObserver') : kind;
+  return index === undefined ? label : `${label} ${index}`;
+}
+// The gateway reports verification outcomes as fixed English sentences; show
+// the known ones in the page language and pass unknown text through.
+function verifiedDetailText(detail){
+  if (detail === 'MPC output verification passed') return t('vdPassed');
+  return detail;
+}
 function nodeList(list){
   const items = Array.isArray(list) ? list : [];
   const word = lang === 'ja' ? 'ノード' : 'node ';
@@ -410,6 +449,10 @@ function abortText(pub){
   if (!pub || !pub.aborted) return '';
   return abortWhy(Object.assign({why: pub.abort_code, detail: pub.abort_reason},
                                 pub.abort_fields || {}));
+}
+function isQueuePending(pub){
+  return !!pub && (pub.abort_code === 'queued'
+    || (pub.settlement && pub.settlement.status === 'queued'));
 }
 function translateRefusal(reason){
   const r = String(reason || '');
@@ -483,8 +526,10 @@ function connect(){
   if (url.get('seat')) q.set('seat', url.get('seat'));
   if (url.get('label')) q.set('label', url.get('label'));
   $('conn').textContent = t('connecting');
+  const configuredPort = (document.querySelector('meta[name="qomm-gateway-port"]')?.content || '').trim();
+  const gatewayHost = configuredPort ? location.hostname + ':' + configuredPort : location.host;
   ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://')
-                     + location.host + '/ws?' + q.toString());
+                     + gatewayHost + '/ws?' + q.toString());
   ws.onmessage = (e) => {
     let m; try { m = JSON.parse(e.data); } catch (err) { return; }
     if (m.type === 'view'){
@@ -496,6 +541,11 @@ function connect(){
       const text = translateRefusal(m.reason || 'request refused');
       setError(text, 'bad');
       if (chatAwaitingReply){ addChatMessage(tf('chatRefused', text), 'error'); chatAwaitingReply = false; }
+      // A rejected action may leave the authoritative view byte-for-byte
+      // unchanged. Force a redraw so optimistic local control state (for
+      // example the disabled submit button) returns to that view.
+      lastDraw = '';
+      render();
     }
   };
   ws.onclose = () => {
@@ -519,6 +569,19 @@ function showPrice(assets, index, ticks){
 function showCash(value){
   if (value === null || value === undefined || value === '') return '--';
   return Number(value).toLocaleString();
+}
+function showGraphCash(value){
+  if (value === null || value === undefined || value === '') return '--';
+  const amount = Number(value);
+  const absolute = Math.abs(amount);
+  const compact = (unit, suffix) => {
+    const scaled = amount / unit;
+    const digits = Math.abs(scaled) >= 100 || Number.isInteger(scaled) ? 0 : Math.abs(scaled) >= 10 ? 1 : 2;
+    return scaled.toLocaleString(undefined, {minimumFractionDigits: 0, maximumFractionDigits: digits}) + suffix;
+  };
+  if (lang === 'ja' && absolute >= 100000000) return compact(100000000, '億');
+  if (lang === 'ja' && absolute >= 10000) return compact(10000, '万');
+  return showCash(amount);
 }
 function shortRoot(root){ return root ? String(root).slice(0, 8) + '…' : '--'; }
 function showQuoteReason(reason){
@@ -559,6 +622,7 @@ function makerCashRequirement(policy, assets){
 function settlementName(status){
   return status === 'settled' ? t('settled')
     : status === 'released' ? t('released')
+    : status === 'queued' ? t('queued')
     : status === 'cover' ? t('coverStatus') : (status || '--');
 }
 function drawSettlement(box, settlement){
@@ -578,9 +642,10 @@ function drawSettlement(box, settlement){
   if (settlement.automatic) box.appendChild(el('div', 'hidden-box', t('automatic')));
   const reason = t('sr_' + settlement.reason_code);
   if (reason && reason !== 'sr_' + settlement.reason_code) box.appendChild(el('p', 'why', reason));
-  if (settlement.detail) box.appendChild(el('p', 'why mono', settlement.detail));
+  if (settlement.detail && settlement.status !== 'queued')
+    box.appendChild(el('p', 'why mono', settlement.detail));
   if (settlement.state_root){
-    box.appendChild(el('div', 'tag', t('stateRoot')));
+    box.appendChild(el('div', 'tag', t(settlement.status === 'queued' ? 'queueStateRoot' : 'stateRoot')));
     box.appendChild(el('div', 'root', settlement.state_root));
   }
 }
@@ -593,6 +658,7 @@ function isBusy(){ return !!(V && (V.busy || (V.phase !== 'idle' && V.phase !== 
 function stoppedAt(pub){
   if (!pub || !pub.aborted) return null;
   const code = pub.abort_code || '';
+  if (code === 'queued') return null;
   if (code === 'absent' || code === 'commitment') return 'check';
   return 'reduce';
 }
@@ -619,9 +685,12 @@ function phaseCaption(){
     case 'open': return t('ph_open');
     case 'settle':
       if (f.status === 'settled') return t('ph_settle_settled');
+      if (f.status === 'queued') return t('ph_settle_queued');
       if (f.status === 'cover') return t('ph_settle_cover');
       return tf('ph_settle_released', {reason: t('sr_' + (f.reason || 'no_maker'))});
     case 'done': {
+      if (isQueuePending(pub))
+        return tf('ph_queued', {number: f.number || pub.number || '--'}) + ' ' + abortText(pub);
       let text = tf('ph_done', {number: f.number || pub.number || '--'});
       if (pub.aborted) text += ' ' + t('stopped') + ' — ' + abortText(pub);
       return text;
@@ -633,6 +702,7 @@ function phaseCaption(){
 function drawPhaseStrip(){
   const strip = $('phase-strip'); strip.textContent = '';
   const pub = V.public || {};
+  const queuePending = isQueuePending(pub);
   const at = phaseIndex(V.phase);
   const stop = stoppedAt(pub);
   const stopIndex = stop ? phaseIndex(stop) : -1;
@@ -647,7 +717,9 @@ function drawPhaseStrip(){
     if (V.phase === id) step.setAttribute('aria-current', 'step');
     strip.appendChild(step);
   });
-  const done = el('span', 'phase-step' + (V.phase === 'done' ? ' on' : ''), t(V.phase === 'idle' ? 'phaseIdle' : 'phaseDone'));
+  const terminalClass = 'phase-step' + (V.phase === 'done' ? (queuePending ? ' queued' : ' on') : '');
+  const terminalLabel = V.phase === 'idle' ? 'phaseIdle' : queuePending ? 'phaseQueued' : 'phaseDone';
+  const done = el('span', terminalClass, t(terminalLabel));
   done.setAttribute('role', 'listitem');
   strip.appendChild(done);
   const caption = $('phase-caption'); caption.textContent = phaseCaption();
@@ -696,35 +768,61 @@ function graphModel(W){
   const rejected = new Set((pub.rejected || []).map(r => r.node));
   const nodes = [], edges = [], labels = [];
 
-  // ── row A: taker at the left, makers across the rest ──
-  const rowA = 32;
-  const tw = compact ? 70 : 122, th = compact ? 36 : 42;
-  const takerX = padX + tw / 2;
-  const makerAreaL = padX + tw + gap * 2, makerAreaR = W - padX;
-  const mw = Math.max(compact ? 22 : 30, Math.min(compact ? 44 : 92, (makerAreaR - makerAreaL - gap * (nMakers - 1)) / Math.max(nMakers, 1)));
-  const mh = compact ? 30 : 38;
-  const makerSpan = mw * nMakers + gap * (nMakers - 1);
-  const makerStart = makerAreaL + Math.max(0, (makerAreaR - makerAreaL - makerSpan) / 2);
+  // ── participants: one horizontal lane on desktop, a readable two-column
+  //    stack on narrow screens.  Shrinking the 980px desktop topology made every
+  //    label illegible on a phone even when no node was technically clipped.
+  const rowA = 88;
+  const tw = compact ? Math.min(224, W - 2 * padX) : 170;
+  const th = compact ? 138 : 160;
+  const takerX = compact ? W / 2 : padX + tw / 2;
+  const mh = compact ? 138 : 160;
+  const makerPositions = [];
+  let mw, participantBottom;
+  if (compact){
+    const makerCols = Math.max(1, Math.min(2, nMakers));
+    mw = Math.min(154, (W - 2 * padX - gap * (makerCols - 1)) / makerCols);
+    const makerRows = Math.max(1, Math.ceil(nMakers / makerCols));
+    const makerY0 = rowA + th / 2 + 28 + mh / 2;
+    for (let i = 0; i < nMakers; i++){
+      const r = Math.floor(i / makerCols), c = i % makerCols;
+      const count = Math.min(makerCols, nMakers - r * makerCols);
+      const span = mw * count + gap * (count - 1);
+      const start = padX + (W - 2 * padX - span) / 2;
+      makerPositions.push({x: start + c * (mw + gap) + mw / 2, y: makerY0 + r * (mh + 10)});
+    }
+    participantBottom = makerY0 + (makerRows - 1) * (mh + 10) + mh / 2;
+  } else {
+    const makerAreaL = padX + tw + gap * 2, makerAreaR = W - padX;
+    mw = Math.max(112, Math.min(154, (makerAreaR - makerAreaL - gap * (nMakers - 1)) / Math.max(nMakers, 1)));
+    const makerSpan = mw * nMakers + gap * (nMakers - 1);
+    const makerStart = makerAreaL + Math.max(0, (makerAreaR - makerAreaL - makerSpan) / 2);
+    for (let i = 0; i < nMakers; i++) makerPositions.push({x: makerStart + i * (mw + gap) + mw / 2, y: rowA});
+    participantBottom = rowA + Math.max(th, mh) / 2;
+  }
   // ── row B: nodes across the full width, wrapping when there are many ──
-  const perRow = Math.max(1, Math.floor((W - 2 * padX + gap) / ((compact ? 34 : 60) + gap)));
+  const perRowCapacity = Math.max(1, Math.floor((W - 2 * padX + gap) / ((compact ? 82 : 112) + gap)));
+  // Seven nodes on one line technically fit, but their labels and state become
+  // unreadable.  A 4+3 layout keeps the quorum visible as a network, not a row
+  // of tiny boxes.  Large canvases may still use one row.
+  const perRow = compact && nNodes > 2 ? 2 : W < 1200 && nNodes > 4 ? 4 : perRowCapacity;
   const nodeRows = Math.max(1, Math.ceil(nNodes / perRow));
-  const nPerRow = Math.ceil(nNodes / nodeRows);
-  const nw = Math.max(30, Math.min(compact ? 44 : 80, (W - 2 * padX - gap * (nPerRow - 1)) / nPerRow));
-  const nh = compact ? 30 : 38;
-  const rowB = rowA + th / 2 + 64 + nh / 2;
+  const nPerRow = Math.min(perRow, nNodes);
+  const nw = Math.max(80, Math.min(compact ? 138 : 170, (W - 2 * padX - gap * (nPerRow - 1)) / nPerRow));
+  const nh = compact ? 106 : 118;
+  const rowB = participantBottom + 52 + nh / 2;
   const rowBBottom = rowB + (nodeRows - 1) * (nh + 10) + nh / 2;
   // ── row C: matcher → verify → ledger ──
-  const cw = compact ? 92 : 124, ch = compact ? 40 : 46;
-  const lw = compact ? 150 : 190;
+  const cw = compact ? 126 : 166, ch = compact ? 108 : 120;
+  const lw = compact ? 156 : 214;
   let rowC, rowD, rowE;
-  if (wide){ rowC = rowD = rowE = rowBBottom + 66 + ch / 2; }
+  if (wide){ rowC = rowD = rowE = rowBBottom + 50 + ch / 2; }
   else { rowC = rowBBottom + 58 + ch / 2; rowD = rowC + ch + 30; rowE = rowD + ch + 30; }
   const H = rowE + ch / 2 + 22;
 
   const add = (n) => { nodes.push(n); return n; };
   add({id: 'taker', type: 'taker', x: takerX, y: rowA, w: tw, h: th});
   for (let i = 0; i < nMakers; i++)
-    add({id: 'maker:' + i, type: 'maker', index: i, x: makerStart + i * (mw + gap) + mw / 2, y: rowA, w: mw, h: mh});
+    add({id: 'maker:' + i, type: 'maker', index: i, x: makerPositions[i].x, y: makerPositions[i].y, w: mw, h: mh});
   for (let i = 0; i < nNodes; i++){
     const r = Math.floor(i / nPerRow), c = i % nPerRow;
     const count = Math.min(nPerRow, nNodes - r * nPerRow);
@@ -739,7 +837,7 @@ function graphModel(W){
   const top = (n) => ({x: n.x, y: n.y - n.h / 2}), bottom = (n) => ({x: n.x, y: n.y + n.h / 2});
   const left = (n) => ({x: n.x - n.w / 2, y: n.y}), right = (n) => ({x: n.x + n.w / 2, y: n.y});
   const laneL = 12, laneL2 = 18, laneR = W - 12;
-  const trunkY = rowA + th / 2 + 30, returnY = rowA + th / 2 + 14;
+  const trunkY = participantBottom + 30, returnY = participantBottom + 14;
   const trunk2Y = rowBBottom + 26;
   const bottomLane = rowE + ch / 2 + 12;
 
@@ -771,7 +869,7 @@ function graphModel(W){
     for (let i = 0; i < nNodes; i++){
       const to = byId['node:' + i];
       const own = kind === 'node' ? (i === V.index) : mine(p);
-      edges.push({id: edgeId(p, to.id), stage: 'deal', state: dealState, own, color: 'teal',
+      edges.push({id: edgeId(p, to.id), source: p, target: to.id, stage: 'deal', state: dealState, own, color: 'teal',
         d: orthoPath([bottom(from), {x: from.x, y: trunkY}, {x: to.x, y: trunkY}, top(to)]),
         chain: [0, 1], particle: own && (kind !== 'observer' || p === 'taker')});
     }
@@ -786,7 +884,7 @@ function graphModel(W){
     const from = byId['node:' + i];
     const own = kind === 'node' ? i === V.index : true;
     const dead = silent.has(i) || rejected.has(i);
-    edges.push({id: edgeId(from.id, 'matcher'), stage: 'reduce', state: dead ? 'cut' : reduceState, own, color: 'teal',
+    edges.push({id: edgeId(from.id, 'matcher'), source: from.id, target: 'matcher', stage: 'reduce', state: dead ? 'cut' : reduceState, own, color: 'teal',
       d: orthoPath([bottom(from), {x: from.x, y: trunk2Y}, {x: matcher.x, y: trunk2Y}, top(matcher)]),
       chain: [0, 1], particle: own && kind !== 'observer' || (kind === 'observer' && i === 0)});
   }
@@ -794,18 +892,19 @@ function graphModel(W){
   // ── the keyed result back to the taker (everyone sees it; only the taker reads it) ──
   const openState = stageState('open');
   const takerN = byId.taker;
-  edges.push({id: edgeId('matcher', 'taker'), stage: 'open', state: openState, own: true, color: 'amber',
+  edges.push({id: edgeId('matcher', 'taker'), source: 'matcher', target: 'taker', stage: 'open', state: openState, own: true, color: 'amber',
     d: orthoPath([left(matcher), {x: laneL, y: matcher.y}, {x: laneL, y: takerN.y}, left(takerN)]),
     chain: [0, 1], particle: true});
   if (openState === 'flow') labels.push({x: laneL + 6, y: (matcher.y + takerN.y) / 2, text: t('eOpen'), anchor: 'start', strong: true});
   // ── verify → ledger → participants ──
   const settleState = stageState('settle');
-  const aborted = !!pub.aborted;
+  const queuePending = pub.abort_code === 'queued' || settleStatus === 'queued';
+  const aborted = !!pub.aborted && !queuePending;
   const chainLen = 3;
-  edges.push({id: edgeId('matcher', 'zkpi'), stage: 'settle', state: aborted ? 'cut' : settleState, own: true, color: 'blue',
+  edges.push({id: edgeId('matcher', 'zkpi'), source: 'matcher', target: 'zkpi', stage: 'settle', state: aborted ? 'cut' : settleState, own: true, color: 'blue',
     d: wide ? orthoPath([right(matcher), left(zkpi)]) : orthoPath([bottom(matcher), top(zkpi)]),
     chain: [0, chainLen], particle: true});
-  edges.push({id: edgeId('zkpi', 'ledger'), stage: 'settle', state: aborted ? 'cut' : settleState, own: true, color: 'blue',
+  edges.push({id: edgeId('zkpi', 'ledger'), source: 'zkpi', target: 'ledger', stage: 'settle', state: aborted ? 'cut' : settleState, own: true, color: 'blue',
     d: wide ? orthoPath([right(zkpi), left(ledger)]) : orthoPath([bottom(zkpi), top(ledger)]),
     chain: [1, chainLen], particle: true});
   if (settleState === 'flow' && !aborted){
@@ -816,18 +915,19 @@ function graphModel(W){
   }
   // ledger → taker: settle, release, or nothing to change
   const takerSettleText = settleStatus === 'settled' ? t('eSettleTaker')
-    : settleStatus === 'released' ? t('eRelease') : settleStatus === 'cover' ? t('eNoChange') : '';
+    : settleStatus === 'released' ? t('eRelease') : settleStatus === 'queued' ? t('eQueued')
+    : settleStatus === 'cover' ? t('eNoChange') : '';
   const ledgerToTaker = wide
     ? orthoPath([bottom(ledger), {x: ledger.x, y: bottomLane}, {x: laneL2, y: bottomLane}, {x: laneL2, y: takerN.y + 8}, {x: takerN.x - tw / 2, y: takerN.y + 8}])
     : orthoPath([left(ledger), {x: laneL2, y: ledger.y}, {x: laneL2, y: takerN.y + 8}, {x: takerN.x - tw / 2, y: takerN.y + 8}]);
-  edges.push({id: edgeId('ledger', 'taker'), stage: 'settle', state: settleStatus === 'cover' && settleState !== 'idle' ? 'done' : settleState, own: true,
-    color: settleStatus === 'released' ? 'amber' : 'blue', d: ledgerToTaker, chain: [2, chainLen], particle: settleStatus !== 'cover'});
+  edges.push({id: edgeId('ledger', 'taker'), source: 'ledger', target: 'taker', stage: 'settle', state: settleStatus === 'cover' && settleState !== 'idle' ? 'done' : settleState, own: true,
+    color: settleStatus === 'released' || settleStatus === 'queued' ? 'amber' : 'blue', d: ledgerToTaker, chain: [2, chainLen], particle: settleStatus !== 'cover' && !queuePending});
   if (settleState === 'flow' && takerSettleText)
     labels.push({x: laneL2 + 6, y: wide ? (bottomLane + takerN.y) / 2 : (ledger.y + takerN.y) / 2 + 14, text: takerSettleText, anchor: 'start', strong: true});
   // ledger → the winning maker, only where this seat may know who won
   if (winnerKnown !== null && byId['maker:' + winnerKnown] && settleStatus === 'settled'){
     const m = byId['maker:' + winnerKnown];
-    edges.push({id: edgeId('ledger', m.id), stage: 'settle', state: settleState, own: true, color: 'blue',
+    edges.push({id: edgeId('ledger', m.id), source: 'ledger', target: m.id, stage: 'settle', state: settleState, own: true, color: 'blue',
       d: orthoPath([right(ledger), {x: laneR, y: ledger.y}, {x: laneR, y: returnY}, {x: m.x, y: returnY}, bottom(m)]),
       chain: [2, chainLen], particle: true});
     if (settleState === 'flow') labels.push({x: laneR - 6, y: (ledger.y + returnY) / 2, text: t('eSettleMaker'), anchor: 'end', strong: true});
@@ -853,7 +953,7 @@ function graphModel(W){
     } else if (n.type === 'maker'){
       // "you" goes in the second line: the title has no room beside the
       // index, and the ring around the seat's own node already says it.
-      n.title = (compact ? 'M' : t('gMaker') + ' ') + n.index;
+      n.title = t('gMaker') + ' ' + n.index;
       const pol = kind === 'maker' && isMe ? maker && maker.policy : kind === 'observer' ? (obs && obs.policies || [])[n.index] : null;
       if (pol){
         n.sub = `${(V.assets[pol.asset] || {}).name || '--'} · ${pol.active ? t('activeShort') : t('inactiveShort')} · ${t('maxShort')} ${pol.maxqty}`;
@@ -864,10 +964,11 @@ function graphModel(W){
       if (winnerKnown === n.index && (phase === 'settle' || phase === 'done') && settleStatus === 'settled') n.classes.push('is-winner');
       if (compact) n.classes.push('compact');
     } else if (n.type === 'node'){
-      n.title = (compact ? 'N' : t('gNode') + ' ') + n.index;
+      n.title = t('gNode') + ' ' + n.index;
       const live = !silent.has(n.index) && !rejected.has(n.index);
       let sub = t('nIdle');
-      if (silent.has(n.index)) { sub = t('nSilent'); n.classes.push('is-silent'); }
+      if (queuePending) { sub = t('nQueued'); n.classes.push('is-silent'); }
+      else if (silent.has(n.index)) { sub = t('nSilent'); n.classes.push('is-silent'); }
       else if (rejected.has(n.index) && at >= phaseIndex('check')) { sub = t('nRejected'); n.classes.push('is-rejected'); }
       else if (named.has(n.index) && at >= phaseIndex('reduce')) { sub = t('nNamed'); n.classes.push('is-named'); }
       else if (phase === 'deal') sub = t('nReceiving');
@@ -880,7 +981,8 @@ function graphModel(W){
       if (compact) n.classes.push('compact');
     } else if (n.type === 'matcher'){
       n.title = t('gMatcher');
-      if (phase === 'reduce') { n.sub = t('mCompare'); n.classes.push('is-active'); }
+      if (queuePending) { n.sub = t('nQueued'); n.classes.push('is-stopped'); }
+      else if (phase === 'reduce') { n.sub = t('mCompare'); n.classes.push('is-active'); }
       else if (stop && stopIndex <= phaseIndex('reduce') && at >= stopIndex) { n.sub = t('nStopped'); n.classes.push('is-stopped'); }
       else if (at >= phaseIndex('open')){
         n.sub = kind === 'taker' && taker && taker.last ? (taker.last.winner === null || taker.last.winner === undefined ? t('mNone') : `${t('winner')}: ${t('gMaker')} ${taker.last.winner}`)
@@ -890,7 +992,8 @@ function graphModel(W){
       } else n.sub = t('nIdle');
     } else if (n.type === 'zkpi'){
       n.title = t('gZkpi');
-      if (phase === 'settle' || phase === 'done'){
+      if (queuePending) n.sub = t('zWait');
+      else if (phase === 'settle' || phase === 'done'){
         n.sub = pub.aborted ? t('zStopped') : pub.verified === true ? t('zPass') : pub.verified === false ? t('zFail') : t('zDecoded');
         if (pub.aborted || pub.verified === false) n.classes.push('is-stopped');
         if (phase === 'settle' && !pub.aborted) n.classes.push('is-active');
@@ -899,80 +1002,85 @@ function graphModel(W){
       n.title = t('gLedger');
       const root = phase === 'settle' ? (V.phase_fields || {}).state_root : settlement && settlement.state_root;
       if (settleStatus){
-        n.sub = (settleStatus === 'settled' ? t('lSettled') : settleStatus === 'released' ? t('lReleased') : t('lCover')) + (root ? ' · ' + shortRoot(root) : '');
+        n.sub = (settleStatus === 'settled' ? t('lSettled') : settleStatus === 'released' ? t('lReleased') : settleStatus === 'queued' ? t('lQueued') : t('lCover')) + (root ? ' · ' + shortRoot(root) : '');
       } else n.sub = t('lWait');
       if (phase === 'settle') n.classes.push('is-active');
+    }
+
+    const portfolio = n.type === 'taker'
+      ? (kind === 'taker' ? taker && taker.portfolio : kind === 'observer' ? obs && obs.taker_portfolio : null)
+      : n.type === 'maker'
+        ? (kind === 'maker' && isMe ? maker && maker.portfolio
+          : kind === 'observer' ? ((obs && obs.maker_portfolios || []).find(p => p.maker === n.index) || {}).portfolio : null)
+        : null;
+    if (portfolio){
+      const asset = (portfolio.inventory || [])[0];
+      n.metrics = [
+        {label: lang === 'ja' ? '利用可 資金' : t('pfAvailable') + ' ' + t('pfCash'),
+          fullLabel: t('pfAvailable') + ' ' + t('pfCash'), value: showGraphCash(portfolio.cash.available),
+          fullValue: showCash(portfolio.cash.available)},
+        {label: lang === 'ja' ? '予約 資金' : t('pfReserved') + ' ' + t('pfCash'),
+          fullLabel: t('pfReserved') + ' ' + t('pfCash'), value: showGraphCash(portfolio.cash.reserved),
+          fullValue: showCash(portfolio.cash.reserved), tone: 'reserved'},
+      ];
+      if (asset){
+        n.metrics.push({label: lang === 'ja' ? asset.name : t('pfAvailable') + ' ' + asset.name,
+          fullLabel: t('pfAvailable') + ' ' + asset.name, value: showCash(asset.available)});
+        n.metrics.push({label: lang === 'ja' ? '予約 ' + asset.name : t('pfReserved') + ' ' + asset.name,
+          fullLabel: t('pfReserved') + ' ' + asset.name, value: showCash(asset.reserved), tone: 'reserved'});
+      }
+    } else if (n.type === 'node'){
+      n.metrics = [
+        {label: lang === 'ja' ? '保有' : 'custody', fullLabel: lang === 'ja' ? '保有資産' : 'custody',
+          value: lang === 'ja' ? '資産なし' : 'none', tone: 'muted'},
+        {label: lang === 'ja' ? '受取' : 'input', fullLabel: lang === 'ja' ? '受信データ' : 'input',
+          value: lang === 'ja' ? '分割片' : 'shares', fullValue: lang === 'ja' ? '秘密分散値' : 'shares', tone: 'muted'},
+      ];
+    } else if (n.type === 'matcher'){
+      n.metrics = [
+        {label: lang === 'ja' ? '計算方式' : 'compute', value: 'MP-SPDZ'},
+        {label: lang === 'ja' ? '必要応答' : 'quorum', value: '5 / 7'},
+      ];
+    } else if (n.type === 'zkpi'){
+      n.metrics = [
+        {label: lang === 'ja' ? '照合証明' : 'match proof', value: pub.verified === true ? 'OK' : pub.verified === false ? 'NG' : '--'},
+        {label: lang === 'ja' ? '追加署名' : 'post signature', value: lang === 'ja' ? '不要' : 'none'},
+      ];
+    } else if (n.type === 'ledger'){
+      const root = phase === 'settle' ? (V.phase_fields || {}).state_root : settlement && settlement.state_root;
+      n.metrics = [
+        {label: lang === 'ja' ? '決済方式' : 'settlement', value: 'DvP'},
+        {label: lang === 'ja' ? '状態根' : 'state root', value: root ? shortRoot(root) : '--'},
+      ];
     }
   });
   return {nodes, edges, labels, W, H, compact};
 }
 
 function drawNetworkGraph(){
-  const container = $('network-graph'), svg = $('network-svg');
-  const edgesG = $('graph-edges'), particlesG = $('graph-particles'), labelsG = $('graph-labels');
-  const nodesDiv = $('network-nodes'), legendDiv = $('graph-legend'), empty = $('graph-empty');
-  if (!container || !svg || !V) return;
-  const W = Math.max(300, container.clientWidth || 700);
+  const container = $('network-graph');
+  if (!container || !V) return;
+  // Use the real canvas width. graphModel has a dedicated narrow layout; the
+  // old 980px floor forced a desktop graph to be miniaturised inside phones.
+  const W = container.clientWidth > 0 ? Math.max(320, container.clientWidth) : 980;
   lastGraphWidth = container.clientWidth;
   const model = graphModel(W);
-  container.style.height = model.H + 'px';
-  svg.setAttribute('width', W); svg.setAttribute('height', model.H);
-  svg.setAttribute('viewBox', `0 0 ${W} ${model.H}`);
   container.setAttribute('aria-label', t('graphAria'));
-  edgesG.textContent = ''; particlesG.textContent = ''; labelsG.textContent = ''; nodesDiv.textContent = '';
-
-  // faint edges first so the seat's own paths draw on top
-  const order = model.edges.slice().sort((a, b) => (a.own === b.own ? 0 : a.own ? 1 : -1));
-  order.forEach(e => {
-    let cls = 'gedge';
-    if (!e.own) cls += ' faint';
-    if (e.state === 'flow') cls += ' is-flow ' + e.color;
-    else if (e.state === 'done') cls += ' is-done';
-    else if (e.state === 'cut') cls += ' is-off';
-    const path = svgEl('path', {id: e.id, d: e.d, class: cls});
-    if (e.state === 'flow') path.setAttribute('marker-end', 'url(#arrow-flow)');
-    else if (e.state === 'done') path.setAttribute('marker-end', 'url(#arrow-done)');
-    else if (e.own) path.setAttribute('marker-end', 'url(#arrow)');
-    edgesG.appendChild(path);
-    if (e.state === 'flow' && e.own && e.particle && !reducedMotion){
-      const [k, K] = e.chain;
-      const dot = svgEl('circle', {class: 'gparticle ' + e.color, r: 4});
-      const motion = svgEl('animateMotion', {dur: (K * 1.1) + 's', repeatCount: 'indefinite', calcMode: 'linear',
-        keyPoints: K > 1 ? `0;0;1;1` : '0;1', keyTimes: K > 1 ? `0;${(k / K).toFixed(3)};${((k + 1) / K).toFixed(3)};1` : '0;1'});
-      const mpath = svgEl('mpath', {});
-      mpath.setAttribute('href', '#' + e.id);
-      mpath.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + e.id);
-      motion.appendChild(mpath); dot.appendChild(motion); particlesG.appendChild(dot);
-    }
-  });
-  model.labels.forEach(l => {
-    const text = svgEl('text', {x: l.x, y: l.y, class: 'gedge-label' + (l.strong ? ' strong' : '')});
-    // the stylesheet centres labels; a lane label is anchored inline so the
-    // rule does not override it
-    if (l.anchor){ text.setAttribute('text-anchor', l.anchor); text.style.textAnchor = l.anchor; }
-    text.textContent = l.text; labelsG.appendChild(text);
-  });
-  model.nodes.forEach(n => {
-    const div = el('div', ['gnode', n.type].concat(n.classes).join(' '));
-    div.style.left = (n.x - n.w / 2) + 'px'; div.style.top = (n.y - n.h / 2) + 'px';
-    div.style.width = n.w + 'px'; div.style.height = n.h + 'px';
-    div.setAttribute('tabindex', '0'); div.setAttribute('role', 'img');
-    const full = n.title + (n.sub ? ' — ' + n.sub : '') + (n.badge ? ' ' + n.badge : '');
-    div.setAttribute('aria-label', full); div.title = full;
-    div.appendChild(el('div', 'gnode-title', n.title));
-    if (n.sub) div.appendChild(el('div', 'gnode-sub', n.sub));
-    if (n.badge) div.appendChild(el('div', 'gnode-badge', n.badge));
-    nodesDiv.appendChild(div);
-  });
   const noRound = !(V.public && V.public.number) && V.phase === 'idle';
-  empty.classList.toggle('hide', !noRound);
-  empty.textContent = noRound ? t('noRoundYet') + ' ' + phaseCaption() : '';
-  legendDiv.textContent = '';
-  [['taker','gTaker'],['maker','gMaker'],['node','gNode'],['matcher','gMatcher'],['zkpi','gZkpi'],['ledger','gLedger']]
-    .forEach(([cls, key]) => legendDiv.appendChild(el('span', 'legend-chip ' + cls, t(key))));
-  legendDiv.appendChild(el('span', 'legend-note', t('legendNoCustody')));
-  legendDiv.appendChild(el('span', 'legend-note', t('legendLines')));
-  legendDiv.appendChild(el('span', 'legend-note product-boundary', t('productBoundary')));
+  if (!window.QommNetworkGraph || typeof window.QommNetworkGraph.render !== 'function'){
+    container.textContent = lang === 'ja' ? 'ネットワーク図を読み込めませんでした。' : 'The network graph could not be loaded.';
+    return;
+  }
+  window.QommNetworkGraph.render(container, model, {
+    ariaLabel: t('graphAria'),
+    phase: V.phase,
+    phaseLabel: phaseCaption(),
+    noRoundText: noRound ? t('noRoundYet') + ' ' + phaseCaption() : '',
+    legend: [['taker','gTaker'],['maker','gMaker'],['node','gNode'],['matcher','gMatcher'],['zkpi','gZkpi'],['ledger','gLedger']]
+      .map(([type, key]) => ({type, label: t(key)})),
+    legendNotes: [t('legendNoCustody'), t('legendLines'), t('productBoundary')],
+    reducedMotion,
+  });
 }
 
 /* ========================================================================= */
@@ -1318,7 +1426,8 @@ function render(){
     + (lang === 'en' && c.engine_note ? ' · ' + c.engine_note : '');
   eng.className = 'badge engine' + (c.engine === 'sim' ? '' : ' mpc');
   $('roundNum').textContent = (V.public && V.public.number)
-    ? '#' + V.public.number + ' · ' + V.public.ms + ' ms' : '#--';
+    ? '#' + V.public.number + ' · ' + (lang === 'ja' ? '完了まで' : '')
+      + formatDuration(V.public.ms, lang) : '#--';
   const badge = $('seatBadge');
   const seatName = V.kind === 'taker' ? t('seatTaker') : V.kind === 'maker' ? t('seatMaker') + ' ' + V.index
     : V.kind === 'node' ? t('seatNode') + ' ' + V.index : V.kind === 'observer' ? t('seatObserver') : '';
@@ -1343,6 +1452,7 @@ function render(){
 
 function drawPublic(){
   const p = V.public || {}, box = $('publicbody');
+  const queuePending = isQueuePending(p);
   box.textContent = '';
   if (!p.number){ box.appendChild(el('p', 'empty', t('noRoundYet'))); return; }
   const key = el('div', 'leak-box');
@@ -1360,9 +1470,9 @@ function drawPublic(){
   const st = p.engine_stats || {};
   if (st.protocol_ms !== undefined){
     rows.length = 0;
-    rows.push([t('protocolMs'), Number(st.protocol_ms).toFixed(1) + ' ms'],
+    rows.push([t('protocolMs'), formatDuration(st.protocol_ms, lang)],
               [t('engRounds'), st.rounds], [t('engMb'), st.mb],
-              [t('compiledOnce'), st.compiled_once_ms + ' ms']);
+              [t('compiledOnce'), formatDuration(st.compiled_once_ms, lang)]);
   }
   rows.forEach(([a, b]) => { const tr = el('tr');
     tr.appendChild(el('td', null, a)); tr.appendChild(el('td', 'mono', String(b)));
@@ -1370,19 +1480,25 @@ function drawPublic(){
   box.appendChild(table);
   if (p.settlement){
     const settlement = el('div', 'hidden-box stack'); settlement.style.marginTop = '.5rem';
-    settlement.appendChild(el('div', 'tag', t('gLedger')));
+    settlement.appendChild(el('div', 'tag brand', t('gLedger')));
     settlement.appendChild(el('span', 'status-pill ' + p.settlement.status, settlementName(p.settlement.status)));
     settlement.appendChild(el('div', 'root', p.settlement.state_root || '--'));
     box.appendChild(settlement);
   }
-  if (p.verified !== null && p.verified !== undefined){
+  if (queuePending){
+    const waiting = el('div', 'hidden-box stack');
+    waiting.style.marginTop = '.5rem';
+    waiting.appendChild(el('div', 'tag', t('queued')));
+    waiting.appendChild(el('div', null, abortText(p)));
+    box.appendChild(waiting);
+  } else if (p.verified !== null && p.verified !== undefined){
     const v = el('div', p.verified ? 'hidden-box' : 'bad-box');
     v.style.marginTop = '.5rem';
     v.appendChild(el('div', p.verified ? 'tag' : 'tag bad', p.verified ? t('verifiedYes') : t('verifiedNo')));
-    v.appendChild(el('div', 'why mono', p.verified_detail));
+    v.appendChild(el('div', 'why mono', verifiedDetailText(p.verified_detail)));
     box.appendChild(v);
   }
-  if (p.aborted){ const bad = el('div', 'bad-box');
+  if (p.aborted && !queuePending){ const bad = el('div', 'bad-box');
     bad.style.marginTop = '.5rem';
     bad.appendChild(el('div', 'tag bad', t('stopped')));
     bad.appendChild(el('div', null, abortText(p)));
@@ -1396,7 +1512,8 @@ function drawHistory(){
   rows.forEach(h => {
     const row = el('div', 'history-row');
     row.appendChild(el('span', 'n', '#' + h.number));
-    if (h.aborted) row.appendChild(el('span', 'bad', t('stopped') + ' — ' + abortText(h)));
+    if (isQueuePending(h)) row.appendChild(el('span', 'warn', t('queued') + ' — ' + abortText(h)));
+    else if (h.aborted) row.appendChild(el('span', 'bad', t('stopped') + ' — ' + abortText(h)));
     else if (h.corrections > 0) row.appendChild(el('span', 'warn', tf('n_corrected', {number: h.number, corrections: h.corrections, reductions: h.reductions, named: h.named}).replace(/^#\d+\s*/, '')));
     else row.appendChild(el('span', null, t('phaseDone')));
     if (h.settlement) row.appendChild(el('span', 'status-pill ' + h.settlement.status, settlementName(h.settlement.status)));
@@ -1460,13 +1577,16 @@ function slider(parent, label, id, min, max, onInput){
 }
 function segmented(parent, label, options, onPick, id){
   const row = el('div', 'row');
-  if (label) row.appendChild(el('label', null, label));
+  // This text names a button group rather than one form control.  A <label>
+  // without a matching input makes browsers report an inaccessible field;
+  // the group itself carries the accessible name through aria-label.
+  if (label) row.appendChild(el('span', 'field-label', label));
   const seg = el('div', 'seg'); seg.id = id; seg.setAttribute('role', 'group');
   if (label) seg.setAttribute('aria-label', label);
   options.forEach(o => { const b = el('button', o.tone || '', o.text);
     b.type = 'button'; b.dataset.value = o.value;
     b.setAttribute('aria-pressed', 'false');
-    b.onclick = () => onPick(o.value); seg.appendChild(b); });
+    b.onclick = () => { pick(seg, o.value); onPick(o.value); }; seg.appendChild(b); });
   row.appendChild(seg); parent.appendChild(row);
   return seg;
 }
@@ -1504,7 +1624,7 @@ function buildTaker(root){
   const limitLabel = el('label', null, t('limitPrice')); limitLabel.htmlFor = 'taker_limit';
   limitRow.appendChild(limitLabel);
   const limit = document.createElement('input'); limit.type = 'number'; limit.id = 'taker_limit';
-  limit.min = '0'; limit.step = '0.01';
+  limit.min = '0'; limit.step = '0.01'; limit.inputMode = 'decimal';
   limit.onchange = () => {
     const pending = (V.taker && V.taker.pending) || {asset:0};
     const scale = assetScale(V.assets, pending.asset);
@@ -1519,7 +1639,25 @@ function buildTaker(root){
   c.appendChild(el('div', 'hidden-box', t('automaticSettle')));
   const go = el('button', 'go', t('submit')); go.type = 'button';
   go.style.marginTop = '.7rem';
-  go.onclick = () => { go.disabled = true; go.textContent = t('waiting'); send({type:'submit'}); };
+  go.onclick = () => {
+    const selected = Number(sel.value);
+    const selectedButton = (group, fallback) => {
+      const button = group && group.querySelector('button[aria-pressed="true"]');
+      return button ? Number(button.dataset.value) : fallback;
+    };
+    const scale = assetScale(V.assets, selected);
+    const pending = (V.taker && V.taker.pending) || {};
+    const values = {
+      asset: selected,
+      direction: selectedButton(side, Number(pending.direction || 0)),
+      qty: Math.max(1, Math.round(Number(qty.value))),
+      limit_price: Math.max(1, Math.round(Number(limit.value) * scale)),
+      is_real: selectedButton(kind, Number(pending.is_real === 0 ? 0 : 1)),
+    };
+    go.disabled = true;
+    go.textContent = t('waiting');
+    send({type:'submit', values});
+  };
   c.appendChild(go);
   root.appendChild(c);
 
@@ -1546,6 +1684,10 @@ function updateTaker(){
   if (e.qty && e.qty.parentElement) e.qty.parentElement.querySelector('.val').textContent = p.qty;
   const asset = V.assets[p.asset] || {scale:1};
   const digits = String(asset.scale).length - 1;
+  const maximumPrice = Math.floor(((2 ** 48) - 1) / Math.max(1, Number(p.qty || 1)));
+  e.limit.min = (1 / asset.scale).toFixed(digits);
+  e.limit.max = (maximumPrice / asset.scale).toFixed(digits);
+  e.limit.step = (1 / asset.scale).toFixed(digits);
   setVal(e.limit, (Number(p.limit_price || 0) / asset.scale).toFixed(digits));
   e.limitLabel.textContent = p.direction === 0 ? t('limitPriceBuy') : t('limitPriceSell');
   e.limitHint.textContent = p.direction === 0 ? t('limitBuy') : t('limitSell');
@@ -1559,6 +1701,10 @@ function updateTaker(){
   drawSettlement(e.settlement, d.settlement);
   if (!last){ e.maskedKey.textContent = '--'; e.price.textContent = '--'; e.winner.textContent = t('noRoundYet'); return; }
   e.maskedKey.textContent = (V.public && V.public.masked_key) || '--';
+  if (V.public && isQueuePending(V.public)){
+    e.price.textContent = '--'; e.winner.textContent = t('queued') + ' — ' + abortText(V.public);
+    return;
+  }
   if (V.public && V.public.aborted){
     e.price.textContent = '--'; e.winner.textContent = t('stopped') + ' — ' + abortText(V.public);
     return;
@@ -1722,7 +1868,11 @@ function updateNode(){
     b.appendChild(el('div', 'why', t('corrected')));
     e.verdict.appendChild(b);
   }
-  if (p.aborted){ const bad = el('div', 'bad-box'); bad.style.marginTop = '.5rem';
+  if (isQueuePending(p)){ const waiting = el('div', 'hidden-box'); waiting.style.marginTop = '.5rem';
+    waiting.appendChild(el('div', 'tag', t('queued')));
+    waiting.appendChild(el('div', null, abortText(p)));
+    e.verdict.appendChild(waiting); }
+  else if (p.aborted){ const bad = el('div', 'bad-box'); bad.style.marginTop = '.5rem';
     bad.appendChild(el('div', null, abortText(p)));
     bad.appendChild(el('div', 'why', p.abort_reason));
     e.verdict.appendChild(bad); }
@@ -1835,5 +1985,5 @@ if (hasDom){
 }
 if (typeof module !== 'undefined' && module.exports){
   module.exports = {interpretTaker, interpretMaker, makerCashRequirement, translateRefusal, orthoPath,
-    setLang: (l) => { lang = l; }, S};
+    formatDuration, setLang: (l) => { lang = l; }, S};
 }

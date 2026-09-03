@@ -19,7 +19,12 @@ fn seven_party_mpc_engine_opens_one_consistent_verified_result() {
     room.install_mpc_engine(engine)
         .expect("install the real MP-SPDZ engine");
 
-    let result = room.run_round().expect("run one real seven-party round");
+    // Use the same pre-trade path as the product: the Taker signs and reserves
+    // its maximum before the request enters MPC. Calling `run_round()` directly
+    // would intentionally bypass that boundary and must fail closed.
+    let result = room
+        .play_round()
+        .expect("reserve and run one real seven-party round");
     assert!(!result.aborted, "{}", result.verified_detail);
     assert_eq!(result.verified, Some(true), "{}", result.verified_detail);
     assert!(result.outcome.winner.is_some());

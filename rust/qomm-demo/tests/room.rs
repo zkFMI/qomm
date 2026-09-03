@@ -1,6 +1,90 @@
 use qomm_demo::protocol::LIE_PRODUCT;
 use qomm_demo::room::{DemoConfig, Room};
+use qomm_demo::{
+    model::{Outcome, Policy, Request},
+    mpc::{
+        MpcQuoteEngine, MpcRound, MpcSettlementInputs, QueuedMpcRound, CORPORATE_QUEUE_RECONCILING,
+        CORPORATE_QUEUE_UNAVAILABLE,
+    },
+};
 use serde_json::json;
+use std::collections::BTreeMap;
+
+struct ReplayOnce {
+    pending: Option<QueuedMpcRound>,
+}
+
+struct QueueUnavailable;
+
+impl MpcQuoteEngine for QueueUnavailable {
+    fn name(&self) -> &'static str {
+        "mpc"
+    }
+
+    fn note(&self) -> String {
+        "test corporate queue".into()
+    }
+
+    fn robust(&self) -> bool {
+        true
+    }
+
+    fn robust_reason(&self) -> &str {
+        ""
+    }
+
+    fn input_check(&self) -> bool {
+        true
+    }
+
+    fn quote(
+        &mut self,
+        _policies: &[Policy],
+        _request: &Request,
+        _settlement: &MpcSettlementInputs,
+        _now: i64,
+        _corrupt: &[usize],
+    ) -> Result<MpcRound, String> {
+        Err(CORPORATE_QUEUE_UNAVAILABLE.into())
+    }
+}
+
+impl MpcQuoteEngine for ReplayOnce {
+    fn name(&self) -> &'static str {
+        "mpc"
+    }
+
+    fn note(&self) -> String {
+        "test replay".into()
+    }
+
+    fn robust(&self) -> bool {
+        true
+    }
+
+    fn robust_reason(&self) -> &str {
+        ""
+    }
+
+    fn input_check(&self) -> bool {
+        true
+    }
+
+    fn replay_queued(&mut self) -> Result<Option<QueuedMpcRound>, String> {
+        Ok(self.pending.take())
+    }
+
+    fn quote(
+        &mut self,
+        _policies: &[Policy],
+        _request: &Request,
+        _settlement: &MpcSettlementInputs,
+        _now: i64,
+        _corrupt: &[usize],
+    ) -> Result<MpcRound, String> {
+        Err("synchronous quote was not expected".into())
+    }
+}
 
 fn room_with_seats() -> Room {
     let mut room = Room::new(8, 9, 2, true, 4).unwrap();
@@ -9,6 +93,218 @@ fn room_with_seats() -> Room {
     assert!(room.claim("n", "node:4", "Rin").0);
     assert!(room.claim("o", "observer", "").0);
     room
+}
+
+#[test]
+fn automatic_maker_refresh_keeps_the_registered_instrument() {
+    let mut room = Room::new(4, 7, 2, true, 4).unwrap();
+    let registered_assets = room
+        .policies
+        .iter()
+        .map(|policy| policy.asset)
+        .collect::<Vec<_>>();
+
+    for _ in 0..2_000 {
+        room.step_bots().unwrap();
+        assert_eq!(
+            room.policies
+                .iter()
+                .map(|policy| policy.asset)
+                .collect::<Vec<_>>(),
+            registered_assets
+        );
+    }
+}
+
+#[test]
+fn participant_capacities_replace_placeholder_balances_before_execution() {
+    let mut room = Room::new(4, 7, 2, true, 9).unwrap();
+    room.configure_participant_capacities(&[(50_000_000_000, 5_000); 4], (3_000_000, 300))
+        .unwrap();
+
+    assert_eq!(room.taker_portfolio.cash_total().unwrap(), 3_000_000);
+    for asset in 0..room.assets.len() {
+        assert_eq!(room.taker_portfolio.inventory_total(asset).unwrap(), 300);
+    }
+    for maker in 0..room.n_makers {
+        assert_eq!(
+            room.maker_portfolios[maker].cash_total().unwrap(),
+            50_000_000_000
+        );
+        assert_eq!(
+            room.maker_portfolios[maker]
+                .inventory_total(room.maker_reserves[maker].asset)
+                .unwrap(),
+            5_000
+        );
+    }
+}
+
+#[test]
+fn canonical_taker_holdings_replace_genesis_capacity_without_changing_makers() {
+    let mut room = Room::new(4, 7, 2, true, 10).unwrap();
+    room.configure_participant_capacities(&[(50_000_000_000, 5_000); 4], (3_000_000, 300))
+        .unwrap();
+    let canonical_inventory = (0..room.assets.len())
+        .map(|asset| 300_u64 + u64::try_from(asset).unwrap())
+        .collect::<Vec<_>>();
+
+    room.configure_taker_canonical_portfolio(2_750_000, &canonical_inventory)
+        .unwrap();
+
+    assert_eq!(room.taker_portfolio.cash_available, 2_750_000);
+    assert_eq!(room.taker_portfolio.cash_reserved, 0);
+    assert_eq!(
+        room.taker_portfolio.inventory_available,
+        canonical_inventory
+            .iter()
+            .map(|value| i64::try_from(*value).unwrap())
+            .collect::<Vec<_>>()
+    );
+    assert!(room
+        .maker_portfolios
+        .iter()
+        .all(|portfolio| portfolio.cash_total().unwrap() == 50_000_000_000));
+}
+
+#[test]
+fn corporate_queue_replays_without_a_second_browser_submission() {
+    let mut room = Room::new(2, 9, 2, true, 44).unwrap();
+    let policies = room.policies.clone();
+    let request = Request {
+        asset: 0,
+        qty: 17,
+        direction: 0,
+        entity: 0,
+        is_real: 1,
+    };
+    let settlement = MpcSettlementInputs {
+        user_limit: 20_000,
+        taker_securities_reserve: 0,
+        taker_cash_reserve: 340_000,
+        maker_securities_reserves: vec![500, 500],
+        maker_cash_reserves: vec![1_000_000, 1_000_000],
+    };
+    let engine = ReplayOnce {
+        pending: Some(QueuedMpcRound {
+            policies: policies.clone(),
+            request: request.clone(),
+            settlement,
+            market_time: 7,
+            round: MpcRound {
+                outcome: Outcome::default(),
+                filled: false,
+                masked_key: 9,
+                mask: 8,
+                node_shares: BTreeMap::new(),
+                named: BTreeMap::new(),
+                verified: true,
+                detail: "verified replay".into(),
+                stats: json!({"distributed": true}),
+                product_handoff: None,
+            },
+        }),
+    };
+    room.install_mpc_engine(engine).unwrap();
+
+    assert!(room.drain_mpc_queue().unwrap());
+    assert_eq!(room.phase, "done");
+    assert_eq!(room.last.as_ref().unwrap().request, request);
+    assert!(!room.last.as_ref().unwrap().filled);
+    assert_eq!(room.last.as_ref().unwrap().used_policies, policies);
+    assert_eq!(room.settlements.last().unwrap().status, "released");
+    assert_eq!(room.settlements.last().unwrap().reason_code, "no_maker");
+    assert_eq!(
+        room.last.as_ref().unwrap().engine_stats["corporate_queue_replay"]["automatic"],
+        true
+    );
+    assert!(!room.drain_mpc_queue().unwrap());
+}
+
+#[test]
+fn replay_reconciliation_keeps_the_local_reserve_projection() {
+    let mut room = Room::new(1, 9, 2, true, 46).unwrap();
+    let policies = room.policies.clone();
+    let request = Request {
+        asset: 0,
+        qty: 10,
+        direction: 0,
+        entity: 0,
+        is_real: 1,
+    };
+    let pending =
+        format!("{CORPORATE_QUEUE_RECONCILING}: validator rejected a transient settlement");
+    room.install_mpc_engine(ReplayOnce {
+        pending: Some(QueuedMpcRound {
+            policies,
+            request,
+            settlement: MpcSettlementInputs {
+                user_limit: 20_000,
+                taker_securities_reserve: 0,
+                taker_cash_reserve: 200_000,
+                maker_securities_reserves: vec![500],
+                maker_cash_reserves: vec![1_000_000],
+            },
+            market_time: 7,
+            round: MpcRound {
+                outcome: Outcome::default(),
+                filled: false,
+                masked_key: 0,
+                mask: 0,
+                node_shares: BTreeMap::new(),
+                named: BTreeMap::new(),
+                verified: false,
+                detail: pending,
+                stats: json!({"corporate_reconciliation": true}),
+                product_handoff: None,
+            },
+        }),
+    })
+    .unwrap();
+
+    let available_before = room.taker_portfolio.cash_available;
+    assert!(room.drain_mpc_queue().unwrap());
+
+    assert_eq!(room.last.as_ref().unwrap().abort_code, "queued");
+    assert_eq!(room.settlements.last().unwrap().status, "queued");
+    assert_eq!(room.taker_portfolio.cash_reserved, 200_000);
+    assert_eq!(
+        room.taker_portfolio.cash_available,
+        available_before - 200_000
+    );
+}
+
+#[test]
+fn corporate_queue_keeps_the_taker_reserve_until_replay() {
+    let mut room = Room::new(1, 9, 2, true, 45).unwrap();
+    room.set_forced_manual("taker", true);
+    room.set_forced_manual("maker:0", true);
+    room.set_request(&json!({
+        "asset": 0,
+        "qty": 10,
+        "direction": 0,
+        "is_real": 1,
+        "limit_price": 20_000
+    }))
+    .unwrap();
+    room.install_mpc_engine(QueueUnavailable).unwrap();
+
+    let available_before = room.taker_portfolio.cash_available;
+    room.play_round().unwrap();
+
+    assert_eq!(room.last.as_ref().unwrap().abort_code, "queued");
+    assert_eq!(room.settlements.last().unwrap().status, "queued");
+    assert_eq!(room.settlements.last().unwrap().reason_code, "mpc_queued");
+    let held = room
+        .taker_reservation
+        .as_ref()
+        .expect("queued RFQ retains its Taker reservation");
+    assert_eq!(held.amount, 200_000);
+    assert_eq!(room.taker_portfolio.cash_reserved, held.amount);
+    assert_eq!(
+        room.taker_portfolio.cash_available,
+        available_before - held.amount
+    );
 }
 
 #[test]
@@ -101,7 +397,9 @@ fn behaviour_is_private_to_node_and_observer_and_taker_alone_unpacks() {
     );
 
     room.set_behaviour(4, "honest").unwrap();
+    room.set_request(&json!({"limit_price": 100_000})).unwrap();
     let result = room.run_round().unwrap();
+    assert!(result.filled);
     assert_eq!(
         result.unpack(),
         (result.outcome.cost, result.outcome.winner)

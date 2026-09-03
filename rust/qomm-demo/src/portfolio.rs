@@ -29,6 +29,21 @@ impl Portfolio {
         }
     }
 
+    pub fn funded_with(
+        n_assets: usize,
+        cash: i64,
+        inventory_per_asset: i64,
+    ) -> Result<Self, String> {
+        let portfolio = Self {
+            cash_available: cash,
+            cash_reserved: 0,
+            inventory_available: vec![inventory_per_asset; n_assets],
+            inventory_reserved: vec![0; n_assets],
+        };
+        portfolio.validate()?;
+        Ok(portfolio)
+    }
+
     pub fn cash_total(&self) -> Result<i64, String> {
         self.cash_available
             .checked_add(self.cash_reserved)
@@ -65,11 +80,28 @@ impl Portfolio {
     }
 }
 
+/// One Maker's pre-trade reserve as the room projects it.
+///
+/// `inventory` and `cash` are what is still available to fill against: the
+/// standing pool maximum minus every fill made under the same registered
+/// policy.  `standing_inventory` and `standing_cash` are the maxima the Maker
+/// signed into its standing mandates; they change only when the policy
+/// changes, because the DeFMI pool and the MPC nodes' resident remainder
+/// shares carry the fills, not a re-signed mandate.
 #[derive(Clone, Debug, Default, Serialize, PartialEq, Eq)]
 pub struct MakerReserve {
     pub asset: usize,
     pub inventory: i64,
     pub cash: i64,
+    #[serde(default)]
+    pub standing_inventory: i64,
+    #[serde(default)]
+    pub standing_cash: i64,
+    /// Digest of the registered policy fields this reserve was signed for.
+    /// A refresh under the same policy keeps the remaining balance instead of
+    /// pretending the fills never happened.
+    #[serde(default)]
+    pub policy_key: String,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq, Eq)]

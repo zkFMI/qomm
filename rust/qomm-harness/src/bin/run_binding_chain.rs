@@ -257,6 +257,8 @@ fn deal_market(options: &Options, ref_table: &[i128]) -> HarnessResult<DealtMark
         user_limit: 100_000,
         user_limit_blinding: 1,
         user_qty_blinding: 1,
+        response_mask: None,
+        fill_mask: None,
         check_coefficients: &[],
         check_repeats: 7,
         policies: None,
