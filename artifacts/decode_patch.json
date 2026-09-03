@@ -1,0 +1,106 @@
+{
+  "host": "host-a",
+  "question": "Can the engine be made to name the party that sent a wrong share?",
+  "answer": "Yes. rust/qomm-mpc/patches/locate-inconsistent-shares.patch, measured below.",
+  "before": {
+    "message": "Fatal error at fp2000-0:3 (MULS): inconsistent Shamir secret sharing",
+    "note": "identical for a different culprit --- the 3 is the instruction offset",
+    "or_worse": "Fatal error in communication: read_some: stream truncated, when the bad data belongs to a party the others reach later, so the obvious attribution points at whichever process exited first"
+  },
+  "after": [
+    {
+      "corrupted": [
+        0
+      ],
+      "message": "inconsistent Shamir secret sharing sent by player 0"
+    },
+    {
+      "corrupted": [
+        1
+      ],
+      "message": "inconsistent Shamir secret sharing sent by player 1"
+    },
+    {
+      "corrupted": [
+        3
+      ],
+      "message": "inconsistent Shamir secret sharing sent by player 3"
+    },
+    {
+      "corrupted": [
+        5
+      ],
+      "message": "inconsistent Shamir secret sharing sent by player 5"
+    },
+    {
+      "corrupted": [
+        6
+      ],
+      "message": "inconsistent Shamir secret sharing sent by player 6"
+    },
+    {
+      "corrupted": [
+        1,
+        4
+      ],
+      "message": "... sent by player 1, player 4"
+    },
+    {
+      "corrupted": [
+        0,
+        6
+      ],
+      "message": "... sent by player 0, player 6"
+    },
+    {
+      "corrupted": [
+        2,
+        3
+      ],
+      "message": "... sent by player 2, player 3"
+    },
+    {
+      "corrupted": [
+        0,
+        2,
+        5
+      ],
+      "message": "more than 2 parties sent wrong shares, which is beyond the decoding capacity of this sharing",
+      "note": "correct behaviour. Naming somebody past capacity would be worse."
+    }
+  ],
+  "honest_run": {
+    "result": 98000,
+    "expected": 98000,
+    "note": "2000 multiplications of 7 by 7, summed"
+  },
+  "cost": {
+    "elements_per_party_per_multiplication": {
+      "online_before": 8.0,
+      "online_after": 12.0,
+      "online_ratio": 1.5,
+      "total_before": 48.235,
+      "total_after": 64.236,
+      "total_ratio": 1.332
+    },
+    "rounds": "unchanged: 3 online, 11 to 23 single-phase",
+    "why": "ShamirMC::exchange is a partial broadcast that makes each party a sender to the 2t+1 nearest. Locating needs the whole codeword, so each party goes from four correspondents per opening to six."
+  },
+  "per_quote_at_M16": {
+    "multiplications": 3312,
+    "before_MB_per_party": 2.556,
+    "after_MB_per_party": 3.404,
+    "before_MB_global": 17.89,
+    "after_MB_global": 23.83
+  },
+  "what_it_reaches": "Rung 2, identifiable abort, and rung 3 or 4 if the shares are published --- the decode is deterministic, so anyone holding the transcript reaches the same verdict. NOT rung 5: naming the party and recovering the opened value does not repair the bad triple underneath it.",
+  "predictions": {
+    "traffic unchanged because POpen_Begin calls send_all": "WRONG. That is the unbatched path. The batched one, exchange(), is a partial broadcast and is what runs. Measured 1.50x online. Third time in this project that reading one code path and assuming it is the one that executes has cost a number.",
+    "names the party correctly": "landed, five parties and three pairs",
+    "refuses past capacity rather than guessing": "landed",
+    "single-phase total between 52 and 72": "landed at 64.236",
+    "rounds unchanged": "landed",
+    "reaches rung 2 and not rung 5": "holds by construction"
+  },
+  "still_open": "A party that substituted its INPUT. secret_input() sums one additive share per party, so a substituted input is a valid sharing of a different value --- nothing is inconsistent and there is no codeword to decode. That fix is one opening per party instead of one over all inputs, and is not implemented."
+}

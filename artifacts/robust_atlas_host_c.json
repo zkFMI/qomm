@@ -1,0 +1,122 @@
+{
+ "host": "host-c",
+ "question": "Naming was rung 4 because the protocol still stopped. Does dropping the king and decoding at every party reach rung 5 --- the answer comes out anyway?",
+ "setting": {
+  "n_parties": 9,
+  "threshold": 2,
+  "multiplications": 2000,
+  "decoding_capacity_on_a_degree_2t_product": 2,
+  "n_over_4t_plus_1": "9 >= 9"
+ },
+ "arms": {
+  "king_honest": {
+   "corrupted": [],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 9,
+   "global_mb": 0.771776
+  },
+  "honest": {
+   "corrupted": [],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 2.62778
+  },
+  "corrupt_1": {
+   "corrupted": [
+    0
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    0
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 2.62778
+  },
+  "corrupt_2": {
+   "corrupted": [
+    0,
+    1
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    0,
+    1
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 2.62778
+  },
+  "corrupt_3": {
+   "corrupted": [
+    0,
+    1,
+    2
+   ],
+   "finished": false,
+   "answer": [],
+   "expected": 98000,
+   "answer_correct": false,
+   "named": [],
+   "named_exactly_the_corrupted": false,
+   "refused_to_start": null,
+   "refused_past_capacity": "more than 2 parties sent wrong shares of a masked product, which is beyond the decoding capacity of a degree-4 sharing over 9 points",
+   "rounds": null,
+   "global_mb": null
+  },
+  "corrupt_last_party": {
+   "corrupted": [
+    8
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    8
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 2.62778
+  },
+  "too_few_parties": {
+   "corrupted": [],
+   "finished": false,
+   "answer": [],
+   "expected": 98000,
+   "answer_correct": false,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": "robust ATLAS needs n >= 4t+1 to correct t wrong shares of a degree-2t product; got n=7, t=2, which corrects only 1",
+   "refused_past_capacity": null,
+   "rounds": null,
+   "global_mb": null
+  }
+ }
+}

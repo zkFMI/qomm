@@ -1,0 +1,39 @@
+{
+  "host": "host-c",
+  "question": "what an exact discrete-Laplace sampler costs against the floating-point one",
+  "rows": [
+    {
+      "epsilon": 0.25,
+      "sensitivity": 300,
+      "exact": false,
+      "microseconds_per_draw": 0.89,
+      "sd": 1693.4,
+      "sd_wanted": 1697.1
+    },
+    {
+      "epsilon": 0.25,
+      "sensitivity": 300,
+      "exact": true,
+      "microseconds_per_draw": 1018.95,
+      "sd": 1755.2,
+      "sd_wanted": 1697.1
+    },
+    {
+      "epsilon": 0.25,
+      "sensitivity": 1200,
+      "exact": false,
+      "microseconds_per_draw": 1.85,
+      "sd": 6762.3,
+      "sd_wanted": 6788.2
+    },
+    {
+      "epsilon": 0.25,
+      "sensitivity": 1200,
+      "exact": true,
+      "microseconds_per_draw": 5150.5,
+      "sd": 6734.2,
+      "sd_wanted": 6788.2
+    }
+  ],
+  "note": "the float sampler walks log1p(-u)/log(alpha) and inherits the spacing of the doubles it passes through, so its low-order bits separate neighbouring distributions in a way the ideal mechanism does not. The exact one uses only integer comparisons and fair coins. Four draws make one release."
+}

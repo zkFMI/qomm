@@ -1,0 +1,50 @@
+{
+  "what": "What generating the DP noise inside the MPC costs, predicted before it was run",
+  "written": "2026-08-27, before the program was compiled for the first time",
+  "the_gap": "DpMechanism::mp_spdz_source has existed and been unit-tested since the audit layer was written, but nothing ever compiled or ran it. The noise that actually reaches a release is drawn by discrete_laplace() from one PyRandom, in one process. The mechanism is distributed on paper and central in fact.",
+  "what_the_program_does": {
+    "exact": "sum of one sint input per party --- linear, free",
+    "randomness": "64 calls to sint.get_random_bit(), which is preprocessing rather than online communication",
+    "uniform": "u = sum(bit_j << j) --- linear, free",
+    "noise": "2*support comparisons u >= threshold_k against public constants, summed",
+    "release": "reveal(exact + noise)"
+  },
+  "predictions": {
+    "rounds_are_flat_in_support": {
+      "claim": "The 2*support comparisons are mutually independent, so a compiler that batches will put them in one layer. Rounds should therefore be near-constant in support: support=64 should cost less than twice the rounds of support=16, despite four times the comparisons.",
+      "falsified_by": "rounds growing about linearly in support, which would mean the comparisons were serialised",
+      "outcome": "HELD as stated, but the framing was too strong. Rounds were 28 at support 8 and 28 at support 16 --- exactly flat across a doubling --- then stepped to 43 at support 32. Over the 4x range 8->32 rounds grew 1.54x, which satisfies the stated bound of 'less than twice for four times the comparisons'. It is not near-constant: the compiler batches up to a width and then adds a layer."
+    },
+    "bytes_are_linear_in_support": {
+      "claim": "Traffic is one 64-bit comparison per threshold, so bytes should scale about 4x from support=16 to support=64.",
+      "falsified_by": "anything sublinear, which would mean the compiler shared work between thresholds",
+      "outcome": "HELD cleanly. Global traffic 32.08, 63.91, 127.56 MB at supports 8, 16, 32: ratios 1.992 and 1.996 for each doubling. Extrapolating the 3.978 MB-per-support slope back to support 0 leaves 0.25 MB of fixed cost, so the comparisons are the traffic."
+    },
+    "the_noise_is_the_ideal_one": {
+      "claim": "The quantised CDF splits [0,2^64) into 2*support+1 cells whose endpoints are floors, so the total-variation distance from the ideal two-sided geometric is at most (2*support+1)/2^64 --- about 7e-18 at support=64. Any observable disagreement with discrete_laplace() is a bug, not quantisation.",
+      "falsified_by": "a chi-square against the ideal that rejects at n=200",
+      "outcome": "FALSIFIED BY THE REGISTERED CRITERION, then not reproduced at higher power. The falsifier named here is 'a chi-square against the ideal that rejects at n=200'. It rejected twice at n=200: 11.56 on 5 degrees of freedom (p=0.041) and 18.24 (p=0.0027), the deviation confined to the k=+2 cell both times while the two sample means pointed in opposite directions. Re-run at n=2000 the same cell gives 9.66 on 11 degrees of freedom (p=0.56) with every cell inside 1.5 sigma. An earlier revision of this file recorded the prediction as HELD on the strength of the larger sample; that is not what the pre-registration said, and both halves are now the record. The separate and more serious point is that the claim itself was about the wrong distribution: the test is against the mechanism's own truncated cells, and the truncation puts the released law 1.8e-4 from the ideal at support 8, not the 7e-18 this prediction asserted.",
+      "what_the_claim_got_wrong": "The claim bounded the distance to the ideal by the quantisation term (2*support+1)/2^64. That is only the flooring of the CDF endpoints. The mechanism also truncates at the support and folds the tail mass onto the endpoints, which is 1.8e-4 at support 8, 6.1e-8 at support 16 and 6.8e-15 at support 32 --- and which breaks pure epsilon-DP outright, since adjacent inputs give releases whose supports do not coincide at the edges."
+    },
+    "the_cost_against_a_plain_sum": {
+      "claim": "A release without noise is one reveal of a linear combination: a handful of rounds. The noise should therefore dominate the release entirely --- above 90% of both rounds and bytes.",
+      "falsified_by": "the noise costing less than half the release",
+      "outcome": "HELD. Noise was 92.9%, 92.9% and 95.3% of rounds and above 99.9% of bytes in the malicious arm; 80% of rounds and 99.98% of bytes even in the semi-honest arm."
+    },
+    "dropping_malicious_security_does_not_buy_rounds": {
+      "claim": "Semi-honest Shamir runs the same comparison circuit as malicious Shamir; what malicious security adds is triple sacrifice and a verification pass, which is extra work batched at the end rather than extra circuit depth. Rounds should therefore fall by less than 30% from malicious to semi-honest, while bytes should fall by roughly half. The corollary is that assuming no collusion is not a lever on latency.",
+      "falsified_by": "rounds falling by more than half, which would mean the round count came from the verification and not from the comparison depth",
+      "why_it_matters": "If weakening the threat model does not buy rounds, then the 26 rounds are the construction and the only way out is a different construction, not a weaker assumption.",
+      "outcome": "FALSIFIED, in both halves. Rounds fell 28->15, 28->15 and 43->18, that is 46% to 58%, and the stated falsifier was 'rounds falling by more than half'. Bytes fell about 6x, not 2x. The model behind the prediction --- that malicious security adds triple sacrifice as work batched at the end rather than circuit depth --- is wrong for this circuit: the comparison consumes generated random bits whose malicious-secure production is verified inline, so depth grows too. The corollary drawn from the prediction does not survive either: assuming no collusion IS a lever on latency, worth about 2x. What does survive is that it is not enough on its own --- the semi-honest in-MPC release still costs 15 rounds and 5.4 to 21 MB against a plain release of 3 rounds and 0.0012 MB."
+    },
+    "the_shared_randomness_bounds_the_support": {
+      "claim": "The uniform is 64 bits, so a cell whose probability falls below 2^-64 cannot be represented and the CDF stops advancing. At epsilon=1 and sensitivity=1 that caps the support near |k|=44 by the 2^-64 floor, and nearer |k|=35 once f64 precision in the upper tail is taken into account. support=64 should therefore be rejected outright rather than measured.",
+      "falsified_by": "support=64 building a usable CDF at epsilon=1",
+      "status": "already observed: the first full run stopped with '64-bit CDF has a zero-probability cell' before measuring anything. Written here because the sweep was relaunched at 8/16/32 as a result.",
+      "outcome": "CONFIRMED. support=64 at epsilon=1 was rejected before any measurement."
+    }
+  },
+  "the_risk_worth_naming": "sint.get_random_bit() under malicious Shamir may cost more than the comparisons it feeds. If it does, the flat-in-support prediction can hold while the release is still dominated by randomness generation rather than by the mechanism, and the honest reading changes from 'noise is one comparison layer' to 'noise is 64 shared bits'.",
+  "the_risk_worth_naming_outcome": "The risk did not materialise. If the 64 random bits dominated, traffic would be flat in support; it is linear instead, with only 0.25 MB of the 32 to 128 MB left when the per-support slope is removed. Randomness generation is 0.2% to 0.8% of the release, so the honest reading stays 'the noise is the comparison layer', not 'the noise is 64 shared bits'.",
+  "what_the_measurement_does_not_show": "That the venue generates its noise this way. The release path is unchanged: disclosure.rs and queries.rs still call discrete_laplace with a PyRandom, and the MPC mechanism is reached only from this harness and the audit tests. What is measured is what such a protocol would cost, not that one is running."
+}

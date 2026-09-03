@@ -1,0 +1,46 @@
+# What a deployment needs from a legal system, and what the protocol emits.
+#
+# The three requirements are `REGULATION.md` section 1's. The evidence items are
+# what this codebase actually produces, each named with the file that produces
+# it, so a rename breaks the build rather than the table.
+
+requirement N1 "a venue category that permits evaluating orders it does not publish"
+requirement N2 "a legal record that the settlement ledger can be"
+requirement N3 "a cash leg with strong finality reachable from a distributed ledger"
+
+instrument listed-equity  register book-entry
+instrument security-token register issuer-ledger
+
+evidence slot-receipt from "rust/qomm-audit/src/receipts.rs"
+  covers "keep a record of the moment of execution"
+  covers "show a node did not act, or signed twice"
+  not "identifying who placed the order"
+
+evidence quote-proof from "rust/qomm-proofs/src/quote_proof.rs"
+  covers "show the price returned was the best available"
+  not "execution quality other than price --- speed, certainty"
+
+evidence policy-audit from "rust/qomm-proofs/src/policy_audit.rs"
+  covers "show a maker's pricing rule is inside the venue's band"
+  not "that the maker's internal control is functioning"
+
+evidence state-chain from "rust/qomm-proofs/src/state_audit.rs"
+  covers "detect a second set of books, or a retroactive edit"
+  not "whether the inventory exists off-ledger"
+
+evidence settlement-root from "rust/qomm-defmi/src/settlement.rs"
+  covers "show delivery completed and was not settled twice"
+  not "that only an authorised issuer issued --- true only with an issuer signature"
+
+evidence reconciliation from "rust/qomm-defmi/src/reconcile.rs"
+  covers "agree with the authoritative register without opening a balance"
+  not "saying where a break is, which costs subtotals"
+
+evidence scoped-view from "rust/qomm-defmi/src/viewing.rs"
+  covers "open one scope of one wallet to a supervisor"
+  not "blanket monitoring, which the design cannot provide"
+  not "taking a grant back, which it also cannot"
+
+evidence clearing-attestation from "rust/qomm-defmi/src/ccp.rs"
+  covers "show a clearing house's book is flat and its margin posted"
+  not "that the trade set it novated is the trade set that happened"

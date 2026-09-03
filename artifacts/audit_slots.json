@@ -1,0 +1,621 @@
+{
+  "audit_drill": {
+    "consequential_findings": [
+      {
+        "detail": "signed a new state that the quorum did not agree with",
+        "fault": "forked_state",
+        "node": 2,
+        "slot": 1
+      }
+    ],
+    "detected_all_injected": true,
+    "evidence": [
+      {
+        "detail": "two signed results for one slot",
+        "fault": "equivocation",
+        "node": 2,
+        "slot": 1
+      },
+      {
+        "detail": "signed a new state that the quorum did not agree with",
+        "fault": "forked_state",
+        "node": 2,
+        "slot": 1
+      },
+      {
+        "detail": "signed a maker set other than the one fixed for this slot",
+        "fault": "omitted_makers",
+        "node": 3,
+        "slot": 2
+      },
+      {
+        "detail": "continued from a state other than the settled predecessor",
+        "fault": "stale_state",
+        "node": 4,
+        "slot": 3
+      },
+      {
+        "detail": "no receipt by the deadline (450); observed at 460",
+        "fault": "missing_receipt",
+        "node": 5,
+        "slot": 4
+      }
+    ],
+    "injected": [
+      {
+        "fault": "equivocation",
+        "node": 2,
+        "slot": 1
+      },
+      {
+        "fault": "omitted_makers",
+        "node": 3,
+        "slot": 2
+      },
+      {
+        "fault": "stale_state",
+        "node": 4,
+        "slot": 3
+      },
+      {
+        "fault": "missing_receipt",
+        "node": 5,
+        "slot": 4
+      }
+    ],
+    "missed": [],
+    "nodes": 7,
+    "quorum": 5,
+    "remaining_bonds": {
+      "0": 2000000,
+      "1": 2000000,
+      "2": 500000,
+      "3": 1500000,
+      "4": 1750000,
+      "5": 1950000,
+      "6": 2000000
+    },
+    "slashing": [
+      {
+        "amount": 1000000,
+        "fault": "equivocation",
+        "node": 2,
+        "remaining_bond": 1000000,
+        "slot": 1
+      },
+      {
+        "amount": 500000,
+        "fault": "forked_state",
+        "node": 2,
+        "remaining_bond": 500000,
+        "slot": 1
+      },
+      {
+        "amount": 500000,
+        "fault": "omitted_makers",
+        "node": 3,
+        "remaining_bond": 1500000,
+        "slot": 2
+      },
+      {
+        "amount": 250000,
+        "fault": "stale_state",
+        "node": 4,
+        "remaining_bond": 1750000,
+        "slot": 3
+      },
+      {
+        "amount": 50000,
+        "fault": "missing_receipt",
+        "node": 5,
+        "remaining_bond": 1950000,
+        "slot": 4
+      }
+    ],
+    "slots": 6,
+    "timeline": [
+      {
+        "new_findings": [],
+        "settled": "0f8e23f67fe937e7",
+        "slot": 0
+      },
+      {
+        "new_findings": [
+          {
+            "detail": "signed a new state that the quorum did not agree with",
+            "fault": "forked_state",
+            "node": 2,
+            "slot": 1
+          }
+        ],
+        "settled": "6d5cce1dccad5bc9",
+        "slot": 1
+      },
+      {
+        "new_findings": [],
+        "settled": "03a03ef2f515a887",
+        "slot": 2
+      },
+      {
+        "new_findings": [],
+        "settled": "3e41dcf097478857",
+        "slot": 3
+      },
+      {
+        "new_findings": [
+          {
+            "detail": "no receipt by the deadline (450); observed at 460",
+            "fault": "missing_receipt",
+            "node": 5,
+            "slot": 4
+          }
+        ],
+        "settled": "355b01b782d8c023",
+        "slot": 4
+      },
+      {
+        "new_findings": [],
+        "settled": "2d29dc3bf9c5a902",
+        "slot": 5
+      }
+    ],
+    "wrongful_findings": []
+  },
+  "config": {
+    "bit_length": 31,
+    "delay_ms": 1.0,
+    "mode": "rfs",
+    "mp_spdz_root": "/home/ubuntu/work/qomm/MP-SPDZ",
+    "n_mm": 16,
+    "nodes": 7,
+    "out": "artifacts/audit_slots.json",
+    "quorum": 5,
+    "repeats": 3,
+    "seed": 7,
+    "skip_mpc": false,
+    "slots": 6,
+    "trials": 3
+  },
+  "host": "host-a",
+  "indistinguishability": {
+    "all_identical": true,
+    "cover": {
+      "mb": [
+        22.2045
+      ],
+      "median_s": 1.639010981,
+      "n": 3,
+      "rounds": [
+        286
+      ]
+    },
+    "identical": {
+      "integer_triples": true,
+      "measured_mb": true,
+      "measured_rounds": true,
+      "vm_rounds": true
+    },
+    "real": {
+      "mb": [
+        22.2045
+      ],
+      "median_s": 1.649327293,
+      "n": 3,
+      "rounds": [
+        286
+      ]
+    },
+    "rows": [
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.286224176,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 1,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.112532,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.112532,
+            "wall_seconds": 1.7118977640000002
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.121542,
+            "wall_seconds": 1.739147101
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.081507,
+            "wall_seconds": 1.689805496
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99976, 5) want=(99976, 5)",
+        "wall_median": 1.7118977640000002,
+        "wall_min": 1.689805496
+      },
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.284402051,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 1,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.040517,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.045888,
+            "wall_seconds": 1.631134702
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.008507,
+            "wall_seconds": 1.617847468
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.040517,
+            "wall_seconds": 1.626723906
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99918, 7) want=(99918, 7)",
+        "wall_median": 1.626723906,
+        "wall_min": 1.617847468
+      },
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.284886364,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 1,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.049369,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.071205,
+            "wall_seconds": 1.6607818650000001
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.049369,
+            "wall_seconds": 1.649327293
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.037227,
+            "wall_seconds": 1.628006229
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99974, 15) want=(99974, 15)",
+        "wall_median": 1.649327293,
+        "wall_min": 1.628006229
+      },
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.279802367,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 0,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.072282,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.021436,
+            "wall_seconds": 1.6076392149999998
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.072282,
+            "wall_seconds": 1.657685066
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.10684,
+            "wall_seconds": 1.6805264869999998
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99976, 5) want=(99976, 5)",
+        "wall_median": 1.657685066,
+        "wall_min": 1.6076392149999998
+      },
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.287524073,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 0,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.048401,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.034176,
+            "wall_seconds": 1.60946955
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.048401,
+            "wall_seconds": 1.639010981
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.057757,
+            "wall_seconds": 1.64839889
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99918, 7) want=(99918, 7)",
+        "wall_median": 1.639010981,
+        "wall_min": 1.60946955
+      },
+      {
+        "argmin_arity": 2,
+        "audit_gates": false,
+        "batch_size": null,
+        "binding_limit": false,
+        "bit_length": 31,
+        "check_mode": "per-party",
+        "circuit": {
+          "compile_seconds": 0.284058251,
+          "integer_bits": 28351,
+          "integer_opens": 406,
+          "integer_triples": 18710,
+          "vm_rounds": 246
+        },
+        "delay_ms": 1.0,
+        "disclose": "none",
+        "edabit": false,
+        "field_bits": 128,
+        "file_prep": false,
+        "host": "host-a",
+        "input_check": false,
+        "is_real": 0,
+        "measured_mb": 22.2045,
+        "measured_rounds": 286,
+        "mode": "rfs",
+        "n_assets": 1,
+        "n_mm": 16,
+        "n_parties": 7,
+        "n_requests": 1,
+        "padded_mm": 16,
+        "party0_median": 1.040787,
+        "prime": null,
+        "protocol": "malicious-shamir-party.x",
+        "public_maker_assets": false,
+        "repeats": 3,
+        "rfs_steps": 5,
+        "samples": [
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.040787,
+            "wall_seconds": 1.628314005
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.047902,
+            "wall_seconds": 1.668467857
+          },
+          {
+            "global_mb": 140.965,
+            "party0_mb": 22.2045,
+            "party0_rounds": 286,
+            "party0_seconds": 1.017465,
+            "wall_seconds": 1.630439508
+          }
+        ],
+        "tag": "",
+        "threshold": 2,
+        "trunc_pr": false,
+        "user_asset": 0,
+        "verified": true,
+        "verify_detail": "steps=5 first=(99974, 15) want=(99974, 15)",
+        "wall_median": 1.630439508,
+        "wall_min": 1.628314005
+      }
+    ],
+    "timing_gap_s": 0.01031631200000005,
+    "timing_spread_s": 0.0851738580000001
+  }
+}

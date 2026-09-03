@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; script-src 'self'; style-src 'self'">
+  <meta name="qomm-gateway-port" content="">
+  <title>QOMM</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/demo.css?v=20260902a">
+  <link rel="stylesheet" href="/react-flow.css?v=20260902a">
+</head>
+<body>
+<header>
+  <h1 class="title" data-s="title">QOMM</h1>
+  <span class="sub" data-s="subtitle"></span>
+  <span class="badge engine" id="engineBadge">--</span>
+  <span class="badge" id="roundNum">#--</span>
+  <span class="badge" id="countdown"></span>
+  <span class="spacer"></span>
+  <span class="badge seat hide" id="seatBadge"></span>
+  <button type="button" id="btn-leave" class="hide" data-s="leave"></button>
+  <button type="button" id="btn-lang" aria-label="language">EN</button>
+</header>
+
+<div id="errorbar" class="error-banner hide" role="alert" aria-live="assertive"></div>
+
+<main>
+  <!-- lobby ------------------------------------------------------------- -->
+  <section id="lobby" aria-labelledby="lobby-title">
+    <div class="card">
+      <h2 id="lobby-title" data-s="lobbyTitle"></h2>
+      <p class="why" data-s="lobbyWhy"></p>
+      <div class="row">
+        <label for="pname" data-s="yourName"></label>
+        <input type="text" id="pname" maxlength="24" placeholder="">
+        <button type="button" class="go ghost" id="btn-watch" data-s="watch"></button>
+      </div>
+      <h3 class="subhead" data-s="theSeats"></h3>
+      <div class="lobby-grid" id="lobby-grid" role="group" aria-labelledby="lobby-title" aria-busy="true">
+        <p class="empty" data-s="connecting"></p>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-s="whatIsThis"></h2>
+      <div id="explain"></div>
+    </div>
+  </section>
+
+  <!-- stage ------------------------------------------------------------- -->
+  <section id="stage" class="hide">
+    <!-- where the round is: a live diagram, not a list of steps -->
+    <div class="card graph-card">
+      <div class="phase-strip" id="phase-strip" role="list" aria-label="phase"></div>
+      <p class="phase-caption" id="phase-caption" aria-live="polite"></p>
+      <div id="network-graph" role="group" data-s-aria="graphAria"></div>
+    </div>
+
+    <!-- balances: what this seat owns, always on screen ------------------- -->
+    <div id="portfolio-strip" class="portfolio-strip hide" aria-live="polite"></div>
+
+    <!-- chat: plain-language control of the same messages the form sends -- -->
+    <div id="chat-panel" class="card chat-panel hide">
+      <h2 data-s="chatTitle"></h2>
+      <p class="why" id="chat-why"></p>
+      <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+      <div id="chat-preview" class="chat-preview hide" aria-live="polite"></div>
+      <div class="chat-input-row">
+        <label for="chat-input" class="sr-only" data-s="chatTitle"></label>
+        <input type="text" id="chat-input" placeholder="" data-s-placeholder="chatPlaceholder">
+        <button type="button" id="chat-send" class="go" data-s="chatSend"></button>
+      </div>
+      <div id="chat-hints" class="chat-hints"></div>
+    </div>
+
+    <!-- role panel ------------------------------------------------------- -->
+    <div id="panel"></div>
+
+    <div class="grid two">
+      <div class="card">
+        <h2 data-s="publicTitle"></h2>
+        <p class="why" data-s="publicWhy"></p>
+        <div id="publicbody"></div>
+        <h3 class="subhead" data-s="historyTitle"></h3>
+        <div id="history" class="history-list"></div>
+      </div>
+      <div class="card">
+        <h2 data-s="seatsTitle"></h2>
+        <p class="why" data-s="seatsWhy"></p>
+        <div class="seatmap" id="seatmap"></div>
+        <h3 class="subhead" data-s="noticesTitle"></h3>
+        <div class="notices" id="notices" role="log" aria-live="polite"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <span data-s="footer"></span>
+  <span id="conn" aria-live="polite"></span>
+</footer>
+
+<script src="/react-flow.js?v=20260902a"></script>
+<script src="/demo.js?v=20260902a"></script>
+</body>
+</html>

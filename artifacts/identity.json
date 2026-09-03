@@ -1,0 +1,40 @@
+{
+  "honest": {
+    "culprits": [],
+    "openings": {
+      "0": 1394721395775900095949232251407070470755703174477572059968008193801964575850,
+      "1": 1851379792732748119730335966416627133033444459548329816787521035678508526138,
+      "2": -753286429085827958056119465497573504190129444643876728257377388440701273944,
+      "3": -3590791799081766700409907031057354513641292241182254106149266331538842004658,
+      "4": 1317118515567826183019334299055274243785351915346244867667432251395365596657,
+      "5": 1273321834066472626269620077840760643201749436037276692273753809859615204043,
+      "6": -1593403010557945781879299384193477201372017673352018174642278057798114447422
+    },
+    "verified": true
+  },
+  "host": "host-c",
+  "question": "Is the request the circuit priced the request the taker sent, and is the policy the one the maker published?",
+  "setting": {
+    "checked_values": 46,
+    "field_bits": 253,
+    "n_makers": 4,
+    "n_parties": 7,
+    "repeats": 1,
+    "threshold": 2
+  },
+  "tampered": {
+    "message": "the inputs node 4 fed the circuit were not the ones committed to them",
+    "named": [
+      4
+    ],
+    "named_the_right_node": true,
+    "verified": false,
+    "what": "node 4 fed a different value at input 1, which is the taker's quantity --- the case a taker cares about rather than a maker"
+  },
+  "the_seam_that_was_open": "An earlier generator revision emitted a FIXTURE coefficient list with a comment saying so. With fixture coefficients the check proves nothing --- the argument is entirely that the coefficients arrive after the commitments, so a node knowing them in advance picks its error to cancel. This run derives them from the published commitments and hands the same list to the circuit, which closes and verifies that seam.",
+  "what_this_does_not_establish": [
+    "That the maker's committed policy is one it would honour off-venue. policy_audit shows the fields sit in bands the venue published; it cannot show intent.",
+    "That the request was real. The maker never sees it --- that is the design --- so it cannot tell a genuine request from probing, which is what is_real cover traffic and the disclosure budget are for.",
+    "That every eligible maker was included. An omission has no commitment in the statement to fail against; rust/qomm-audit/src/receipts.rs covers that per slot, on a different axis."
+  ]
+}

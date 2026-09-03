@@ -1,0 +1,52 @@
+{
+  "bit_length": 31,
+  "claim_boundary": "a link between two remote sites is the sum of two real round trips, not the direct one between them, because the sites cannot all reach each other",
+  "data_sent": "Global data sent = 18.6198 MB (all parties)",
+  "engine_seconds": {
+    "max": 1.52849,
+    "mean": 1.5117657142857142,
+    "median": 1.50771,
+    "min": 1.4987,
+    "n": 7,
+    "rsd": 0.008137128561753287,
+    "sd": 0.012301431972393643
+  },
+  "fixture": "seven parties across real sites, cross-site links carried through the machine running this script",
+  "host": "host-c",
+  "mode": "rfq",
+  "n_mm": 16,
+  "sites": [
+    {
+      "label": "host-b",
+      "parties": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "remote": true,
+      "round_trip_ms": null
+    },
+    {
+      "label": "host-a",
+      "parties": [
+        4,
+        5,
+        6
+      ],
+      "remote": true,
+      "round_trip_ms": 17.55
+    }
+  ],
+  "verified": true,
+  "verify_detail": "got=(99990, 5) want=(99990, 5)",
+  "wall_seconds": {
+    "max": 68.3772422500042,
+    "mean": 29.52920491666494,
+    "median": 12.426299208003911,
+    "min": 7.784073291986715,
+    "n": 3,
+    "rsd": 1.142034164900885,
+    "sd": 33.72336087719055
+  }
+}

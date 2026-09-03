@@ -1,0 +1,219 @@
+[package]
+name = "qomm-harness"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+autobins = false
+
+[dependencies]
+qomm-demo = { path = "../qomm-demo" }
+qomm-audit = { path = "../qomm-audit" }
+qomm-dsl = { path = "../qomm-dsl" }
+qomm-measure = { path = "../qomm-measure" }
+qomm-mpc = { path = "../qomm-mpc" }
+qomm-proofs = { path = "../qomm-proofs" }
+qomm-sim = { path = "../qomm-sim" }
+qomm-transport = { path = "../qomm-transport" }
+qomm-zk = { path = "../qomm-zk" }
+curve25519-dalek.workspace = true
+ed25519-dalek.workspace = true
+merlin.workspace = true
+rand.workspace = true
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+hex.workspace = true
+sha2.workspace = true
+
+[[bin]]
+name = "build_audit_doc"
+path = "src/bin/build_audit_doc.rs"
+
+[[bin]]
+name = "collect_origins"
+path = "src/bin/collect_origins.rs"
+
+[[bin]]
+name = "collect_uniswapx"
+path = "src/bin/collect_uniswapx.rs"
+
+[[bin]]
+name = "derive_snr"
+path = "src/bin/derive_snr.rs"
+
+[[bin]]
+name = "make_figures"
+path = "src/bin/make_figures.rs"
+
+[[bin]]
+name = "manifest"
+path = "src/bin/manifest.rs"
+
+[[bin]]
+name = "opt_sweep"
+path = "src/bin/opt_sweep.rs"
+
+[[bin]]
+name = "report"
+path = "src/bin/report.rs"
+
+[[bin]]
+name = "research_run"
+path = "src/bin/research_run.rs"
+
+[[bin]]
+name = "run_audit_slots"
+path = "src/bin/run_audit_slots.rs"
+
+[[bin]]
+name = "run_binding_chain"
+path = "src/bin/run_binding_chain.rs"
+
+[[bin]]
+name = "run_bitdec_rounds"
+path = "src/bin/run_bitdec_rounds.rs"
+
+[[bin]]
+name = "run_block_range_query"
+path = "src/bin/run_block_range_query.rs"
+
+[[bin]]
+name = "run_circuit_bound_proof"
+path = "src/bin/run_circuit_bound_proof.rs"
+
+[[bin]]
+name = "run_disclosure_ceiling"
+path = "src/bin/run_disclosure_ceiling.rs"
+
+[[bin]]
+name = "run_distributed_assembly"
+path = "src/bin/run_distributed_assembly.rs"
+
+[[bin]]
+name = "run_distributed_dp"
+path = "src/bin/run_distributed_dp.rs"
+
+[[bin]]
+name = "run_distributed_publication"
+path = "src/bin/run_distributed_publication.rs"
+
+[[bin]]
+name = "run_dp_audit"
+path = "src/bin/run_dp_audit.rs"
+
+[[bin]]
+name = "run_dp_effect"
+path = "src/bin/run_dp_effect.rs"
+
+[[bin]]
+name = "run_entity_behavior"
+path = "src/bin/run_entity_behavior.rs"
+
+[[bin]]
+name = "run_identity"
+path = "src/bin/run_identity.rs"
+
+[[bin]]
+name = "run_input_check"
+path = "src/bin/run_input_check.rs"
+
+[[bin]]
+name = "run_locate"
+path = "src/bin/run_locate.rs"
+
+[[bin]]
+name = "run_maker_updates"
+path = "src/bin/run_maker_updates.rs"
+
+[[bin]]
+name = "run_market_thickness"
+path = "src/bin/run_market_thickness.rs"
+
+[[bin]]
+name = "run_multi_asset"
+path = "src/bin/run_multi_asset.rs"
+
+[[bin]]
+name = "run_multiplication_cost"
+path = "src/bin/run_multiplication_cost.rs"
+
+[[bin]]
+name = "run_placement"
+path = "src/bin/run_placement.rs"
+
+[[bin]]
+name = "run_probe_budget"
+path = "src/bin/run_probe_budget.rs"
+
+[[bin]]
+name = "run_price_conditionals"
+path = "src/bin/run_price_conditionals.rs"
+
+[[bin]]
+name = "run_qomm"
+path = "src/bin/run_qomm.rs"
+
+[[bin]]
+name = "run_rho_sweep"
+path = "src/bin/run_rho_sweep.rs"
+
+[[bin]]
+name = "run_robust_atlas"
+path = "src/bin/run_robust_atlas.rs"
+
+[[bin]]
+name = "run_rounds"
+path = "src/bin/run_rounds.rs"
+
+[[bin]]
+name = "run_serve_bench"
+path = "src/bin/run_serve_bench.rs"
+
+[[bin]]
+name = "run_sim_matrix"
+path = "src/bin/run_sim_matrix.rs"
+
+[[bin]]
+name = "run_sites"
+path = "src/bin/run_sites.rs"
+
+[[bin]]
+name = "run_stages"
+path = "src/bin/run_stages.rs"
+
+[[bin]]
+name = "run_staleness"
+path = "src/bin/run_staleness.rs"
+
+[[bin]]
+name = "run_three_times"
+path = "src/bin/run_three_times.rs"
+
+[[bin]]
+name = "run_threshold_assembly"
+path = "src/bin/run_threshold_assembly.rs"
+
+[[bin]]
+name = "run_transport"
+path = "src/bin/run_transport.rs"
+
+[[bin]]
+name = "rust_only_guard"
+path = "src/bin/rust_only_guard.rs"
+
+[[bin]]
+name = "scrub_artifacts"
+path = "src/bin/scrub_artifacts.rs"
+
+[[bin]]
+name = "serve_demo"
+path = "src/bin/serve_demo.rs"
+
+[[bin]]
+name = "sweep"
+path = "src/bin/sweep.rs"
+
+[[bin]]
+name = "tcp_rtt"
+path = "src/bin/tcp_rtt.rs"

@@ -1,0 +1,124 @@
+{
+  "claim_boundary": [
+    "At degree t, zero through two malformed shares are corrected and named exactly; three are refused.",
+    "Before degree reduction at degree 2t, one malformed product share is attributable; two are refused.",
+    "A valid sharing of a substituted input is not a malformed codeword and must be caught by transport binding and the circuit input check."
+  ],
+  "communication": {
+    "attribution_shares": 7,
+    "extra_rounds": 0,
+    "extra_share_traffic_fraction": 0.4,
+    "ordinary_opening_shares": 5
+  },
+  "deployment": {
+    "degree_2t_capacity": 1,
+    "degree_t_capacity": 2,
+    "parties": 7,
+    "threshold": 2
+  },
+  "grid": {
+    "degree_2t_product": {
+      "capacity": 1,
+      "degree": 4,
+      "rows": [
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 0
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 1
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 2
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 3
+        }
+      ]
+    },
+    "degree_t": {
+      "capacity": 2,
+      "degree": 2,
+      "rows": [
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 0
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 1
+        },
+        {
+          "named_exactly": 300,
+          "recovered": 300,
+          "trials": 300,
+          "wrong_shares": 2
+        },
+        {
+          "named_exactly": 0,
+          "recovered": 0,
+          "trials": 300,
+          "wrong_shares": 3
+        }
+      ]
+    }
+  },
+  "host": "host-c",
+  "implementation": "rust/qomm-zk/src/shamir.rs, re-exported by rust/qomm-audit/src/locate.rs",
+  "question": "Which malformed Shamir shares can be attributed without guessing?",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "schema": "qomm-share-attribution-v1",
+  "timing_us": {
+    "locate_no_errors": {
+      "max": 83.334,
+      "mean": 62.257884999999995,
+      "median": 59.6875,
+      "min": 58.584,
+      "n": 200,
+      "rsd": 0.07389460008509255,
+      "sd": 4.6005215142186815
+    },
+    "locate_one_error": {
+      "max": 486.959,
+      "mean": 144.593155,
+      "median": 137.5625,
+      "min": 132.625,
+      "n": 200,
+      "rsd": 0.20080460158029717,
+      "sd": 29.03497088101315
+    },
+    "locate_two_errors": {
+      "max": 397.875,
+      "mean": 235.746925,
+      "median": 229.542,
+      "min": 222.792,
+      "n": 200,
+      "rsd": 0.081613637226725,
+      "sd": 19.240164014265947
+    },
+    "plain_lagrange_3_of_7": {
+      "max": 44.458,
+      "mean": 28.862080000000002,
+      "median": 28.375,
+      "min": 27.833,
+      "n": 200,
+      "rsd": 0.06558038092585843,
+      "sd": 1.8927862007126002
+    }
+  }
+}

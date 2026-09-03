@@ -1,0 +1,59 @@
+{
+  "what": "the fill comparison, standalone against folded into the last tournament layer",
+  "config": {
+    "host": "host-c",
+    "protocol": "malicious-shamir-party.x",
+    "n_parties": 7,
+    "threshold": 2,
+    "n_mm": 16,
+    "mode": "rfq",
+    "argmin_arity": 2
+  },
+  "note": "The standalone arm reproduces the host-a table exactly --- 79 rounds and +1.68% traffic --- which is why the folded arm beside it can be believed.",
+  "arms": [
+    {
+      "arm": "plain",
+      "note": "no limit; the quote is returned always",
+      "rounds": 70,
+      "global_mb": 32.5137,
+      "party0_mb": 5.49842,
+      "outcome": "got=(99990, 5) want=(99990, 5)",
+      "repeats": 3,
+      "traffic_over_plain_pct": 0.0,
+      "rounds_over_plain": 0
+    },
+    {
+      "arm": "standalone",
+      "note": "fill = (best_key <= limit_key) after the tournament",
+      "rounds": 79,
+      "global_mb": 33.0596,
+      "party0_mb": 5.59026,
+      "outcome": "got=(99990, 5) want=(99990, 5)",
+      "repeats": 3,
+      "traffic_over_plain_pct": 1.68,
+      "rounds_over_plain": 9
+    },
+    {
+      "arm": "folded",
+      "note": "the fill comparison inside the last tournament layer",
+      "rounds": 72,
+      "global_mb": 33.6037,
+      "party0_mb": 5.68184,
+      "outcome": "got=(99990, 5) want=(99990, 5)",
+      "repeats": 3,
+      "traffic_over_plain_pct": 3.35,
+      "rounds_over_plain": 2
+    },
+    {
+      "arm": "folded, level below the quote",
+      "note": "the same program, an unfillable limit",
+      "rounds": 72,
+      "global_mb": 33.6037,
+      "party0_mb": 5.68184,
+      "outcome": "got=(0, 0) want=(99990, 5)",
+      "repeats": 3,
+      "traffic_over_plain_pct": 3.35,
+      "rounds_over_plain": 2
+    }
+  ]
+}

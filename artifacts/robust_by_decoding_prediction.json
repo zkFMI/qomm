@@ -1,0 +1,75 @@
+{
+  "what": "Buying guaranteed output delivery without implementing GSZ",
+  "written": "2026-08-22. The first version was written before Protocols/Shamir.hpp had been read; that version and what reading it changed are both kept below.",
+
+  "the_idea": {
+    "claim": "GSZ's segmenting, player elimination and king exist to reach t < n/3. At t < n/4 a degree-2t sharing is directly correctable, so robustness can be the decoder that is already written rather than a new protocol.",
+    "arithmetic": "Reed-Solomon corrects e errors iff n - d >= 2e + 1. A product before degree reduction is d = 2t and robustness wants e = t, so n - 2t >= 2t + 1, i.e. n >= 4t + 1.",
+    "table": [
+      {"n": 7, "t": 2, "product_degree": 4, "capacity": 1, "enough": false, "note": "this deployment today"},
+      {"n": 9, "t": 2, "product_degree": 4, "capacity": 2, "enough": true, "note": "the proposal"},
+      {"n": 11, "t": 3, "product_degree": 6, "capacity": 2, "enough": false},
+      {"n": 13, "t": 3, "product_degree": 6, "capacity": 3, "enough": true}
+    ],
+    "design_point": "n = 4T + 1"
+  },
+
+  "the_risk_that_was_written_down_and_then_fired": {
+    "what_was_written": "This assumes MP-SPDZ's Shamir multiplication publicly opens a degree-2t sharing. If instead each party re-shares its local product, the decode does not apply and the whole analysis changes. Protocols/Shamir.hpp gets read before anything gets run.",
+    "what_reading_found": "Half wrong, and the half that was wrong is the half that was deployed.",
+    "plain_shamir": "Protocols/Shamir.hpp is GRR re-sharing: prepare_mul does resharing->add_mine(x * y * rec_factor) for the first 2t+1 parties and finalize sums the received degree-t shares. There is NO degree-2t opening anywhere in the multiplication, so there is nothing for a decoder to correct. The n >= 4t+1 shortcut does not apply to malicious-shamir-party.x at all.",
+    "atlas": "Protocols/Atlas.hpp is the Damgard-Nielsen shape and does exactly what the idea needs: get_double_sharing() returns {[r]_2t, [r]_t}, prepare() sends (x*y + r_2t) to a king, and exchange() has the king Lagrange-interpolate from 2t+1 shares and re-share the result at degree t.",
+    "so": "The shortcut applies to ATLAS and not to Shamir. atlas-party.x ships in MP-SPDZ and is SEMI-HONEST; there is no malicious ATLAS."
+  },
+
+  "what_is_already_in_the_engine": {
+    "king_with_relays": "ALREADY THERE. Atlas.hpp rotates the king round-robin: base_king, next_king = (next_king + 1) % P.num_players().",
+    "random_double_sharings": "ALREADY THERE. Atlas<T>::get_double_sharing().",
+    "segments_checkpoints_and_player_elimination": "Not there --- and the point of this note is that they may not be needed."
+  },
+
+  "the_construction": {
+    "step_1": "n >= 4T + 1, so n = 9 at T = 2.",
+    "step_2": "e = xy + r is masked by a FRESH degree-2t random, so it is not secret. Open it to everyone instead of to a king.",
+    "step_3": "Each party decodes the n shares of e with Berlekamp-Welch, correcting up to T wrong ones and naming their senders, then computes [xy]_t = e - [r]_t entirely locally.",
+    "what_this_removes": "The king, whose word nobody now has to take; the re-sharing step; segments; checkpoints; player elimination.",
+    "why_the_king_was_the_problem": "ATLAS's king reconstructs from 2t+1 shares and then re-shares. A malicious king re-shares a consistent sharing of the WRONG value, and no amount of error correction on a consistent sharing catches that. This is exactly the 'consistent but wrong' case. Opening to everyone removes the party whose word was being taken."
+  },
+
+  "predictions": [
+    {
+      "quantity": "elements per party per multiplication, online, n=9 T=2, no king, decode at every party",
+      "predicted": "8, plus or minus 1",
+      "reasoning": "each party sends its share of e to the other n-1 and there is no return leg, so the cost is n-1 = 8. ATLAS with a king is about 2 (one to the king, one back, amortised over the rotation).",
+      "against_the_deployed_baseline": "about 1.0x the 8.000 that malicious-shamir-party.x spends online today. Malicious Shamir already pays for a sacrifice; this pays for the all-to-all instead and needs no sacrifice, because errors are corrected rather than detected."
+    },
+    {
+      "quantity": "rounds per multiplication layer",
+      "predicted": "1, against ATLAS's 2",
+      "reasoning": "to the king and back becomes one all-to-all. If this lands, the robust protocol has FEWER rounds than the semi-honest one it is derived from."
+    },
+    {
+      "quantity": "global traffic against the n=7 abort-only baseline",
+      "predicted": "1.2x to 1.5x",
+      "reasoning": "per-party about the same, times 9 parties instead of 7 = 1.29"
+    },
+    {
+      "quantity": "behaviour",
+      "predicted": "one or two corrupted nodes are corrected AND named without the protocol stopping; three makes it refuse rather than guess",
+      "why_it_matters": "this is the difference between rung 4 and rung 5, and naming without stopping has never been measured here"
+    }
+  ],
+
+  "what_still_has_to_abort_and_why_that_is_acceptable": {
+    "the_double_sharings": "A malicious contributor can make [r]_t and [r]_2t inconsistent with each other, which no decode on either one alone catches. The check is a sacrifice: open a random combination and confirm the two degrees agree.",
+    "why_abort_is_fine_there": "Preprocessing consumes no inputs. A failed offline run leaks nothing and denies nobody an outcome --- it is re-run, and a node that keeps failing it is removed between auctions, which is a governance action rather than a protocol one. Guaranteed output delivery is only needed once real inputs are in.",
+    "the_input_phase": "Already robust here for a reason generic GSZ does not have: the dealer publishes a Pedersen commitment per share, so a node handed a bad share proves it to anybody by the commitment not opening. The complaint protocol a robust input phase normally needs is paid for by publicly auditable MPC."
+  },
+
+  "what_this_does_not_buy": [
+    "GSZ's asymptotics. GSZ is 5.5 to 7.5 with a king; this gives up the king and pays n-1.",
+    "A smaller consortium. n = 9 is two more institutions than n = 7, and POSITION.md's own risk register says the binding constraint is assembling the consortium at all. A governance cost, not a technical one.",
+    "Anything at T = 3 without going to n = 13."
+  ],
+  "the_alternative_that_looks_cheap_and_is_not": "Keeping n = 7 and dropping to T = 1 also satisfies n >= 4T+1 and costs no traffic. It also drops the privacy threshold to 1, so any two colluding nodes reconstruct every order in the book. Not available to a venue."
+}

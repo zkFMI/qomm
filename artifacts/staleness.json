@@ -1,0 +1,165 @@
+{
+  "host": "host-c",
+  "block_seconds": 12.0,
+  "gaps_blocks": [
+    2,
+    8,
+    25
+  ],
+  "gaps_seconds": [
+    24.0,
+    96.0,
+    300.0
+  ],
+  "pairs_seen": 6664,
+  "rows": [
+    {
+      "pair": [
+        "0x0000000000000000000000000000000000000000",
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+      ],
+      "observations": 15504,
+      "blocks": 15257,
+      "within_block": {
+        "median_bp": 4.809818250492981,
+        "n": 247
+      },
+      "across_blocks": {
+        "2": {
+          "median_bp": 5.521949411981808,
+          "n": 424
+        },
+        "8": {
+          "median_bp": 8.434671483001921,
+          "n": 401
+        },
+        "25": {
+          "median_bp": 19.22032344428004,
+          "n": 343
+        }
+      },
+      "ratio_to_within_block": {
+        "2": 1.1480578110027,
+        "8": 1.7536362173638083,
+        "25": 3.9960602341491924
+      }
+    },
+    {
+      "pair": [
+        "0x0000000000000000000000000000000000000000",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      ],
+      "observations": 13927,
+      "blocks": 13716,
+      "within_block": {
+        "median_bp": 5.093418297335006,
+        "n": 211
+      },
+      "across_blocks": {
+        "2": {
+          "median_bp": 4.4728374988523,
+          "n": 492
+        },
+        "8": {
+          "median_bp": 8.913963532979352,
+          "n": 384
+        },
+        "25": {
+          "median_bp": 17.75177414245377,
+          "n": 310
+        }
+      },
+      "ratio_to_within_block": {
+        "2": 0.8781602526524459,
+        "8": 1.7500945362455982,
+        "25": 3.4852378316820958
+      }
+    },
+    {
+      "pair": [
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48"
+      ],
+      "observations": 7707,
+      "blocks": 7588,
+      "within_block": {
+        "median_bp": 6.999494342014856,
+        "n": 119
+      },
+      "across_blocks": {
+        "2": {
+          "median_bp": 8.624533142596036,
+          "n": 210
+        },
+        "8": {
+          "median_bp": 9.354373782364256,
+          "n": 212
+        },
+        "25": {
+          "median_bp": 18.4615524344256,
+          "n": 184
+        }
+      },
+      "ratio_to_within_block": {
+        "2": 1.2321651709648216,
+        "8": 1.3364356516747367,
+        "25": 2.6375551621792304
+      }
+    },
+    {
+      "pair": [
+        "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        "0xdac17f958d2ee523a2206206994597c13d831ec7"
+      ],
+      "observations": 6822,
+      "blocks": 6762,
+      "within_block": {
+        "median_bp": 7.483455845500586,
+        "n": 60
+      },
+      "across_blocks": {
+        "2": {
+          "median_bp": 3.6014539274420443,
+          "n": 202
+        },
+        "8": {
+          "median_bp": 7.445316894276743,
+          "n": 208
+        },
+        "25": {
+          "median_bp": 12.230825305081794,
+          "n": 149
+        }
+      },
+      "ratio_to_within_block": {
+        "2": 0.4812554522664033,
+        "8": 0.9949035643409624,
+        "25": 1.6343819697199864
+      }
+    }
+  ],
+  "median_ratio_at_24s": 1.013109031827573,
+  "conditioned_on": "orders that settled; an order that went stale and did not settle leaves no Fill log, so the drift estimate is a lower bound",
+  "pair_count_sensitivity": {
+    "2": {
+      "pairs": 2,
+      "median_ratio": 1.013109031827573
+    },
+    "4": {
+      "pairs": 4,
+      "median_ratio": 1.013109031827573
+    },
+    "8": {
+      "pairs": 8,
+      "median_ratio": 1.013109031827573
+    },
+    "16": {
+      "pairs": 16,
+      "median_ratio": 0.9031496774806311
+    },
+    "32": {
+      "pairs": 27,
+      "median_ratio": 1.0284091214060727
+    }
+  }
+}

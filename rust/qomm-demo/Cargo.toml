@@ -1,0 +1,28 @@
+[package]
+name = "qomm-demo"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+qomm-transport.workspace = true
+zkpi-defmi-sdk.workspace = true
+qomm-audit.workspace = true
+qomm-mpc.workspace = true
+qomm-defmi.workspace = true
+qomm-proofs.workspace = true
+qomm-zk.workspace = true
+qomm-zkpi.workspace = true
+curve25519-dalek.workspace = true
+ed25519-dalek.workspace = true
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+hex.workspace = true
+base64.workspace = true
+openssl.workspace = true
+rand.workspace = true
+
+[dev-dependencies]
+tempfile = "3"

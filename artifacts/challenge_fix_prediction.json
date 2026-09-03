@@ -1,0 +1,28 @@
+{
+  "what": "Emitting a sound input check, predicted before the generator was changed",
+  "written": "2026-08-22",
+
+  "the_construction": "The circuit reads every input and stores the shares instead of folding them at read time. It then opens one random value rho that no party controls, and the coefficients are its powers: c_k = rho^k, computed as a running product on a public field element, so every multiplication into the accumulator is public times secret and stays local. The check is taken modulo the MPC prime, which the deployment already matches to the commitment field.",
+
+  "why_this_is_sound": "sum_k rho^k e_k + e_m = 0 is a polynomial of degree m in rho over F_p, so for a fixed nonzero e it has at most m roots and the probability is at most m/p. At m = 166 and a 253-bit p that is about 2^-245, against 2^-42 for the seven narrow repetitions the current circuit emits.",
+
+  "what_it_deletes": "The width budget. The whole of BINDING.md section 3.1 --- 164 bits, the mask spending its slack twice, the narrow-coefficient trade-off, the peak at 2^-34 --- exists only because the check was taken over the integers and had to avoid reducing in either field. Modulo p there is nothing to avoid. The mask becomes one uniform field element.",
+
+  "predictions": [
+    {"quantity": "rounds",
+     "predicted": "+1 against the current per-party check",
+     "why": "rho has to be opened before the combinations that use it, so it is a serial step rather than a parallel one. The per-party openings themselves stay in one round.",
+     "falsifiable": "more than +1, or zero"},
+
+    {"quantity": "traffic",
+     "predicted": "LOWER than the current per-party check, and close to the aggregate one",
+     "why": "repetitions drop from seven to one, because soundness no longer comes from repeating narrow coefficients. Openings go from 49 to 7, and one more for rho.",
+     "numbers": "the current per-party arm is 41.5804 MB against 41.5521 for the aggregate and 41.5443 for no check; predict about 41.55"},
+
+    {"quantity": "the answer",
+     "predicted": "unchanged --- every arm is verified against the cleartext reference"},
+
+    {"quantity": "what it costs to require",
+     "predicted": "the matched field, which BINDING.md already recommends at 2.00x traffic and 1.00x rounds. So this fix is free only for a deployment that had already taken that decision --- and it is a second, independent reason to take it, after the first (a mismatched field makes the audit accuse every node)."}
+  ]
+}

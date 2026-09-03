@@ -1,0 +1,411 @@
+{
+  "binary": "malicious-shamir-party.x",
+  "bits": [
+    13,
+    26,
+    52
+  ],
+  "host": "host-a",
+  "marginal": {
+    "13bit_n1": {
+      "comparison_alone": 29,
+      "comparison_and_bits": 34,
+      "extra_mb": 0.067,
+      "extra_rounds": 5
+    },
+    "13bit_n48": {
+      "comparison_alone": 35,
+      "comparison_and_bits": 49,
+      "extra_mb": 2.681,
+      "extra_rounds": 14
+    },
+    "26bit_n1": {
+      "comparison_alone": 29,
+      "comparison_and_bits": 35,
+      "extra_mb": 0.123,
+      "extra_rounds": 6
+    },
+    "26bit_n48": {
+      "comparison_alone": 35,
+      "comparison_and_bits": 50,
+      "extra_mb": 5.341,
+      "extra_rounds": 15
+    },
+    "52bit_n1": {
+      "comparison_alone": 29,
+      "comparison_and_bits": 36,
+      "extra_mb": 0.256,
+      "extra_rounds": 7
+    },
+    "52bit_n48": {
+      "comparison_alone": 35,
+      "comparison_and_bits": 57,
+      "extra_mb": 11.692,
+      "extra_rounds": 22
+    }
+  },
+  "parties": 7,
+  "rows": [
+    {
+      "arm": "inputs_only",
+      "bits": 13,
+      "edabit": false,
+      "mb": 0.00032,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000166,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "inputs_only",
+      "bits": 13,
+      "edabit": false,
+      "mb": 0.006336,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000176,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "inputs_only",
+      "bits": 26,
+      "edabit": false,
+      "mb": 0.00032,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000159,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "inputs_only",
+      "bits": 26,
+      "edabit": false,
+      "mb": 0.006336,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000155,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "inputs_only",
+      "bits": 52,
+      "edabit": false,
+      "mb": 0.00032,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000149,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "inputs_only",
+      "bits": 52,
+      "edabit": false,
+      "mb": 0.006336,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 2,
+      "rounds_spread": [
+        2,
+        2
+      ],
+      "seconds": 0.000174,
+      "vm_rounds": 2
+    },
+    {
+      "arm": "compare",
+      "bits": 13,
+      "edabit": false,
+      "mb": 0.323088,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 29,
+      "rounds_spread": [
+        29,
+        29
+      ],
+      "seconds": 0.003441,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "compare",
+      "bits": 13,
+      "edabit": false,
+      "mb": 15.4483,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 35,
+      "rounds_spread": [
+        35,
+        35
+      ],
+      "seconds": 0.026022,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "compare",
+      "bits": 26,
+      "edabit": false,
+      "mb": 0.323088,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 29,
+      "rounds_spread": [
+        29,
+        29
+      ],
+      "seconds": 0.007758,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "compare",
+      "bits": 26,
+      "edabit": false,
+      "mb": 15.4483,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 35,
+      "rounds_spread": [
+        35,
+        35
+      ],
+      "seconds": 0.024239,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "compare",
+      "bits": 52,
+      "edabit": false,
+      "mb": 0.323088,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 29,
+      "rounds_spread": [
+        29,
+        29
+      ],
+      "seconds": 0.005844,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "compare",
+      "bits": 52,
+      "edabit": false,
+      "mb": 15.4483,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 35,
+      "rounds_spread": [
+        35,
+        35
+      ],
+      "seconds": 0.025934,
+      "vm_rounds": 12
+    },
+    {
+      "arm": "bitdec",
+      "bits": 13,
+      "edabit": false,
+      "mb": 0.06792,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 25,
+      "rounds_spread": [
+        25,
+        25
+      ],
+      "seconds": 0.00332,
+      "vm_rounds": 8
+    },
+    {
+      "arm": "bitdec",
+      "bits": 13,
+      "edabit": false,
+      "mb": 3.19786,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 25,
+      "rounds_spread": [
+        25,
+        25
+      ],
+      "seconds": 0.011751,
+      "vm_rounds": 8
+    },
+    {
+      "arm": "bitdec",
+      "bits": 26,
+      "edabit": false,
+      "mb": 0.123984,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 26,
+      "rounds_spread": [
+        26,
+        26
+      ],
+      "seconds": 0.002366,
+      "vm_rounds": 9
+    },
+    {
+      "arm": "bitdec",
+      "bits": 26,
+      "edabit": false,
+      "mb": 5.88806,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 26,
+      "rounds_spread": [
+        26,
+        26
+      ],
+      "seconds": 0.015466,
+      "vm_rounds": 9
+    },
+    {
+      "arm": "bitdec",
+      "bits": 52,
+      "edabit": false,
+      "mb": 0.25752,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 27,
+      "rounds_spread": [
+        27,
+        27
+      ],
+      "seconds": 0.005355,
+      "vm_rounds": 10
+    },
+    {
+      "arm": "bitdec",
+      "bits": 52,
+      "edabit": false,
+      "mb": 12.2992,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 33,
+      "rounds_spread": [
+        33,
+        33
+      ],
+      "seconds": 0.024258,
+      "vm_rounds": 10
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 13,
+      "edabit": false,
+      "mb": 0.389664,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 34,
+      "rounds_spread": [
+        34,
+        34
+      ],
+      "seconds": 0.007886,
+      "vm_rounds": 18
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 13,
+      "edabit": false,
+      "mb": 18.1291,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 49,
+      "rounds_spread": [
+        49,
+        49
+      ],
+      "seconds": 0.038679,
+      "vm_rounds": 18
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 26,
+      "edabit": false,
+      "mb": 0.445632,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 35,
+      "rounds_spread": [
+        35,
+        35
+      ],
+      "seconds": 0.006027,
+      "vm_rounds": 19
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 26,
+      "edabit": false,
+      "mb": 20.7892,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 50,
+      "rounds_spread": [
+        50,
+        50
+      ],
+      "seconds": 0.04145,
+      "vm_rounds": 19
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 52,
+      "edabit": false,
+      "mb": 0.579264,
+      "n": 1,
+      "repeats": 5,
+      "rounds": 36,
+      "rounds_spread": [
+        36,
+        36
+      ],
+      "seconds": 0.00802,
+      "vm_rounds": 20
+    },
+    {
+      "arm": "compare_and_bits",
+      "bits": 52,
+      "edabit": false,
+      "mb": 27.1404,
+      "n": 48,
+      "repeats": 5,
+      "rounds": 57,
+      "rounds_spread": [
+        57,
+        57
+      ],
+      "seconds": 0.070513,
+      "vm_rounds": 20
+    }
+  ],
+  "threshold": 2
+}

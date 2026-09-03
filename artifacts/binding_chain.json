@@ -1,0 +1,65 @@
+{
+  "circuit": {
+    "detail": "got=(99989, 5) want=(99989, 5)",
+    "global_mb": 23.551,
+    "ran": true,
+    "repeats": 3,
+    "rounds": 57,
+    "verified": true,
+    "wall_s_median": 0.164641653
+  },
+  "dealer_that_deals_what_it_did_not_commit": {
+    "caught": [
+      [
+        3,
+        8
+      ]
+    ],
+    "caught_before_computing": true,
+    "moved_party": 3,
+    "moved_position": 8
+  },
+  "group": "ed25519",
+  "honest": {
+    "band": [
+      2,
+      400
+    ],
+    "check_ms": 88.0,
+    "check_ms_each": 0.146,
+    "deal_ms": 19.1,
+    "failures": 0,
+    "half_in_band": 42,
+    "lagrange": [
+      "7",
+      "7237005577332262213973186563042994240857116359379907606001950938285454250968",
+      "35",
+      "7237005577332262213973186563042994240857116359379907606001950938285454250954",
+      "21",
+      "7237005577332262213973186563042994240857116359379907606001950938285454250982",
+      "1"
+    ],
+    "party_file_is_the_dealt_share": true,
+    "range_proof_ms": 3.4,
+    "range_verifies": true,
+    "rebuilt_request": [
+      0,
+      20,
+      0,
+      0,
+      1
+    ],
+    "share_checks": 602,
+    "values": 86
+  },
+  "host": "host-a",
+  "n_mm": 8,
+  "n_parties": 7,
+  "node_that_feeds_something_else": {
+    "caught_by_this_chain": false,
+    "why": "an input the node substitutes is still a valid share of a different number, and every commitment it opens still opens. That is rust/qomm-harness/src/bin/run_input_check.rs, which catches the node where this catches the dealer. Neither implies the other."
+  },
+  "prime": "7237005577332262213973186563042994240857116359379907606001950938285454250989",
+  "prime_bits": 253,
+  "threshold": 2
+}

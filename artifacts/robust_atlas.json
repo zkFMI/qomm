@@ -1,0 +1,170 @@
+{
+ "host": "host-a",
+ "question": "Naming was rung 4 because the protocol still stopped. Does dropping the king and decoding at every party reach rung 5 --- the answer comes out anyway?",
+ "setting": {
+  "n_parties": 9,
+  "threshold": 2,
+  "multiplications": 2000,
+  "decoding_capacity_on_a_degree_2t_product": 2,
+  "n_over_4t_plus_1": "9 >= 9"
+ },
+ "arms": {
+  "king_honest": {
+   "corrupted": [],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 9,
+   "global_mb": 1.54125
+  },
+  "honest": {
+   "corrupted": [],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 5.25325
+  },
+  "corrupt_1": {
+   "corrupted": [
+    0
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    0
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 5.25325
+  },
+  "corrupt_2": {
+   "corrupted": [
+    0,
+    1
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    0,
+    1
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 5.25325
+  },
+  "corrupt_3": {
+   "corrupted": [
+    0,
+    1,
+    2
+   ],
+   "finished": false,
+   "answer": [],
+   "expected": 98000,
+   "answer_correct": false,
+   "named": [],
+   "named_exactly_the_corrupted": false,
+   "refused_to_start": null,
+   "refused_past_capacity": "more than 2 parties sent wrong shares of a masked product, which is beyond the decoding capacity of a degree-4 sharing over 9 points",
+   "rounds": null,
+   "global_mb": null
+  },
+  "corrupt_last_party": {
+   "corrupted": [
+    8
+   ],
+   "finished": true,
+   "answer": 98000,
+   "expected": 98000,
+   "answer_correct": true,
+   "named": [
+    8
+   ],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": null,
+   "refused_past_capacity": null,
+   "rounds": 8,
+   "global_mb": 5.25325
+  },
+  "too_few_parties": {
+   "corrupted": [],
+   "finished": false,
+   "answer": [],
+   "expected": 98000,
+   "answer_correct": false,
+   "named": [],
+   "named_exactly_the_corrupted": true,
+   "refused_to_start": "robust ATLAS needs n >= 4t+1 to correct t wrong shares of a degree-2t product; got n=7, t=2, which corrects only 1",
+   "refused_past_capacity": null,
+   "rounds": null,
+   "global_mb": null
+  }
+ },
+ "patch": "rust/qomm-mpc/patches/robust-atlas.patch",
+ "load_caveat": "host-a was at load average around 37 of 64 vCPU. Traffic, round counts and correctness do not depend on load; no wall-clock figure is reported here.",
+ "cost": {
+  "slope_between_2000_and_22000_multiplications": {
+   "global_bytes": 2623.97,
+   "per_party_bytes": 291.55,
+   "per_party_elements": 18.222
+  },
+  "comparison_elements_per_party_per_multiplication": {
+   "atlas_with_a_king_n9": 5.333,
+   "this_n9": 18.222,
+   "over_the_king": 3.417,
+   "malicious_shamir_with_naming_n7": 64.236,
+   "over_what_is_deployed_per_party": 0.284,
+   "over_what_is_deployed_global": 0.365
+  },
+  "rounds": {
+   "this_n9": [
+    8,
+    12
+   ],
+   "atlas_king_n9": [
+    9,
+    13
+   ],
+   "malicious_shamir_n7": [
+    11,
+    23
+   ],
+   "note": "for 2000 and 22000 multiplications. Dropping the king removes a round: it was to the king and back, and it is now one all-to-all."
+  }
+ },
+ "what_this_does_and_does_not_make_robust": {
+  "robust": "the degree-reduction step, which is where a wrong share used to stop the protocol",
+  "not_robust": [
+   "the double sharings, from Shamir<T>::get_randoms --- hyper-invertible matrices with no malicious check in this build. A corrupt contributor can make [r]_t and [r]_2t inconsistent with each other and no decode on either alone sees it.",
+   "the output opening, IndirectShamirMC, unchanged",
+   "the inputs, which in QOMM are bound by the dealer's per-share Pedersen commitments and in this benchmark are not"
+  ],
+  "why_the_first_one_is_acceptable": "it is preprocessing, and preprocessing consumes no inputs --- a failed run leaks nothing and denies nobody an outcome. It is re-run, and a node that keeps failing it is removed between auctions, which is governance rather than protocol."
+ },
+ "prediction": {
+  "written_before_any_of_this_ran": "artifacts/robust_by_decoding_prediction.json",
+  "8 elements per party for the all-to-all, about 11.3 single-phase total": "WRONG, 1.6x low. Measured 18.222; the swap from king to all-to-all costs 12.889 rather than the modelled 6. The model counted global traffic on the sending side only and the discrepancy has NOT been isolated, so it is a bad model rather than a finding.",
+  "one round per layer against ATLAS's two": "LANDED in the form that matters: 8 rounds against the king's 9, and 12 against 13 at the larger size.",
+  "one or two corrupted nodes corrected AND named without the protocol stopping; three refuses": "LANDED, and this is the result. corrupt {0}, {0,1} and {8} all returned the correct answer with the culprits named; {0,1,2} refused past capacity.",
+  "n >= 4T+1 enforced rather than assumed": "LANDED: at n=7 the protocol refuses to start rather than running with a capacity of 1 against a threshold of 2."
+ }
+}

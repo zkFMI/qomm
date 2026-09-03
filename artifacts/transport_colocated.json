@@ -1,0 +1,120 @@
+{
+  "by_hops": [
+    {
+      "active_client_bytes": [
+        2121
+      ],
+      "added_latency_ms": 0,
+      "batch_sizes_at_node": [
+        12
+      ],
+      "bytes_per_client_slot": [
+        2121
+      ],
+      "expected_frames": 3360,
+      "frame_bytes": 303,
+      "frames_delivered": 3360,
+      "frames_per_client_slot": [
+        7
+      ],
+      "hops": 1,
+      "idle_client_bytes": [
+        2121
+      ],
+      "link_ms": 0.43,
+      "linkage_advantage": 0.0,
+      "linkage_auc": 0.5,
+      "linkage_base_rate": 0.30625,
+      "single_relay_recovers_request": false,
+      "slot_phases_ms": [
+        17.493
+      ],
+      "slot_wall_median_ms": 32.90883300360292,
+      "slot_wall_median_s": 0.03262708295369521,
+      "traffic_identical": true
+    },
+    {
+      "active_client_bytes": [
+        2121
+      ],
+      "added_latency_ms": 21.357216032291483,
+      "batch_sizes_at_node": [
+        12
+      ],
+      "bytes_per_client_slot": [
+        2121
+      ],
+      "expected_frames": 3360,
+      "frame_bytes": 303,
+      "frames_delivered": 3360,
+      "frames_per_client_slot": [
+        7
+      ],
+      "hops": 2,
+      "idle_client_bytes": [
+        2121
+      ],
+      "link_ms": 0.43,
+      "linkage_advantage": 0.0,
+      "linkage_auc": 0.5,
+      "linkage_base_rate": 0.30625,
+      "single_relay_recovers_request": false,
+      "slot_phases_ms": [
+        17.493,
+        20.927
+      ],
+      "slot_wall_median_ms": 56.78870796691626,
+      "slot_wall_median_s": 0.05677135399309918,
+      "traffic_identical": true
+    },
+    {
+      "active_client_bytes": [
+        2121
+      ],
+      "added_latency_ms": 41.33237843012887,
+      "batch_sizes_at_node": [
+        12
+      ],
+      "bytes_per_client_slot": [
+        2121
+      ],
+      "expected_frames": 3360,
+      "frame_bytes": 303,
+      "frames_delivered": 3360,
+      "frames_per_client_slot": [
+        7
+      ],
+      "hops": 3,
+      "idle_client_bytes": [
+        2121
+      ],
+      "link_ms": 0.43,
+      "linkage_advantage": 0.0,
+      "linkage_auc": 0.5,
+      "linkage_base_rate": 0.30625,
+      "single_relay_recovers_request": false,
+      "slot_phases_ms": [
+        17.493,
+        20.927,
+        19.545
+      ],
+      "slot_wall_median_ms": 87.3249580617994,
+      "slot_wall_median_s": 0.0871436040615663,
+      "traffic_identical": true
+    }
+  ],
+  "config": {
+    "activity": 0.3,
+    "clients": 12,
+    "hops": [
+      1,
+      2,
+      3
+    ],
+    "link_ms": 0.43,
+    "nodes": 7,
+    "seed": 11,
+    "slot_ms": 25.0,
+    "slots": 40
+  }
+}

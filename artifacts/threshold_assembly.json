@@ -1,0 +1,390 @@
+{
+  "assemble_is": "total CPU over recipient-scoped node contributions, run serially in one process; a deployment runs the members at once, so assemble_per_node_ms is what a node waits for",
+  "bit_proof_assembled": "square: b*b = b, linear in the witness",
+  "bit_proof_local": "disjunction: the branch is chosen from the bit",
+  "group": "ed25519",
+  "host": "host-a",
+  "n_slots": 16,
+  "parties": 7,
+  "quote_rows": [
+    {
+      "assemble": {
+        "max_ms": 1392.44611,
+        "median_ms": 1380.0014250000002,
+        "min_ms": 1379.43182,
+        "n": 5,
+        "sd_ms": 5.623895094584604
+      },
+      "assemble_per_node_ms": 460.00047500000005,
+      "makers": 2,
+      "per_node_over_local": 14.685862228748414,
+      "prove_local": {
+        "max_ms": 31.385231,
+        "median_ms": 31.322674000000003,
+        "min_ms": 31.311370999999998,
+        "n": 5,
+        "sd_ms": 0.02959993781243512
+      },
+      "verify_assembled": {
+        "max_ms": 23.457763999999997,
+        "median_ms": 23.440745,
+        "min_ms": 23.413748000000002,
+        "n": 5,
+        "sd_ms": 0.0162211595146574
+      },
+      "verify_local": {
+        "max_ms": 9.516081,
+        "median_ms": 9.391439,
+        "min_ms": 9.376684999999998,
+        "n": 5,
+        "sd_ms": 0.05815783641264546
+      },
+      "verify_over_local": 2.4959694675118476
+    },
+    {
+      "assemble": {
+        "max_ms": 2770.64833,
+        "median_ms": 2754.344847,
+        "min_ms": 2752.443424,
+        "n": 5,
+        "sd_ms": 8.860250446014275
+      },
+      "assemble_per_node_ms": 918.1149489999999,
+      "makers": 4,
+      "per_node_over_local": 14.68775258311703,
+      "prove_local": {
+        "max_ms": 67.187653,
+        "median_ms": 62.508879,
+        "min_ms": 62.136635000000005,
+        "n": 5,
+        "sd_ms": 2.1545501004606487
+      },
+      "verify_assembled": {
+        "max_ms": 47.518559,
+        "median_ms": 46.846067,
+        "min_ms": 46.772020999999995,
+        "n": 5,
+        "sd_ms": 0.3092258892492691
+      },
+      "verify_local": {
+        "max_ms": 18.418606,
+        "median_ms": 18.307068,
+        "min_ms": 18.289786999999997,
+        "n": 5,
+        "sd_ms": 0.05362249100610735
+      },
+      "verify_over_local": 2.558906046560814
+    },
+    {
+      "assemble": {
+        "max_ms": 5535.685222,
+        "median_ms": 5510.2786049999995,
+        "min_ms": 5500.713146,
+        "n": 5,
+        "sd_ms": 13.404966601270697
+      },
+      "assemble_per_node_ms": 1836.759535,
+      "makers": 8,
+      "per_node_over_local": 14.777559560999622,
+      "prove_local": {
+        "max_ms": 129.534535,
+        "median_ms": 124.293834,
+        "min_ms": 123.545259,
+        "n": 5,
+        "sd_ms": 2.7030212163212286
+      },
+      "verify_assembled": {
+        "max_ms": 94.187776,
+        "median_ms": 93.720244,
+        "min_ms": 93.582978,
+        "n": 5,
+        "sd_ms": 0.2475084442737271
+      },
+      "verify_local": {
+        "max_ms": 36.319984,
+        "median_ms": 36.077901000000004,
+        "min_ms": 36.017078,
+        "n": 5,
+        "sd_ms": 0.12141815059207477
+      },
+      "verify_over_local": 2.59771886396606
+    },
+    {
+      "assemble": {
+        "max_ms": 11021.77817,
+        "median_ms": 11019.355037000001,
+        "min_ms": 11011.576944,
+        "n": 5,
+        "sd_ms": 4.112806657227245
+      },
+      "assemble_per_node_ms": 3673.118345666667,
+      "makers": 16,
+      "per_node_over_local": 14.899726008694739,
+      "prove_local": {
+        "max_ms": 251.179663,
+        "median_ms": 246.522543,
+        "min_ms": 245.44411,
+        "n": 5,
+        "sd_ms": 2.5235657930205626
+      },
+      "verify_assembled": {
+        "max_ms": 188.09186,
+        "median_ms": 187.34125500000002,
+        "min_ms": 187.11375999999998,
+        "n": 5,
+        "sd_ms": 0.3819838827067208
+      },
+      "verify_local": {
+        "max_ms": 71.170879,
+        "median_ms": 71.145972,
+        "min_ms": 71.07135600000001,
+        "n": 5,
+        "sd_ms": 0.04298298947490492
+      },
+      "verify_over_local": 2.63319552370442
+    }
+  ],
+  "rows": [
+    {
+      "assemble": {
+        "max_ms": 67.150974,
+        "median_ms": 66.868852,
+        "min_ms": 66.796634,
+        "n": 5,
+        "sd_ms": 0.14219087445683967
+      },
+      "assemble_over_local": 46.257519137673654,
+      "assemble_per_node_ms": 22.289617333333336,
+      "bytes_over_local": 0.864406779661017,
+      "no_node_holds_the_value": true,
+      "per_node_over_local": 15.419173045891219,
+      "prove_local": {
+        "max_ms": 1.460702,
+        "median_ms": 1.445578,
+        "min_ms": 1.443598,
+        "n": 5,
+        "sd_ms": 0.0069039420623293
+      },
+      "quorum": 3,
+      "size_assembled": {
+        "bytes": 1632,
+        "points": 25,
+        "scalars": 26
+      },
+      "size_local": {
+        "bytes": 1888,
+        "points": 25,
+        "scalars": 34
+      },
+      "verified_by_ordinary_verifier": true,
+      "verify_assembled": {
+        "max_ms": 1.059419,
+        "median_ms": 1.0191340000000002,
+        "min_ms": 1.011951,
+        "n": 5,
+        "sd_ms": 0.01955519666738234
+      },
+      "verify_local": {
+        "max_ms": 1.2200309999999999,
+        "median_ms": 1.206226,
+        "min_ms": 1.1924590000000002,
+        "n": 5,
+        "sd_ms": 0.010360044329055629
+      },
+      "width": 8
+    },
+    {
+      "assemble": {
+        "max_ms": 130.05366700000002,
+        "median_ms": 129.76524,
+        "min_ms": 129.67674100000002,
+        "n": 5,
+        "sd_ms": 0.14730120128736748
+      },
+      "assemble_over_local": 45.845001679902744,
+      "assemble_per_node_ms": 43.25508,
+      "bytes_over_local": 0.8608695652173913,
+      "no_node_holds_the_value": true,
+      "per_node_over_local": 15.281667226634248,
+      "prove_local": {
+        "max_ms": 2.848168,
+        "median_ms": 2.830521,
+        "min_ms": 2.792255,
+        "n": 5,
+        "sd_ms": 0.020517323599826554
+      },
+      "quorum": 3,
+      "size_assembled": {
+        "bytes": 3168,
+        "points": 49,
+        "scalars": 50
+      },
+      "size_local": {
+        "bytes": 3680,
+        "points": 49,
+        "scalars": 66
+      },
+      "verified_by_ordinary_verifier": true,
+      "verify_assembled": {
+        "max_ms": 2.058233,
+        "median_ms": 2.022307,
+        "min_ms": 2.018162,
+        "n": 5,
+        "sd_ms": 0.01638557410651212
+      },
+      "verify_local": {
+        "max_ms": 2.3674049999999998,
+        "median_ms": 2.358836,
+        "min_ms": 2.3295339999999998,
+        "n": 5,
+        "sd_ms": 0.015391493452553659
+      },
+      "width": 16
+    },
+    {
+      "assemble": {
+        "max_ms": 193.410879,
+        "median_ms": 192.92068700000002,
+        "min_ms": 192.629757,
+        "n": 5,
+        "sd_ms": 0.3440156961487343
+      },
+      "assemble_over_local": 45.74490807539868,
+      "assemble_per_node_ms": 64.30689566666668,
+      "bytes_over_local": 0.8596491228070176,
+      "no_node_holds_the_value": true,
+      "per_node_over_local": 15.248302691799562,
+      "prove_local": {
+        "max_ms": 4.23168,
+        "median_ms": 4.217315,
+        "min_ms": 4.196911999999999,
+        "n": 5,
+        "sd_ms": 0.012788526662599031
+      },
+      "quorum": 3,
+      "size_assembled": {
+        "bytes": 4704,
+        "points": 73,
+        "scalars": 74
+      },
+      "size_local": {
+        "bytes": 5472,
+        "points": 73,
+        "scalars": 98
+      },
+      "verified_by_ordinary_verifier": true,
+      "verify_assembled": {
+        "max_ms": 3.040746,
+        "median_ms": 3.0187489999999997,
+        "min_ms": 2.995671,
+        "n": 5,
+        "sd_ms": 0.019319053923523143
+      },
+      "verify_local": {
+        "max_ms": 3.520431,
+        "median_ms": 3.51161,
+        "min_ms": 3.47796,
+        "n": 5,
+        "sd_ms": 0.016912169189669365
+      },
+      "width": 24
+    },
+    {
+      "assemble": {
+        "max_ms": 209.004198,
+        "median_ms": 208.42861100000002,
+        "min_ms": 208.408895,
+        "n": 5,
+        "sd_ms": 0.29402957186565365
+      },
+      "assemble_over_local": 45.69935988019817,
+      "assemble_per_node_ms": 69.47620366666668,
+      "bytes_over_local": 0.8594594594594595,
+      "no_node_holds_the_value": true,
+      "per_node_over_local": 15.233119960066057,
+      "prove_local": {
+        "max_ms": 4.7886880000000005,
+        "median_ms": 4.560865,
+        "min_ms": 4.55749,
+        "n": 5,
+        "sd_ms": 0.10603865685541318
+      },
+      "quorum": 3,
+      "size_assembled": {
+        "bytes": 5088,
+        "points": 79,
+        "scalars": 80
+      },
+      "size_local": {
+        "bytes": 5920,
+        "points": 79,
+        "scalars": 106
+      },
+      "verified_by_ordinary_verifier": true,
+      "verify_assembled": {
+        "max_ms": 3.3187300000000004,
+        "median_ms": 3.278614,
+        "min_ms": 3.218661,
+        "n": 5,
+        "sd_ms": 0.036692121140648286
+      },
+      "verify_local": {
+        "max_ms": 3.923839,
+        "median_ms": 3.811258,
+        "min_ms": 3.793358,
+        "n": 5,
+        "sd_ms": 0.05427752245911749
+      },
+      "width": 26
+    },
+    {
+      "assemble": {
+        "max_ms": 256.059136,
+        "median_ms": 255.97639700000002,
+        "min_ms": 255.50618000000003,
+        "n": 5,
+        "sd_ms": 0.2419353845548372
+      },
+      "assemble_over_local": 45.92827118838698,
+      "assemble_per_node_ms": 85.32546566666667,
+      "bytes_over_local": 0.8590308370044053,
+      "no_node_holds_the_value": true,
+      "per_node_over_local": 15.309423729462326,
+      "prove_local": {
+        "max_ms": 5.597035,
+        "median_ms": 5.573395,
+        "min_ms": 5.561151000000001,
+        "n": 5,
+        "sd_ms": 0.015268373285978977
+      },
+      "quorum": 3,
+      "size_assembled": {
+        "bytes": 6240,
+        "points": 97,
+        "scalars": 98
+      },
+      "size_local": {
+        "bytes": 7264,
+        "points": 97,
+        "scalars": 130
+      },
+      "verified_by_ordinary_verifier": true,
+      "verify_assembled": {
+        "max_ms": 4.042547,
+        "median_ms": 4.028292,
+        "min_ms": 3.999781,
+        "n": 5,
+        "sd_ms": 0.01664288796152874
+      },
+      "verify_local": {
+        "max_ms": 4.688307,
+        "median_ms": 4.665809,
+        "min_ms": 4.645821,
+        "n": 5,
+        "sd_ms": 0.015086870775611544
+      },
+      "width": 32
+    }
+  ],
+  "threshold": 2
+}

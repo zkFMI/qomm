@@ -1,0 +1,120 @@
+{
+  "bit_length": 31,
+  "calibration": {
+    "scalar_mult_us": 36.0
+  },
+  "cold": [
+    {
+      "batch": 1,
+      "compile_ms": 200.28225,
+      "mb_per_quote": 3.91566,
+      "ms_per_quote": 421.46175000000005,
+      "overhead_ms_per_quote": 337.79075000000006,
+      "protocol_ms_per_quote": 83.67099999999999,
+      "quotes": 5,
+      "rounds_per_quote": 64.0,
+      "verified": true,
+      "wall_ms": 421.46175000000005
+    },
+    {
+      "batch": 4,
+      "compile_ms": 208.202042,
+      "mb_per_quote": 3.76035,
+      "ms_per_quote": 137.80605200000002,
+      "overhead_ms_per_quote": 87.57230200000002,
+      "protocol_ms_per_quote": 50.23375,
+      "quotes": 20,
+      "rounds_per_quote": 19.75,
+      "verified": true,
+      "wall_ms": 551.2242080000001
+    },
+    {
+      "batch": 16,
+      "compile_ms": 256.67975,
+      "mb_per_quote": 3.75831875,
+      "ms_per_quote": 70.901221375,
+      "overhead_ms_per_quote": 27.068783875,
+      "protocol_ms_per_quote": 43.832437500000005,
+      "quotes": 80,
+      "rounds_per_quote": 9.8125,
+      "verified": true,
+      "wall_ms": 1134.419542
+    },
+    {
+      "batch": 32,
+      "compile_ms": 320.46687499999996,
+      "mb_per_quote": 3.86078125,
+      "ms_per_quote": 60.7283046875,
+      "overhead_ms_per_quote": 15.8217421875,
+      "protocol_ms_per_quote": 44.9065625,
+      "quotes": 160,
+      "rounds_per_quote": 7.8125,
+      "verified": true,
+      "wall_ms": 1943.30575
+    }
+  ],
+  "host": "host-c",
+  "mode": "rfq",
+  "n_mm": 16,
+  "n_parties": 7,
+  "protocol": "malicious-shamir-party.x",
+  "repeats": 5,
+  "resident": [
+    {
+      "batch": 1,
+      "compile_ms": 200.72320900000003,
+      "mb_per_quote": 3.91566,
+      "ms_per_quote": 212.48741600000002,
+      "overhead_ms_per_quote": 130.21841600000005,
+      "protocol_ms_per_quote": 82.26899999999999,
+      "quotes": 5,
+      "rounds_per_quote": 64.0,
+      "verified": true,
+      "wall_ms": 212.48741600000002
+    },
+    {
+      "batch": 4,
+      "compile_ms": 211.78312499999998,
+      "mb_per_quote": 3.76035,
+      "ms_per_quote": 86.01882275,
+      "overhead_ms_per_quote": 35.229572749999996,
+      "protocol_ms_per_quote": 50.78925,
+      "quotes": 20,
+      "rounds_per_quote": 19.75,
+      "verified": true,
+      "wall_ms": 344.075291
+    },
+    {
+      "batch": 16,
+      "compile_ms": 255.583958,
+      "mb_per_quote": 3.75831875,
+      "ms_per_quote": 54.925033812500004,
+      "overhead_ms_per_quote": 10.280221312500004,
+      "protocol_ms_per_quote": 44.6448125,
+      "quotes": 80,
+      "rounds_per_quote": 9.8125,
+      "verified": true,
+      "wall_ms": 878.8005410000001
+    },
+    {
+      "batch": 32,
+      "compile_ms": 322.31512499999997,
+      "mb_per_quote": 3.86078125,
+      "ms_per_quote": 51.10527475,
+      "overhead_ms_per_quote": 5.833087249999998,
+      "protocol_ms_per_quote": 45.2721875,
+      "quotes": 160,
+      "rounds_per_quote": 7.8125,
+      "verified": true,
+      "wall_ms": 1635.368792
+    }
+  ],
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "threshold": 2,
+  "transport": {
+    "client_ms": 215.975542,
+    "repeats": 3,
+    "service_ms": 215.850583,
+    "socket_ms": 0.12495899999998983
+  }
+}

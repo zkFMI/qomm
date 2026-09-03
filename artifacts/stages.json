@@ -1,0 +1,50 @@
+{
+  "bit_length": 31,
+  "counted_by": "compiler",
+  "host": "host-a",
+  "n_assets": 4,
+  "n_mm": 16,
+  "stages": [
+    {
+      "bits": 284,
+      "description": "inputs, reference lookup and price arithmetic",
+      "increment": null,
+      "opens": 20,
+      "rounds": 10,
+      "share_of_rounds": null,
+      "stage": "price",
+      "triples": 168
+    },
+    {
+      "bits": 284,
+      "description": "+ direction selection",
+      "increment": 1,
+      "opens": 20,
+      "rounds": 11,
+      "share_of_rounds": 0.019230769230769232,
+      "stage": "direction",
+      "triples": 184
+    },
+    {
+      "bits": 3724,
+      "description": "+ eligibility gates",
+      "increment": 9,
+      "opens": 68,
+      "rounds": 20,
+      "share_of_rounds": 0.17307692307692307,
+      "stage": "gates",
+      "triples": 2488
+    },
+    {
+      "bits": 4804,
+      "description": "+ binary tournament",
+      "increment": 32,
+      "opens": 68,
+      "rounds": 52,
+      "share_of_rounds": 0.6153846153846154,
+      "stage": "tournament",
+      "triples": 3328
+    }
+  ],
+  "total_rounds": 52
+}

@@ -1,0 +1,75 @@
+{
+  "what": "offline/online separation: the same circuit with and without -F",
+  "preprocessing_generated_by": "./Fake-Offline.x 7 --threshold 2 --default 200000 -lgp 128",
+  "prep_dirs": [
+    "Player-Data/7-MSpT2-128",
+    "Player-Data/7-SpT2-128"
+  ],
+  "note": "Fake-Offline.x does produce malicious-Shamir and Shamir/ATLAS preprocessing; the earlier audit row saying otherwise was wrong. Timings are host-c (laptop, loopback, no injected delay) and are not comparable with the host-a tables; the ratios are the result.",
+  "runs": [
+    {
+      "tag": "malicious-shamir",
+      "protocol": "malicious-shamir-party.x",
+      "file_prep": false,
+      "n_parties": 7,
+      "threshold": 2,
+      "n_mm": 8,
+      "mode": "rfq",
+      "repeats": 5,
+      "host": "host-c",
+      "verified": true,
+      "rounds": 62,
+      "party0_mb": 2.73771,
+      "global_mb": 16.184,
+      "protocol_ms": 55.83
+    },
+    {
+      "tag": "malicious-shamir_F",
+      "protocol": "malicious-shamir-party.x",
+      "file_prep": true,
+      "n_parties": 7,
+      "threshold": 2,
+      "n_mm": 8,
+      "mode": "rfq",
+      "repeats": 5,
+      "host": "host-c",
+      "verified": true,
+      "rounds": 44,
+      "party0_mb": 0.43552,
+      "global_mb": 3.0486,
+      "protocol_ms": 25.52
+    },
+    {
+      "tag": "atlas",
+      "protocol": "atlas-party.x",
+      "file_prep": false,
+      "n_parties": 7,
+      "threshold": 2,
+      "n_mm": 8,
+      "mode": "rfq",
+      "repeats": 5,
+      "host": "host-c",
+      "verified": true,
+      "rounds": 100,
+      "party0_mb": 0.614,
+      "global_mb": 2.4741,
+      "protocol_ms": 77.72
+    },
+    {
+      "tag": "atlas_F",
+      "protocol": "atlas-party.x",
+      "file_prep": true,
+      "n_parties": 7,
+      "threshold": 2,
+      "n_mm": 8,
+      "mode": "rfq",
+      "repeats": 5,
+      "host": "host-c",
+      "verified": true,
+      "rounds": 91,
+      "party0_mb": 0.13118,
+      "global_mb": 0.9002,
+      "protocol_ms": 56.27
+    }
+  ]
+}

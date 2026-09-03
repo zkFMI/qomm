@@ -1,0 +1,32 @@
+{
+  "what": "Patching the engine to name the party, predicted before the patch was written",
+  "written": "2026-08-22, before touching Protocols/MaliciousShamirMC.hpp",
+
+  "the_observation_that_makes_it_cheap": "ShamirMC<T>::POpen_Begin calls P.send_all(os->mine), so EVERY party already sends its share to every other party on every opening. finalize_raw then does shares.resize(2*threshold+1) and reads five of the seven it has. The two shares that would take the decoding capacity from one error to two are already on the wire and already paid for.",
+
+  "the_patch": "read all n shares instead of 2t+1, and replace the prefix-comparison loop with Berlekamp-Welch: solve for Q of degree <= t+e and monic E of degree e with Q(x_i) = y_i E(x_i), divide, and report every share that does not lie on the quotient.",
+
+  "predictions": [
+    {"quantity": "traffic after the patch",
+     "predicted": "UNCHANGED, within noise",
+     "why": "send_all already transmits every share; only the read side changes",
+     "falsifiable": "any increase in global MB on the same program refutes the reading of POpen_Begin"},
+
+    {"quantity": "does the message name the party?",
+     "predicted": "yes, and correctly --- party 1's corrupted triples should name 1, party 3's should name 3",
+     "note": "corrupting a triple share makes that party's share of the opened value d = x - a wrong, so the culprit is the party whose file was flipped"},
+
+    {"quantity": "what rung does this reach",
+     "predicted": "2, identifiable abort --- and 3 or 4 if the shares are also published, because the decode is deterministic and anyone holding the transcript reaches the same verdict",
+     "NOT": "rung 5. Correcting the opening names the party and recovers the opened value, but the underlying triple is still wrong, so the computation is still wrong. Robust RECONSTRUCTION is not robust COMPUTATION, and the gap between them is what GSZ's segmenting and re-sharing is for."},
+
+    {"quantity": "honest runs",
+     "predicted": "unchanged results and no false accusations, at any circuit size"},
+
+    {"quantity": "cost in wall clock",
+     "predicted": "under 5 percent",
+     "why": "the e=0 solve is a small linear system per opening and only runs when the cheap consistency check already fails; an honest run should take the fast path"}
+  ],
+
+  "the_other_half_this_does_not_touch": "A party that substitutes its INPUT. secret_input() sums one additive share per party, so a substituted input is a valid sharing of a different value and there is no inconsistency to decode. That is a separate fix: one opening per party instead of one over all inputs."
+}

@@ -1,0 +1,48 @@
+{
+  "host": "host-a",
+  "question": "Robustness --- guaranteed output delivery instead of abort --- is listed as a gap in POSITION.md. This is what closing it would cost, measured against the engine actually deployed rather than quoted from a paper's own baseline.",
+  "setting": {
+    "n_parties": 7,
+    "threshold": 2,
+    "field_bits": 128,
+    "t_over_n": "2/7 = 0.286, below n/3 = 0.333",
+    "why_n_over_3_matters": "Goyal-Song-Zhu (CRYPTO 2020) give unconditional MPC with guaranteed output delivery for t < n/2 assuming a broadcast channel, and note that at t < n/3 broadcast can be simulated over point-to-point links. This deployment is in the stricter regime, so no broadcast channel has to be assumed --- and the bulletin board that publicly auditable MPC already needs would serve as one anyway.",
+    "what_is_deployed": "malicious-shamir-party.x, secure WITH ABORT. MP-SPDZ's README: 'malicious means that not following the protocol will at least be detected'. No party is named and the protocol stops."
+  },
+  "method": "A slope, not a ratio of totals: two circuit sizes in one SIMD row, and the per-multiplication cost is the difference in global traffic divided by the difference in multiplications. A control circuit with the multiplications replaced by additions has slope zero, which confirms the input sharing and the single opening do not scale.",
+  "measured": {
+    "semi_honest_shamir_single_phase": {
+      "per_party_elements": 5.714,
+      "rounds": [
+        4,
+        4
+      ],
+      "note": "THIS IS THE INSTRUMENT CHECK. Goyal-Song-Zhu state the best known semi-honest protocol at t < n/2 as 5.5 field elements per party per multiplication. The harness, built for a different question, returns 5.714 --- 4 percent off a published figure it was not fitted to."
+    },
+    "malicious_shamir_single_phase": {
+      "per_party_elements": 48.231,
+      "rounds": [
+        17,
+        137
+      ],
+      "note": "Everything, including generating the Beaver triples in the same run. This is the figure that compares to GSZ, because GSZ is single-phase and information-theoretic --- it has no offline phase to move off the critical path."
+    },
+    "malicious_shamir_online_only": {
+      "per_party_elements": 8.0,
+      "rounds": [
+        3,
+        3
+      ],
+      "note": "Preprocessing consumed from files via -F, with the modulus passed at run time. Exactly 8.000, which is two Beaver openings. Recorded separately because measuring preprocessing in a single-phase harness and calling it an online cost is an error this project has already made once, with edaBits."
+    }
+  },
+  "gsz2020": {
+    "best_case_elements_per_party": 5.5,
+    "after_a_party_is_identified": 7.5,
+    "best_semi_honest_they_compare_to": 5.5,
+    "phase_structure": "single phase, information-theoretic, no preprocessing",
+    "identification": "dispute control: the protocol identifies either a corrupted party or a disputed pair, and the circuit is cut into segments so a failure discards one segment rather than the run. That is identification towards the other parties, not towards an outside auditor."
+  },
+  "finding": "Guaranteed output delivery at 5.5 to 7.5 elements per party is CHEAPER THAN THE ONLINE PHASE ALONE of what is deployed (8.0), and 6.4x cheaper than its total (48.2). Robustness in this deployment is not a cost. It is a saving, and the reason there is none is the engine, not the setting: MP-SPDZ's honest-majority malicious protocols are all secure with abort, and GSZ is not implemented in it.",
+  "what_this_does_not_settle": "Accountability. Not stopping and naming the party that tried to stop you are different properties. GSZ identifies a corrupted party or a disputed pair towards the other parties, which is not public accountability in the sense of Rivinius et al., where a judge reaches a verdict from the public transcript alone."
+}

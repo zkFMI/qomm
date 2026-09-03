@@ -1,0 +1,57 @@
+{
+  "host": "host-c",
+  "question": "whether advanced composition buys anything at this venue's parameters",
+  "epsilon_total": 10.0,
+  "delta": 1e-06,
+  "rows": [
+    {
+      "epsilon_0": 1.0,
+      "windows_basic": 10,
+      "windows_advanced": 1,
+      "tighter": "basic"
+    },
+    {
+      "epsilon_0": 0.5,
+      "windows_basic": 20,
+      "windows_advanced": 7,
+      "tighter": "basic"
+    },
+    {
+      "epsilon_0": 0.25,
+      "windows_basic": 40,
+      "windows_advanced": 33,
+      "tighter": "basic"
+    },
+    {
+      "epsilon_0": 0.1,
+      "windows_basic": 100,
+      "windows_advanced": 216,
+      "tighter": "advanced"
+    },
+    {
+      "epsilon_0": 0.05,
+      "windows_basic": 200,
+      "windows_advanced": 872,
+      "tighter": "advanced"
+    },
+    {
+      "epsilon_0": 0.02,
+      "windows_basic": 500,
+      "windows_advanced": 5483,
+      "tighter": "advanced"
+    },
+    {
+      "epsilon_0": 0.01,
+      "windows_basic": 1000,
+      "windows_advanced": 21972,
+      "tighter": "advanced"
+    },
+    {
+      "epsilon_0": 0.005,
+      "windows_basic": 2000,
+      "windows_advanced": 87968,
+      "tighter": "advanced"
+    }
+  ],
+  "finding": "not at the epsilon this venue publishes at. Advanced composition grows as sqrt(k) in its first term and k*(e^eps0 - 1) in its second, and the second dominates until eps0 is small. At eps0 = 0.25 basic allows 40 windows and advanced 33; the crossover sits between 0.25 and 0.1, and below it advanced wins by a lot (216 against 100 at 0.1, 87,968 against 2,000 at 0.005). So reporting basic composition was not a gap for want of an accountant: at these parameters basic *is* the tighter bound, and switching would have cost windows and a delta for nothing. It becomes the right choice only if the per-field epsilon drops below about 0.1."
+}

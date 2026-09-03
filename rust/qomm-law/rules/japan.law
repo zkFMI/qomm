@@ -1,0 +1,55 @@
+# Japan.
+#
+# Every date and verdict here is from `REGULATION.md` section 2, which is where
+# the reasoning is. What this file adds is that a clause nobody has reviewed
+# inside its interval stops the build --- so the dates below are not a claim
+# that they are current, they are a claim about when somebody last looked.
+
+jurisdiction JP "Japan"
+
+statute FIEA "Financial Instruments and Exchange Act" {
+  article "30"   in-force 2007-09-30 reviewed 2026-08-01 every 180d
+  article "2(3)" in-force 2020-05-01 reviewed 2026-08-01 every 180d
+  article "40-2" in-force 2007-09-30 reviewed 2026-08-01 every 180d
+}
+
+statute BETA "Act on Book-Entry Transfer of Corporate Bonds and Shares" {
+  article "2"   in-force 2009-01-05 reviewed 2026-08-01 every 180d
+  article "128" in-force 2009-01-05 reviewed 2026-08-01 every 180d
+}
+
+statute PSA "Payment Services Act" {
+  article "2(5)" in-force 2023-06-01 reviewed 2026-08-01 every 180d
+}
+
+in JP for listed-equity {
+  N1 conditional by FIEA "30" "PTS authorisation. Available and heavy --- and it is the venue category, not a tolerated practice."
+  N2 refused by BETA "128" "title is the entry in the book-entry register, so this ledger is a mirror and reconciliation is the price of that."
+  N3 conditional by PSA "2(5)" "BOJ-NET for the wholesale leg; electronic payment instruments for a token leg."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "agree with the authoritative register without opening a balance" discharged-by reconciliation
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "identify the person who placed an order" undischarged "no share of an order names its sender, and nothing downstream can recover it. A venue that must identify orderers has to do it at admission, outside this protocol."
+  obligation "publish pre-trade quotes" undischarged "the design is the refusal to do this. Section 2.2 is why the venue category has to permit it rather than tolerate it."
+}
+
+in JP for security-token {
+  N1 conditional by FIEA "30" "same PTS route; START (ODX) is the precedent, live since December 2023."
+  N2 conditional by FIEA "2(3)" "on the electronically recorded transferable rights rail the ledger can be the record. Not available for the same instrument as the book-entry rail."
+  N3 conditional by PSA "2(5)" "same cash rail."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "show a clearing house's book is flat and its margin posted" discharged-by clearing-attestation
+  obligation "identify the person who placed an order" undischarged "as above."
+  obligation "agree with the authoritative register without opening a balance" undischarged "there is no separate register to agree with on this rail --- that is what N2 being conditional rather than refused buys."
+}

@@ -1,0 +1,58 @@
+{
+  "circuit": {
+    "compile_seconds": 1.418762962,
+    "integer_bits": 186480,
+    "integer_opens": 1838,
+    "integer_triples": 174636,
+    "vm_rounds": 3533
+  },
+  "delay_ms": 0.0,
+  "fixture": "continuous_clob_7 (9 orders, MAX_FILLS=4)",
+  "host": "host-a",
+  "measured_mb": 178.102,
+  "measured_rounds": 3500,
+  "n_parties": 7,
+  "party0_median": 3.80555,
+  "repeats": 5,
+  "samples": [
+    {
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
+      "party0_rounds": 3500,
+      "party0_seconds": 4.24391,
+      "wall_seconds": 4.484096026
+    },
+    {
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
+      "party0_rounds": 3500,
+      "party0_seconds": 3.83981,
+      "wall_seconds": 4.006227644
+    },
+    {
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
+      "party0_rounds": 3500,
+      "party0_seconds": 3.80555,
+      "wall_seconds": 4.001668695
+    },
+    {
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
+      "party0_rounds": 3500,
+      "party0_seconds": 3.75407,
+      "wall_seconds": 4.020837233
+    },
+    {
+      "global_mb": 1132.79,
+      "party0_mb": 178.102,
+      "party0_rounds": 3500,
+      "party0_seconds": 3.79368,
+      "wall_seconds": 4.023129417
+    }
+  ],
+  "threshold": 2,
+  "verified": true,
+  "verify_detail": "got=(5, 7) want=(5, 7)",
+  "wall_median": 4.020837233
+}

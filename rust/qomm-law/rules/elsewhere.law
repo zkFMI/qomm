@@ -1,0 +1,93 @@
+# The four other jurisdictions scored in `REGULATION.md` section 3.
+#
+# The finding that section reaches is that the three requirements are met in
+# different places and nowhere all at once, so the compiler answering "refused"
+# for one of them in every jurisdiction is the result rather than a bug.
+
+jurisdiction CH "Switzerland"
+jurisdiction EU "European Union"
+jurisdiction UK "United Kingdom"
+jurisdiction SG "Singapore"
+
+statute CO "Swiss Code of Obligations" {
+  article "973d" in-force 2021-02-01 reviewed 2026-08-01 every 180d
+  article "973h" in-force 2021-02-01 reviewed 2026-08-01 every 180d
+}
+statute FinMIA "Financial Market Infrastructure Act" {
+  article "73a" in-force 2021-08-01 reviewed 2026-08-01 every 180d
+}
+statute DLTR "Regulation (EU) 2022/858" {
+  article "3" in-force 2023-03-23 reviewed 2026-08-01 every 180d
+  article "5" in-force 2023-03-23 reviewed 2026-08-01 every 180d
+}
+statute eWpG "German Electronic Securities Act" {
+  article "4" in-force 2021-06-10 reviewed 2026-08-01 every 180d
+}
+statute DSS "Digital Securities Sandbox" {
+  article "regs 2024" in-force 2024-09-30 reviewed 2026-08-01 every 180d
+}
+statute SFA "Securities and Futures Act" {
+  article "s7" in-force 2002-10-01 reviewed 2026-08-01 every 180d
+}
+
+in CH for security-token {
+  N1 conditional by FinMIA "73a" "the DLT trading facility licence. Purpose-built, and one licence covers trading, settlement and custody."
+  N2 permitted by CO "973d" "the entry in the register is the security. The only place this is simply true rather than carved out."
+  N3 conditional by CO "973h" "SDX plus SNB wholesale CBDC; six digital bonds over CHF 750m settled in it."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "show a clearing house's book is flat and its margin posted" discharged-by clearing-attestation
+  obligation "identify the person who placed an order" undischarged "the protocol cannot; admission has to."
+  obligation "agree with the authoritative register without opening a balance" undischarged "there is no separate register --- N2 being permitted is precisely the absence of one."
+}
+
+in EU for security-token {
+  N1 conditional by DLTR "3" "DLT MTF, and the trading-and-settlement system puts both in one entity. Three authorised infrastructures as at 31 May 2025, so the category is real and thinly used."
+  N2 conditional by eWpG "4" "member state by member state. Germany's crypto securities register constitutes the security; the registrar is licensed."
+  N3 conditional by DLTR "5" "T2 and MiCA e-money tokens. Central bank money is not reachable from the ledger the way it is in the UK."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "identify the person who placed an order" undischarged "the protocol cannot; admission has to."
+  obligation "agree with the authoritative register without opening a balance" discharged-by reconciliation
+}
+
+in UK for security-token {
+  N1 conditional by DSS "regs 2024" "inside the sandbox perimeter, with Bank-set limits. Open since 30 September 2024."
+  N2 conditional by DSS "regs 2024" "within the perimeter the settlement and uncertificated-securities rules are modified so the ledger can hold title."
+  N3 permitted by DSS "regs 2024" "the strongest cash leg anywhere --- the Bank of England omnibus account puts central bank money under a distributed ledger. Fnality live in sterling since December 2023."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "show a clearing house's book is flat and its margin posted" discharged-by clearing-attestation
+  obligation "identify the person who placed an order" undischarged "the protocol cannot; admission has to."
+  obligation "agree with the authoritative register without opening a balance" discharged-by reconciliation
+}
+
+in SG for security-token {
+  N1 conditional by SFA "s7" "Recognised Market Operator, and the institutional-only tier is wholesale by construction. Materially lighter than an exchange licence."
+  N2 refused by SFA "s7" "no statute makes a ledger entry the right. Title rests on trust, custody and contract, which is the weakest of the five."
+  N3 conditional by SFA "s7" "the stablecoin framework, and Project Guardian is real institutions doing real trades with the regulator present."
+
+  obligation "keep a record of the moment of execution" discharged-by slot-receipt
+  obligation "show the price returned was the best available" discharged-by quote-proof
+  obligation "show a maker's pricing rule is inside the venue's band" discharged-by policy-audit
+  obligation "detect a second set of books, or a retroactive edit" discharged-by state-chain
+  obligation "show delivery completed and was not settled twice" discharged-by settlement-root
+  obligation "agree with the authoritative register without opening a balance" discharged-by reconciliation
+  obligation "open one scope of one wallet to a supervisor" discharged-by scoped-view
+  obligation "identify the person who placed an order" undischarged "the protocol cannot; admission has to."
+}

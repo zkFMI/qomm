@@ -1,0 +1,32 @@
+{
+  "compute_quorum_responses": 7,
+  "elapsed_seconds": 0.49401408300036564,
+  "environment": "seven local listeners with configured WAN response delay; not seven sites",
+  "frames_accepted": 21,
+  "frames_per_slot_constant": true,
+  "independent_sqlite_stores": 7,
+  "mutual_tls": true,
+  "nodes": 7,
+  "real_request_slots": 1,
+  "recovery_frame_count_unchanged": true,
+  "recovery_ms": 41.76229197764769,
+  "recovery_request_count_unchanged": true,
+  "recovery_retry_ok": true,
+  "recovery_retry_was_new": false,
+  "restarted_node": 3,
+  "slot_wall_ms": {
+    "max": 103.64695900352672,
+    "mean": 95.198041992262,
+    "median": 91.77974995691329
+  },
+  "slots": 3,
+  "wan_response_delays_ms": [
+    8.0,
+    13.0,
+    21.0,
+    34.0,
+    55.0,
+    70.0,
+    85.0
+  ]
+}

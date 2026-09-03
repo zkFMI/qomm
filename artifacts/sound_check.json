@@ -1,0 +1,58 @@
+{
+  "host": "host-a",
+  "what": "The circuit now emits a sound input check",
+  "the_construction": "The circuit stores its shares as it reads them, opens one random value rho once every input is in, and the coefficients are rho^1..rho^m computed as a running product on a public field element. Public times secret is local, so the combination costs nothing; the price is the one opening. Taken modulo the MPC prime, which the deployment matches to the commitment field.",
+  "soundness": {
+    "bound": "m/p by Schwartz-Zippel --- sum_k rho^k e_k + e_m = 0 is a degree-m polynomial in rho, so a fixed non-zero error has at most m roots",
+    "at_166_values_and_a_253_bit_field": "about 2^-245",
+    "what_it_replaces": "2^-42, from seven repetitions of 6-bit coefficients"
+  },
+  "attack_checked_against_the_fix": {
+    "plus_minus_on_two_inputs": "named",
+    "null_space_error_chosen_against_a_guessed_challenge": "named",
+    "20000_fresh_challenges_against_one_fixed_error": "survived 0 times"
+  },
+  "end_to_end": {
+    "honest": {
+      "verified": true,
+      "culprits": []
+    },
+    "node_4_substitutes_the_takers_quantity": {
+      "named": [
+        4
+      ],
+      "correct": true
+    }
+  },
+  "cost_at_the_matched_field": {
+    "field": "253-bit, the ed25519 scalar field",
+    "no_check": {
+      "rounds": 70,
+      "global_mb": 83.0829
+    },
+    "aggregate_unsound": {
+      "rounds": 71,
+      "global_mb": 83.0986
+    },
+    "per_party_sound": {
+      "rounds": 72,
+      "global_mb": 83.4257
+    },
+    "over_aggregate": {
+      "rounds": "+1",
+      "traffic_percent": 0.39
+    },
+    "over_no_check": {
+      "rounds": "+2",
+      "traffic_percent": 0.41
+    },
+    "every_arm_verified_against_the_cleartext_reference": true
+  },
+  "what_it_deletes": "The width budget. BINDING.md section 3.1 --- 164 bits, the mask spending its slack twice, the narrow-coefficient trade with its 2^-34 ceiling --- exists only because the check was taken over the integers and had to avoid reducing in either field. Modulo p there is nothing to avoid, and the mask is one uniform field element. build_inputs now deals exactly that.",
+  "predictions": {
+    "+1 round": "LANDED: 71 -> 72",
+    "traffic lower than the old per-party check, close to the aggregate": "WRONG. Openings dropped from 49 to 8 and traffic still went UP relative to the aggregate check: +0.39 percent here against +0.068 percent for the old one. The most likely cause is generating the 64-bit random challenge, which needs random bits from preprocessing, and that was not in the estimate. Not isolated, so it is a suspicion and not a finding.",
+    "the answer unchanged": "LANDED: all three arms verified"
+  },
+  "what_requiring_this_costs": "The matched field, which BINDING.md already recommends at 2.00x traffic and 1.00x rounds. This is the third independent reason to take that decision: the first was that threshold_sigma assembles, the second was that a mismatched field makes the audit accuse every node, and the third is that the check is only clean modulo p."
+}

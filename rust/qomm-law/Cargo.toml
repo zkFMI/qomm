@@ -1,0 +1,12 @@
+[package]
+name = "qomm-law"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "A small language for the rules a deployment has to satisfy, and a compiler that refuses rather than guesses."
+
+[dependencies]
+
+[[bin]]
+name = "qomm-law"
+path = "src/bin/law.rs"

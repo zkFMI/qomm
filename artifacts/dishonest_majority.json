@@ -1,0 +1,61 @@
+{
+  "host": "host-a",
+  "question": "This deployment assumes an honest majority: Shamir, n=7, T=2, so privacy needs 5 of 7 honest. What does a protocol that survives n-1 corruptions cost instead?",
+  "method": "Same slope harness as multiplication_cost.json: two circuit sizes in one SIMD row, global traffic difference over multiplication difference. Cross-checked: 48.235 elements/party at 3,312 multiplications predicts 17.9 MB global for the quote circuit, against 19.37 MB measured end to end in matched_field.json --- the difference is the input sharing and the 70 openings, which are not multiplications.",
+  "quote_circuit": {
+    "n_makers": 16,
+    "multiplications": 3312,
+    "rounds": 53,
+    "field_bits": 128
+  },
+  "elements_per_party_per_multiplication": {
+    "shamir_malicious_n7_total": 48.235,
+    "shamir_malicious_n7_online": 8.0,
+    "mascot_n7_total": 26893.987,
+    "mascot_n7_online": 3.429,
+    "mascot_n3_total": 8969.234,
+    "mascot_n2_total": 4486.614,
+    "semi_honest_dishonest_majority_n7_total": 3848.997
+  },
+  "scaling": {
+    "observed": "MASCOT per party is 4486.6 * (n-1), exactly: 4486.6 at n=2, 8969.2 at n=3, 26894.0 at n=7.",
+    "why": "every party runs pairwise oblivious transfer with every other party, so its cost is linear in the number of partners. Global cost is therefore quadratic in n, which is why nobody runs seven."
+  },
+  "per_quote": {
+    "shamir_n7_total": {
+      "per_party_MB": 2.556,
+      "global_MB": 17.89,
+      "seconds_at_1Gbit": 0.02
+    },
+    "shamir_n7_online": {
+      "per_party_MB": 0.424,
+      "global_MB": 2.97,
+      "seconds_at_1Gbit": 0.003
+    },
+    "mascot_n7_total": {
+      "per_party_MB": 1425.166,
+      "global_MB": 9976.16,
+      "seconds_at_1Gbit": 11.401
+    },
+    "mascot_n7_online": {
+      "per_party_MB": 0.182,
+      "global_MB": 1.27,
+      "seconds_at_1Gbit": 0.001
+    },
+    "mascot_n2_total": {
+      "per_party_MB": 237.755,
+      "global_MB": 475.51,
+      "seconds_at_1Gbit": 1.902
+    }
+  },
+  "findings": [
+    "TOTAL: dishonest majority at the same seven parties costs 558x. At two parties --- the shape anybody would actually deploy, since one honest of two suffices --- it is still 27x the global traffic of seven-party Shamir, with two nodes.",
+    "ONLINE: the opposite. MASCOT's online phase is 3.429 elements per party against Shamir's 8.000, so it is 2.3x CHEAPER. The honest majority's whole advantage is in preprocessing; at seven parties its online phase is worse, because Shamir reconstruction collects 2t+1 = 5 shares while additive sharing is one round trip through a king regardless of n.",
+    "So the answer depends entirely on whether preprocessing can leave the critical path. For an RFQ it can --- triples are input-independent and can be made between quotes --- which makes the honest comparison a throughput bound rather than a latency one.",
+    "THROUGHPUT BOUND, fully pipelined, dedicated 1 Gbit/s per party: seven-party MASCOT tops out at one quote per 11.4 s; two-party MASCOT at one per 1.9 s; this design at one per 0.02 s, which is why it is limited by round trips and not by bandwidth.",
+    "Even giving up malicious security does not recover it: semi-honest dishonest majority at n=7 is 3849 elements per party, still 80x honest-majority Shamir. The cost is the corruption model, not the adversary model.",
+    "And robustness becomes impossible rather than expensive: one corrupt party of n can always stall, so the guaranteed output delivery that ACCOUNTABILITY.md finds nearly free here would be closed off permanently."
+  ],
+  "what_dishonest_majority_actually_buys": "Strictly stronger privacy and correctness per node. At n=7 it survives six colluding nodes where this design breaks at three. It is not a weaker guarantee --- it is a more expensive one that also forfeits robustness, and its real use is to need fewer nodes rather than to protect the same ones better.",
+  "caveat": "Both arms are MP-SPDZ implementations. The honest-majority one was already measured at 6x the state of the art for its own regime (Goyal-Song-Zhu). A ratio between two implementations is not a ratio between two protocols."
+}

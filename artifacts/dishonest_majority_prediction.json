@@ -1,0 +1,42 @@
+{
+  "what": "What dropping the honest-majority assumption costs, predicted before it was measured",
+  "written": "2026-08-22, while mascot-party.x was still compiling",
+
+  "the_question": "This deployment is honest majority: Shamir, n=7, T=2, so privacy needs 5 of 7 honest. A dishonest-majority protocol (the SPDZ family) survives n-1 corruptions instead. What is the overhead?",
+
+  "what_actually_changes": {
+    "sharing": "Shamir over a polynomial becomes additive sharing plus a MAC share under a global key, so state roughly doubles.",
+    "online": "SPDZ's online phase is two openings per multiplication. An opening in additive sharing means every party sends its share to every other, so 2*(n-1) elements per party. At n=7 that is 12; at n=2 it is 2.",
+    "offline": "THIS IS WHERE IT GOES. With an honest majority, triples come from information-theoretic tricks --- random double sharings, hyper-invertible matrices, PRSS --- and cost field elements. Without one, every triple needs oblivious transfer (MASCOT) or somewhat homomorphic encryption (LowGear/HighGear). That is a qualitative change, not a constant.",
+    "robustness": "Guaranteed output delivery becomes IMPOSSIBLE, not expensive. One corrupt party out of n can always stall. So switching would close off the thing ACCOUNTABILITY.md just showed is nearly free here."
+  },
+
+  "predictions": [
+    {"quantity": "online phase, MASCOT at n=7, elements per party per multiplication",
+     "predicted": "12 to 20",
+     "arithmetic": "two openings at (n-1)=6 recipients each is 12, plus amortized MAC checking",
+     "against": "8.000 measured for malicious Shamir online at n=7"},
+
+    {"quantity": "online phase, MASCOT at n=2",
+     "predicted": "2 to 6 elements per party"},
+
+    {"quantity": "THE HEADLINE. total including preprocessing, MASCOT at n=7, against malicious Shamir's 48.231",
+     "predicted": "30x to 300x, most likely near 100x",
+     "arithmetic": "MASCOT builds each triple from pairwise correlated OT with a sacrifice, so a party pays roughly one OT-extension-sized transfer per partner per triple. Order 100 kbit per triple per pair at 128-bit security, six partners at n=7, is about 75 kB per party per triple against the 771 bytes measured for Shamir.",
+     "falsifiable": "outside 30x to 300x refutes it"},
+
+    {"quantity": "rounds",
+     "predicted": "same order online, many more in preprocessing"},
+
+    {"quantity": "semi-honest dishonest majority (semi-party.x) at n=7",
+     "predicted": "far cheaper than MASCOT but still well above honest-majority Shamir, because triples still need OLE and cannot come from an honest majority"}
+  ],
+
+  "the_framing_that_matters_more_than_the_number": {
+    "nobody_would_run_seven": "The point of dishonest majority is that you no longer NEED many parties: one honest out of two suffices. So the real comparison is not 7-party Shamir against 7-party MASCOT; it is 7-party Shamir against 2-party MASCOT, which is roughly Prime Match's shape.",
+    "and_it_is_a_governance_trade": "Seven KYB'd entities across regions is a consortium; two operators is a venue. DeFMI's whole structure --- regional in-region nodes, cross-region nodes, jurisdictional spread --- is built on the consortium.",
+    "what_dishonest_majority_actually_buys": "Strictly stronger privacy and correctness per node: at n=7 it survives 6 colluding where the current design breaks at 3. It is not a weaker guarantee. It is a more expensive one that also forfeits robustness."
+  },
+
+  "caveat": "Both arms are MP-SPDZ implementations, and the honest-majority one was already measured at 6x the state of the art for its own regime (GSZ). A ratio between two implementations is not a ratio between two protocols."
+}

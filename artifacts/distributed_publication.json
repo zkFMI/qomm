@@ -1,0 +1,37 @@
+{
+  "elapsed_seconds": 1.930093208,
+  "environment": "7 MP-SPDZ processes and 7 process-isolated publication signers on one host; not a seven-host WAN",
+  "mpc": {
+    "compile_rounds": 11,
+    "global_mb": 63.9087,
+    "parties": 7,
+    "protocol": "malicious-shamir",
+    "runtime_rounds": 28,
+    "threshold": 2,
+    "wall_seconds": 0.265157416
+  },
+  "passed": true,
+  "privacy_budget": {
+    "atomic_certificate_budget_and_replay_commit": true,
+    "governance_registry_separate_from_publication_registry": true,
+    "last_epoch": 1,
+    "scope": "126a9d425496b547be684138058836ec4cc890fe75b8d4c26a0ec312abb3d7a6",
+    "spent_micros": 500000,
+    "total_micros": 1000000
+  },
+  "publication": {
+    "altered_output_refused": true,
+    "certificate_digest": "cdc9b07fa7b12a5ab0254cec2ec3774805b3d2549b4499d8bbc812865fa84038",
+    "delta_denominator": "9007199254740992",
+    "delta_numerator": 1880809876718,
+    "epsilon_micros": 500000,
+    "node_replay_refused": true,
+    "operation_id": "26fe29d14509410e673e1f9ba8ad23a20bc79bd1f3f21a84e4d55226e9c6dd14",
+    "output_name": "request_count",
+    "output_value": 89,
+    "required_signatures": 3,
+    "signatures": 7,
+    "transcript_digest": "1bed1d4e285935c8d3d5a9cf2d3dc1839b34d0fdfb53e1dcb0800882915540ab"
+  },
+  "version": 1
+}

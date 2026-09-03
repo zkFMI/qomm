@@ -1,0 +1,31 @@
+{
+  "claim_boundary": "real inter-site propagation delay; transport is TCP inside SSH, not a direct MP-SPDZ TLS socket, and only two sites are used",
+  "expected": {
+    "best_mm": 5,
+    "best_price": 99990
+  },
+  "fixture": "two-site geographic run over SSH-tunnelled links",
+  "integer_triples": 6681,
+  "local_host": "host-c",
+  "measured_tcp_round_trip_ms": 17.42,
+  "mode": "rfq",
+  "n_mm": 16,
+  "observed": {
+    "best_mm": 5,
+    "best_price": 99990
+  },
+  "parties": 7,
+  "party_mb": 5.42277,
+  "party_rounds": 78,
+  "party_time_seconds": 1.66235,
+  "startup_stagger_seconds": 2.0,
+  "threshold": 2,
+  "verified": true,
+  "vm_rounds": 61,
+  "wall_median": 6.036415,
+  "wall_seconds": [
+    5.991141,
+    6.216479,
+    6.036415
+  ]
+}

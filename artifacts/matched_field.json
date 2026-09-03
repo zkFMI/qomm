@@ -1,0 +1,63 @@
+{
+  "host": "host-a",
+  "question": "what it costs to run the MPC over the same field the commitments use",
+  "superseded_measurement": {
+    "what_was_reported": {
+      "rounds_ratio": 2.02,
+      "traffic_ratio": 14.31,
+      "wall_ratio_15ms": 2.06
+    },
+    "why_it_was_wrong": "The circuit was compiled with `-P <prime>`. MP-SPDZ prints, in the compile output, `WARNING: --prime/-P activates code that usually isn't the most efficient variant. Consider using --field/-F and set the prime only during the actual computation.` That warning was in the output of every run and was not read. Compiling with `-F <bits>` and passing the prime to the virtual machine at run time is the supported path, and it removes the whole penalty.",
+    "kept_because": "a measurement that was published to three repositories and a slide deck, and was wrong by seven times on the figure everything else was reasoned from"
+  },
+  "arms": {
+    "default_15ms": {
+      "rounds": 64,
+      "global_mb": 19.3694,
+      "wall_median_s": 3.6207809997722507,
+      "verified": true
+    },
+    "matched_15ms": {
+      "rounds": 64,
+      "global_mb": 38.733,
+      "wall_median_s": 3.876662790309638,
+      "verified": true
+    },
+    "matched_15ms_with_check": {
+      "rounds": 65,
+      "global_mb": 38.7456,
+      "wall_median_s": 3.921796126756817,
+      "verified": true
+    },
+    "default_120ms": {
+      "rounds": 64,
+      "global_mb": 19.3694,
+      "wall_median_s": 27.60266625089571,
+      "verified": true
+    },
+    "matched_120ms": {
+      "rounds": 64,
+      "global_mb": 38.733,
+      "wall_median_s": 29.178656893782318,
+      "verified": true
+    },
+    "default_120ms_batch32": {
+      "rounds": 259,
+      "global_mb": 637.131,
+      "wall_median_s": 105.96211402211338,
+      "verified": true
+    }
+  },
+  "result": {
+    "rounds_ratio": 1.0,
+    "traffic_ratio": 2.0,
+    "wall_ratio_15ms": 1.071,
+    "wall_ratio_120ms": 1.057,
+    "input_check_on_matched_field": {
+      "rounds": 1,
+      "global_mb": 0.0126
+    },
+    "note": "Rounds unchanged. Traffic exactly 2.00x, which is the element width going from 16 bytes to 32 and nothing else. Wall clock 1.07x at 15 ms and 1.06x at 120 ms --- cheaper cross-region, because the round count does not move and the round trip is what dominates there. Every arm verified against the cleartext answer.",
+    "consequence": "Matching the field is affordable, so threshold_sigma assembles and the quote proof is publicly verifiable for six to eight per cent. The input check is no longer the cheap alternative to that --- it is a fast pre-check that still costs one round on top, and catches a substituted input immediately rather than when the proof fails."
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "what": "Emitting the per-party check in the circuit, predicted before the generator was changed",
+  "written": "2026-08-22",
+
+  "the_change": "secret_input() currently reads one share from each party and returns the sum, so the shares are gone by the time the check runs. The per-party version folds each share into its own party's accumulator AS IT IS READ --- the coefficient is a compile-time constant, so public times secret stays local and costs no communication --- and then opens one accumulator per party. The masks stop being split across nodes and become one value read from each node.",
+
+  "predictions": [
+    {"quantity": "rounds",
+     "predicted": "unchanged against the aggregate check, and +1 against no check at all",
+     "why": "the n openings do not depend on each other, so MP-SPDZ batches them into one round",
+     "falsifiable": "any increase over the aggregate check's round count"},
+
+    {"quantity": "traffic",
+     "predicted": "about 3 kB more than the aggregate check at a wide field, which is +0.02 percent",
+     "arithmetic": "the aggregate check at 40-bit coefficients opens 1 value; per-party opens 7. One opening costs about 4 field elements per party (the multiplication measurement puts two openings at 8.0), so 6 extra openings are 24 elements per party, 384 bytes, 2.7 kB across seven --- against 19.37 MB for the quote.",
+     "note": "an earlier estimate said 'under half a percent'. That was pessimistic by more than an order of magnitude, because it costed an opening as though it were a multiplication."},
+
+    {"quantity": "the combination itself",
+     "predicted": "free. Public coefficient times secret share is local arithmetic; only the opening travels."},
+
+    {"quantity": "the answer",
+     "predicted": "unchanged --- every arm is verified against the cleartext reference, and the check adds openings without touching the computation"}
+  ],
+
+  "the_workflow_this_completes": "maker deals and publishes commitments -> node checks its own share -> circuit folds each share into its party's accumulator -> circuit opens n values -> anyone recomputes the coefficients from the published commitments and checks each opening -> a failing one names a node."
+}

@@ -1,0 +1,28 @@
+{
+  "experiment_id": "QOMM-ENTITY-BEHAVIOR-SMOKE-002",
+  "contract_id": "QOMM-PRODUCT-2026-08-24",
+  "contract_sha256": "8c783133f6f737784497d700d9738a6ab9623c524fe36cae85635cb9f4153333",
+  "stage": "smoke",
+  "bottleneck": "KYC binds an enrolled legal entity but does not by itself prioritize separately KYC'd entities that may coordinate repeated probes.",
+  "hypothesis": "A low-authority behavior score can prioritize common-controller credential pairs for review at a calibrated one-percent false-positive cap without changing KYC identity or access automatically.",
+  "prediction": "Held-out synthetic pair AUC will be 0.85.",
+  "likely_failure": "Independent legal entities following the same trading strategy produce high similarity and reduce precision.",
+  "single_change": "Add an interpretable behavior similarity score and calibrate only its human-review threshold on a population disjoint from evaluation.",
+  "baseline": "KYC-only control with no behavior-prioritized review queue",
+  "evaluation_population": "Two disjoint seeded synthetic populations of 80 controllers with separately KYC'd common-controller positives",
+  "rejection_rule": "Reject the point prediction if held-out AUC is below 0.75 or test false-positive rate exceeds 0.02; all synthetic results remain smoke_only.",
+  "promotion_rule": "Behavior cannot merge entities or deny service, and this run cannot support production use before externally labeled validation.",
+  "evidence_class": "smoke_only",
+  "command": [
+    "rust/target/release/run_entity_behavior",
+    "--out",
+    "artifacts/entity_behavior_smoke.json",
+    "--seed",
+    "202608240",
+    "--max-fpr",
+    "0.01"
+  ],
+  "output": "artifacts/entity_behavior_smoke.json",
+  "supersedes_blocked_experiment": "QOMM-ENTITY-BEHAVIOR-SMOKE-001",
+  "new_causal_evidence": "The recorded command names a file that no longer exists. The measurement instrument was reimplemented in Rust and the legacy implementation it invoked was deleted, so the receipt on QOMM-ENTITY-BEHAVIOR-SMOKE-001 describes a run of a different instrument than the one this repository now contains. The Rust binary was compared against that legacy implementation value by value while both existed --- 26 non-timing values identical, 0 different --- so this is a re-run of the same experiment on a rebuilt instrument, not a new hypothesis. Nothing about the market, the seeds, the population or the rules has changed."
+}

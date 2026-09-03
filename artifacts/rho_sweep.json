@@ -1,0 +1,607 @@
+{
+  "arms": {
+    "generated": {
+      "meta": {
+        "source": "generated"
+      },
+      "rows": [
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6076388888888888,
+          "auc_min": 0.5138888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 4.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6319444444444444,
+          "auc_min": 0.5694444444444444,
+          "cells_scored": 44.5,
+          "entities_covered": 7.75,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.7013888888888888,
+          "auc_min": 0.6388888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 13.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.8541666666666666,
+          "auc_mean": 0.7899305555555556,
+          "auc_min": 0.75,
+          "cells_scored": 44.5,
+          "entities_covered": 20.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 0.9253472222222222,
+          "auc_min": 0.8333333333333334,
+          "cells_scored": 44.5,
+          "entities_covered": 23.75,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 44.5,
+          "entities_covered": 24.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfm",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6076388888888888,
+          "auc_min": 0.5138888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 4.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6319444444444444,
+          "auc_min": 0.5694444444444444,
+          "cells_scored": 44.5,
+          "entities_covered": 7.75,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.7013888888888888,
+          "auc_min": 0.6388888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 13.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.8541666666666666,
+          "auc_mean": 0.7899305555555556,
+          "auc_min": 0.75,
+          "cells_scored": 44.5,
+          "entities_covered": 20.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 0.9253472222222222,
+          "auc_min": 0.8333333333333334,
+          "cells_scored": 44.5,
+          "entities_covered": 23.75,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 44.5,
+          "entities_covered": 24.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6076388888888888,
+          "auc_min": 0.5138888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 4.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.6319444444444444,
+          "auc_min": 0.5694444444444444,
+          "cells_scored": 44.5,
+          "entities_covered": 7.75,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.75,
+          "auc_mean": 0.7013888888888888,
+          "auc_min": 0.6388888888888888,
+          "cells_scored": 44.5,
+          "entities_covered": 13.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.8541666666666666,
+          "auc_mean": 0.7899305555555556,
+          "auc_min": 0.75,
+          "cells_scored": 44.5,
+          "entities_covered": 20.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 0.9253472222222222,
+          "auc_min": 0.8333333333333334,
+          "cells_scored": 44.5,
+          "entities_covered": 23.75,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 44.5,
+          "entities_covered": 24.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfs",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 4.0,
+          "linkage_rho": 0.05,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 7.75,
+          "linkage_rho": 0.12,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 13.0,
+          "linkage_rho": 0.25,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 20.0,
+          "linkage_rho": 0.5,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 23.75,
+          "linkage_rho": 0.75,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 44.5,
+          "entities_covered": 24.0,
+          "linkage_rho": 1.0,
+          "protocol": "qomm_rfq",
+          "seeds": 4
+        }
+      ]
+    },
+    "tape": {
+      "meta": {
+        "agreement_rate_measured": 0.46715328467153283,
+        "arrival_per_s": 0.1759267713123081,
+        "edge_ticks_assumed": 22.0,
+        "edge_ticks_measured": 58.0,
+        "entities": 411.0,
+        "entity_kind": "one entity per observed address",
+        "informed_base_assumed": 0.3,
+        "informed_share_estimated": 0.0,
+        "informed_share_measured": 0.0,
+        "requests": 411.0,
+        "sizes_at_ceiling": 0.0,
+        "sizes_over_largest_bucket": 31.0,
+        "source": "bybit:LTCUSDT2021-06-15.csv",
+        "span_s": 2336.1993000507355,
+        "step_ms": 1000.0,
+        "tick_value": 0.0017999000000000001,
+        "trades": 411.0,
+        "wallets_per_entity": 1.0
+      },
+      "rows": [
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5375,
+          "auc_mean": 0.5258558558285518,
+          "auc_min": 0.5169491525423728,
+          "cells_scored": 16104.8,
+          "entities_covered": 21.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.575,
+          "auc_mean": 0.5613409542490475,
+          "auc_min": 0.5483870967741935,
+          "cells_scored": 16104.8,
+          "entities_covered": 49.0,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.65,
+          "auc_mean": 0.633001389698772,
+          "auc_min": 0.6048387096774194,
+          "cells_scored": 16104.8,
+          "entities_covered": 103.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.7886178861788617,
+          "auc_mean": 0.7657365251954126,
+          "auc_min": 0.717741935483871,
+          "cells_scored": 16104.8,
+          "entities_covered": 206.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.8875,
+          "auc_mean": 0.8731172117365092,
+          "auc_min": 0.8629032258064516,
+          "cells_scored": 16104.8,
+          "entities_covered": 308.0,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 16104.8,
+          "entities_covered": 411.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfm",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5375,
+          "auc_mean": 0.5258558558285518,
+          "auc_min": 0.5169491525423728,
+          "cells_scored": 16104.8,
+          "entities_covered": 21.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.575,
+          "auc_mean": 0.5613409542490475,
+          "auc_min": 0.5483870967741935,
+          "cells_scored": 16104.8,
+          "entities_covered": 49.0,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.65,
+          "auc_mean": 0.633001389698772,
+          "auc_min": 0.6048387096774194,
+          "cells_scored": 16104.8,
+          "entities_covered": 103.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.7886178861788617,
+          "auc_mean": 0.7657365251954126,
+          "auc_min": 0.717741935483871,
+          "cells_scored": 16104.8,
+          "entities_covered": 206.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.8875,
+          "auc_mean": 0.8731172117365092,
+          "auc_min": 0.8629032258064516,
+          "cells_scored": 16104.8,
+          "entities_covered": 308.0,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 16104.8,
+          "entities_covered": 411.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5375,
+          "auc_mean": 0.5258558558285518,
+          "auc_min": 0.5169491525423728,
+          "cells_scored": 16104.8,
+          "entities_covered": 21.0,
+          "linkage_rho": 0.05,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.575,
+          "auc_mean": 0.5613409542490475,
+          "auc_min": 0.5483870967741935,
+          "cells_scored": 16104.8,
+          "entities_covered": 49.0,
+          "linkage_rho": 0.12,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.65,
+          "auc_mean": 0.633001389698772,
+          "auc_min": 0.6048387096774194,
+          "cells_scored": 16104.8,
+          "entities_covered": 103.0,
+          "linkage_rho": 0.25,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.7886178861788617,
+          "auc_mean": 0.7657365251954126,
+          "auc_min": 0.717741935483871,
+          "cells_scored": 16104.8,
+          "entities_covered": 206.0,
+          "linkage_rho": 0.5,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.8875,
+          "auc_mean": 0.8731172117365092,
+          "auc_min": 0.8629032258064516,
+          "cells_scored": 16104.8,
+          "entities_covered": 308.0,
+          "linkage_rho": 0.75,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 1.0,
+          "auc_mean": 1.0,
+          "auc_min": 1.0,
+          "cells_scored": 16104.8,
+          "entities_covered": 411.0,
+          "linkage_rho": 1.0,
+          "protocol": "plain_rfs",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 0.0,
+          "linkage_rho": 0.0,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 21.0,
+          "linkage_rho": 0.05,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 49.0,
+          "linkage_rho": 0.12,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 103.0,
+          "linkage_rho": 0.25,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 206.0,
+          "linkage_rho": 0.5,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 308.0,
+          "linkage_rho": 0.75,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        },
+        {
+          "auc_max": 0.5,
+          "auc_mean": 0.5,
+          "auc_min": 0.5,
+          "cells_scored": 16104.8,
+          "entities_covered": 411.0,
+          "linkage_rho": 1.0,
+          "protocol": "qomm_rfq",
+          "seeds": 5
+        }
+      ]
+    }
+  },
+  "host": "host-c",
+  "rhos": [
+    0.0,
+    0.05,
+    0.12,
+    0.25,
+    0.5,
+    0.75,
+    1.0
+  ],
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "seeds": 5
+}

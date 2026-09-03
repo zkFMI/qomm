@@ -1,0 +1,72 @@
+{
+  "host": "host-a",
+  "near_ms": 1.0,
+  "far_ms": 15.0,
+  "n_mm": 16,
+  "n_parties": 7,
+  "bit_length": 31,
+  "repeats": 3,
+  "rows": [
+    {
+      "placement": "all near",
+      "per_party_ms": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      "wall_median_s": 0.6222974001429975,
+      "rounds": null,
+      "verified": true
+    },
+    {
+      "placement": "one far",
+      "per_party_ms": [
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        1.0,
+        15.0
+      ],
+      "wall_median_s": 3.0925895599648356,
+      "rounds": null,
+      "verified": true
+    },
+    {
+      "placement": "one near",
+      "per_party_ms": [
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        1.0
+      ],
+      "wall_median_s": 3.5811125768814236,
+      "rounds": null,
+      "verified": true
+    },
+    {
+      "placement": "all far",
+      "per_party_ms": [
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        15.0,
+        15.0
+      ],
+      "wall_median_s": 3.627101277001202,
+      "rounds": null,
+      "verified": true
+    }
+  ],
+  "one_far_share_of_all_far": 0.8221142746942782
+}

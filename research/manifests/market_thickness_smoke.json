@@ -1,0 +1,28 @@
+{
+  "experiment_id": "QOMM-MARKET-THICKNESS-SMOKE-003",
+  "supersedes_blocked_experiment": "QOMM-MARKET-THICKNESS-SMOKE-002",
+  "new_causal_evidence": "The recorded command names a file that no longer exists. The measurement instrument was reimplemented in Rust and the legacy implementation it invoked was deleted, so the receipt on QOMM-MARKET-THICKNESS-SMOKE-002 describes a run of a different instrument than the one this repository now contains. The Rust binary was compared against that legacy implementation value by value while both existed --- 546 non-timing values identical, 0 different --- so this is a re-run of the same experiment on a rebuilt instrument, not a new hypothesis. Nothing about the market, the seeds, the population or the rules has changed.",
+  "contract_id": "QOMM-PRODUCT-2026-08-24",
+  "contract_sha256": "8c783133f6f737784497d700d9738a6ab9623c524fe36cae85635cb9f4153333",
+  "stage": "smoke",
+  "bottleneck": "The current result does not show whether the privacy and utility findings survive thin maker sets and large requested sizes.",
+  "hypothesis": "With the same market, requests and probes, hiding per-maker request delivery reduces recovery of an individual maker's inventory while leaving execution results unchanged inside each market cell.",
+  "prediction": "Mean individual-maker inventory correlation will be at least 30 percent lower under QOMM than plain RFQ.",
+  "likely_failure": "Large requests in four-maker markets lose fill rate or quote continuation before the privacy difference is informative.",
+  "single_change": "Sweep maker count and forced order-size regime while keeping the paired plain/QOMM stream identical and disclosure disabled.",
+  "baseline": "plain_rfq with no public disclosure",
+  "evaluation_population": "3 paired synthetic seeds, 6000 steps, maker counts 4/8/16, and small/medium/large requested-size regimes",
+  "rejection_rule": "Reject the point prediction if the mean relative reduction is below 30 percent; label any three-seed result smoke_only regardless of direction.",
+  "promotion_rule": "This run cannot promote a design. It may only select a confirmation hypothesis.",
+  "evidence_class": "smoke_only",
+  "command": [
+    "rust/target/release/run_market_thickness",
+    "--out",
+    "artifacts/market_thickness_smoke.json",
+    "--seeds",
+    "3",
+    "--steps",
+    "6000"
+  ],
+  "output": "artifacts/market_thickness_smoke.json"
+}

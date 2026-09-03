@@ -1,0 +1,57 @@
+{
+  "host": "host-a",
+  "program": "qomm_rfq_m16_none_1968651",
+  "parties": 7,
+  "threshold": 2,
+  "repeats": 5,
+  "delay_ms": 0,
+  "protocols": [
+    {
+      "protocol": "malicious-shamir",
+      "stock_binary": "malicious-shamir-party.x",
+      "rounds": 64,
+      "raw_rounds": 64,
+      "sent": 4063600,
+      "payload": 2223880,
+      "constant_across_runs": true,
+      "seconds": {"n": 5, "mean": 0.020553, "sd": 0.000831, "median": 0.020476},
+      "parties": [
+        {"party": 0, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 1, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 2, "rounds": 64, "sent": 4063600, "payload": 2223880},
+        {"party": 3, "rounds": 64, "sent": 3756144, "payload": 1916424},
+        {"party": 4, "rounds": 64, "sent": 3756144, "payload": 1916424},
+        {"party": 5, "rounds": 64, "sent": 2407792, "payload": 568072},
+        {"party": 6, "rounds": 64, "sent": 2407792, "payload": 568072}
+      ],
+      "channels": [
+        {"channel": "Partial broadcasting", "rounds": 49, "bytes": 367808, "share_of_rounds": 0.7656},
+        {"channel": "Sending/receiving", "rounds": 10, "bytes": 1855936, "share_of_rounds": 0.1562},
+        {"channel": "Broadcasting", "rounds": 5, "bytes": 136, "share_of_rounds": 0.0781}
+      ]
+    },
+    {
+      "protocol": "semi-honest-shamir",
+      "stock_binary": "shamir-party.x",
+      "rounds": 56,
+      "raw_rounds": 56,
+      "sent": 1152512,
+      "payload": 1147072,
+      "constant_across_runs": true,
+      "seconds": {"n": 5, "mean": 0.013153, "sd": 0.001296, "median": 0.013316},
+      "parties": [
+        {"party": 0, "rounds": 56, "sent": 1152512, "payload": 1147072},
+        {"party": 1, "rounds": 56, "sent": 1147072, "payload": 1148160},
+        {"party": 2, "rounds": 56, "sent": 1147072, "payload": 1148160},
+        {"party": 3, "rounds": 49, "sent": 838528, "payload": 839616},
+        {"party": 4, "rounds": 49, "sent": 838528, "payload": 839616},
+        {"party": 5, "rounds": 49, "sent": 10624, "payload": 11712},
+        {"party": 6, "rounds": 49, "sent": 10624, "payload": 11712}
+      ],
+      "channels": [
+        {"channel": "Sending/receiving", "rounds": 49, "bytes": 1145984, "share_of_rounds": 0.8750},
+        {"channel": "Sending to all", "rounds": 7, "bytes": 1088, "share_of_rounds": 0.1250}
+      ]
+    }
+  ]
+}

@@ -1,0 +1,131 @@
+{
+ "host": "host-a",
+ "question": "ATLAS is the protocol the king and the double sharings are already in MP-SPDZ for. What does it cost, and what does moving from 7 nodes to 9 cost, since n >= 4T+1 is what the decoding route needs?",
+ "load_caveat": "host-a was at load average 37 of 64 vCPU during these runs. Traffic and round counts do not depend on load; no wall-clock figure is reported here, and none should be taken from these runs.",
+ "setting": {
+  "threshold": 2,
+  "field_bits": 128,
+  "sizes": [
+   2000,
+   22000
+  ],
+  "repeats": 3,
+  "phase": "single-phase --- triples and double sharings generated in the run, which is the comparison GSZ wants because GSZ has no offline phase"
+ },
+ "measured": {
+  "7": {
+   "atlas": {
+    "elements": 4.572,
+    "per_party_bytes": 73.15,
+    "rounds": [
+     9,
+     13
+    ],
+    "binary": "atlas-party.x"
+   },
+   "malicious": {
+    "elements": 64.236,
+    "per_party_bytes": 1027.77,
+    "rounds": [
+     11,
+     23
+    ],
+    "binary": "malicious-shamir-party.x"
+   },
+   "semi_honest": {
+    "elements": 5.714,
+    "per_party_bytes": 91.43,
+    "rounds": [
+     4,
+     4
+    ],
+    "binary": "shamir-party.x"
+   }
+  },
+  "9": {
+   "atlas": {
+    "elements": 5.333,
+    "per_party_bytes": 85.33,
+    "rounds": [
+     9,
+     13
+    ],
+    "binary": "atlas-party.x"
+   },
+   "malicious": {
+    "elements": 82.486,
+    "per_party_bytes": 1319.77,
+    "rounds": [
+     11,
+     23
+    ],
+    "binary": "malicious-shamir-party.x"
+   },
+   "semi_honest": {
+    "elements": 6.667,
+    "per_party_bytes": 106.67,
+    "rounds": [
+     4,
+     4
+    ],
+    "binary": "shamir-party.x"
+   }
+  }
+ },
+ "what_reading_the_engine_had_already_established": {
+  "shamir": "Protocols/Shamir.hpp is GRR re-sharing. No degree-2t opening, so nothing for a decoder to correct.",
+  "atlas": "Protocols/Atlas.hpp is Damgard-Nielsen: get_double_sharing() returns {[r]_2t, [r]_t}, the masked product goes to a king that rotates round-robin, and the king re-shares at degree t.",
+  "randomness": "Shamir<T>::get_randoms uses HYPER-INVERTIBLE MATRICES (get_hyper, PREP_DIR/Hyper-t-n-p) with add_from_all + exchange. That is the same machinery the robust double-sharing generation in the GSZ line is built on, and it is already here."
+ },
+ "findings": [
+  {
+   "finding": "ATLAS is 0.800x semi-honest Shamir, at BOTH node counts",
+   "numbers": "4.572/5.714 = 0.8001 at n=7, 5.333/6.667 = 0.7999 at n=9",
+   "note": "MP-SPDZ's README says ATLAS scales better than plain Shamir; the ratio is flat rather than improving over this range"
+  },
+  {
+   "finding": "Moving 7 -> 9 costs 1.167x per party and 1.500x global, and the round count does not move",
+   "numbers": "atlas 4.572 -> 5.333, semi-honest 5.714 -> 6.667, both 7/6 per party; rounds 9 -> 13 and 4 -> 4 at both n",
+   "why_it_matters": "n >= 4T+1 is what the decoding route needs, and this is its whole traffic bill"
+  },
+  {
+   "finding": "The malicious Shamir baseline on this box is 64.236, not the 48.235 the paper quotes",
+   "why": "the naming patch (locate-inconsistent-shares) is applied to this build, and decode_patch.json measured exactly 64.236 for it. The deployed-with-naming engine is what a robust protocol has to be compared against now.",
+   "at_n9": 82.486
+  },
+  {
+   "finding": "ATLAS at n=9 costs 12.0x less per party than the deployed engine at n=7",
+   "numbers": "5.333 against 64.236; 0.107x on global traffic",
+   "caveat": "ATLAS is SEMI-HONEST. This is headroom, not a result. What it says is that the budget for adding robustness on top of ATLAS is large."
+  }
+ ],
+ "the_decomposition_this_supports": {
+  "model": "ATLAS single-phase = randomness generation + 1 element to the king + the king's re-share amortised over the rotation, so online is about 2 per party.",
+  "arithmetic": "get_randoms costs (n-1)/(n-t) per random per party at degree t and (n-1)/(n-2t) at degree 2t. At n=7,t=2 that is 1.2 + 2.0 = 3.2, plus 2 online = 5.2 against 4.572 measured (12% high). At n=9 it is 1.143 + 1.6 = 2.74, plus 2 = 4.74 against 5.333 measured (11% low).",
+  "verdict": "the model is right in shape and wrong by about 12% in both directions, so it is worth using for an estimate and not for a claim"
+ },
+ "estimate_for_the_robust_variant_which_is_NOT_BUILT": {
+  "construction": "drop the king; open the masked product to all n; each party decodes with Berlekamp-Welch and computes [xy]_t = e - [r]_t locally",
+  "online_per_party": "n - 1 = 8 at n=9, replacing the king's 2",
+  "single_phase_total_per_party": "about 11.3 at n=9, with a band of 10 to 13 given the model's 12% error",
+  "against_what_is_deployed": "about 0.18x of the 64.236 that malicious-shamir-party.x with the naming patch spends at n=7 --- roughly 5.7x cheaper, while never stopping",
+  "status": "AN ESTIMATE. Nothing robust has been run."
+ },
+ "what_this_run_did_and_did_not_test": {
+  "tested": [
+   "that atlas-party.x runs at n=7 and n=9 with T=2",
+   "the cost of the base the robust variant would be built on",
+   "the price of n >= 4T+1, which is the whole reason for going to 9 nodes",
+   "that the round count is independent of n"
+  ],
+  "not_tested": [
+   "the predicted 8 elements per party for the robust variant --- that variant does not exist",
+   "the predicted 1 round per layer against ATLAS's 2",
+   "anything about behaviour under a corrupted party, which is the only thing that would distinguish rung 4 from rung 5"
+  ]
+ },
+ "two_things_that_had_to_be_fixed_to_run_this": {
+  "threshold_flag": "MPSpdzRun decided whether to pass -T by `\"shamir\" in binary`, which silently excluded atlas-party.x. ShamirOptions then defaults to (n-1)/2, so the run would have measured 3-of-7 while the caller asked for 2-of-7. Now an explicit family check.",
+  "ssl": "Player-Data held certificates for 7 parties. Every 9-party run failed with `Cannot access Player-Data/P8.pem` on the last party and `Timed out waiting for peer` on the rest --- the message that names the cause appears on ONE party's log out of nine. Scripts/setup-ssl.sh 9."
+ }
+}
