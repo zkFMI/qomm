@@ -51,6 +51,7 @@ pub struct TransferSecrets {
 /// amount stays on the ledger's books the whole time --- it is in neither
 /// account, so conservation has to count it explicitly, which is the one place
 /// this could silently create or destroy value.
+#[derive(Clone)]
 pub struct Pending {
     pub payer: Vec<u8>,
     /// The key that may release this escrow, recorded when it was prepared.
@@ -85,6 +86,7 @@ pub fn issuance_body(handle: &[u8], balance: &RistrettoPoint, nonce: &[u8]) -> V
     hasher.finalize().to_vec()
 }
 
+#[derive(Clone)]
 pub struct Ledger {
     pub key: Pedersen,
     pub bits: usize,

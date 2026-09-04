@@ -611,9 +611,15 @@ pub fn build_package_for_sides<R: RngCore + CryptoRng>(
 
     let carry = Carry {
         securities_balance: holdings.securities_balance - quantity,
-        securities_blinding: securities_secrets.remainder_blinding,
+        // `remainder_blinding` opens the remainder under the per-transfer
+        // blinded generator H = A + gamma*h.  A later transfer starts from the
+        // canonical account generator A, so the wallet must carry the
+        // equivalent base-generator opening instead.
+        securities_blinding: securities_secrets.remainder_blinding
+            + securities_gamma * Scalar::from(holdings.securities_balance - quantity),
         cash_balance: holdings.cash_balance - value,
-        cash_blinding: cash_secrets.remainder_blinding,
+        cash_blinding: cash_secrets.remainder_blinding
+            + cash_gamma * Scalar::from(holdings.cash_balance - value),
         securities_amount_blinding: securities_secrets.amount_blinding,
         cash_amount_blinding: cash_secrets.amount_blinding,
         cash_reference_blinding: reference_blinding,
@@ -758,6 +764,7 @@ pub(crate) fn verify_package_legs_for_sides<R: RngCore + CryptoRng>(
     Ok(())
 }
 
+#[derive(Clone)]
 pub struct Defmi {
     pub key: Pedersen,
     pub securities: Ledger,
@@ -810,6 +817,55 @@ impl Defmi {
         }
         Receipt {
             status,
+            securities_before,
+            securities_after: self.securities.snapshot(),
+            cash_before,
+            cash_after: self.cash.snapshot(),
+        }
+    }
+
+    /// Verify and apply a group of DvP packages as one state transition.
+    ///
+    /// Every member is checked against the state produced by its predecessor,
+    /// but `self` is replaced only after all members have succeeded.  A bad
+    /// member therefore leaves both rails and the venue nullifier set exactly
+    /// unchanged.  The method is deliberately generic: OCLOB, QOMM, and other
+    /// applications can bind their own batch statement around the same DeFMI
+    /// atomicity boundary.
+    pub fn settle_batch<R: RngCore + CryptoRng>(
+        &mut self,
+        packages: &[DvpPackage],
+        now: u64,
+        rng: &mut R,
+    ) -> Receipt {
+        let securities_before = self.securities.snapshot();
+        let cash_before = self.cash.snapshot();
+        if packages.is_empty() {
+            return Receipt {
+                status: Err("an atomic settlement batch cannot be empty"),
+                securities_before,
+                securities_after: securities_before,
+                cash_before,
+                cash_after: cash_before,
+            };
+        }
+
+        let mut staged = self.clone();
+        for package in packages {
+            let receipt = staged.settle(package, now, rng);
+            if let Err(error) = receipt.status {
+                return Receipt {
+                    status: Err(error),
+                    securities_before,
+                    securities_after: securities_before,
+                    cash_before,
+                    cash_after: cash_before,
+                };
+            }
+        }
+        *self = staged;
+        Receipt {
+            status: Ok(()),
             securities_before,
             securities_after: self.securities.snapshot(),
             cash_before,
