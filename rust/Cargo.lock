@@ -715,6 +715,8 @@ dependencies = [
  "hex",
  "qomm-dsl",
  "qomm-measure",
+ "rand",
+ "rand_core",
  "serde",
  "serde_json",
  "sha2",

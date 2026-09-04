@@ -4,6 +4,7 @@
 //! sharing use separate deterministic MT19937 instances with rejection sampling.
 
 use crate::program::{CheckMode, Mode, Reference, ED25519_ORDER, FIELDS};
+use rand_core::{CryptoRng, RngCore};
 use serde_json::Value;
 use std::cmp::Ordering;
 use std::fmt;
@@ -325,6 +326,54 @@ pub fn build_shamir_party_files(
             file
         })
         .collect())
+}
+
+/// Split compact signed integers into MP-SPDZ Shamir input files using
+/// coefficients sampled from a caller-provided cryptographic random source.
+///
+/// Unlike [`build_shamir_party_files`], this function is suitable for a live
+/// dealer that has already received the clear values. It still returns every
+/// party share to that dealer, so deployments that must hide values from the
+/// coordinator need distributed input sharing at the client edge instead.
+pub fn build_shamir_party_files_secure<R: RngCore + CryptoRng>(
+    values: &[i128],
+    n_parties: usize,
+    max_corrupt_nodes: usize,
+    rng: &mut R,
+) -> Result<Vec<String>, InputError> {
+    if values.is_empty() {
+        return Err(InputError("at least one secret value is required".into()));
+    }
+    let prime = BigNat::from_decimal(ED25519_ORDER)?;
+    let mut per_party = vec![Vec::with_capacity(values.len()); n_parties];
+    for value in values {
+        let shares = shamir_split_secure(
+            &BigInt::from_i128(*value),
+            n_parties,
+            max_corrupt_nodes,
+            &prime,
+            rng,
+        )?;
+        for (party, share) in shares.into_iter().enumerate() {
+            per_party[party].push(share);
+        }
+    }
+    Ok(party_files(per_party))
+}
+
+fn party_files(per_party: Vec<Vec<BigInt>>) -> Vec<String> {
+    per_party
+        .into_iter()
+        .map(|shares| {
+            let mut file = shares
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ");
+            file.push('\n');
+            file
+        })
+        .collect()
 }
 
 /// Build deterministic per-party circuit inputs and the clear verification record.
@@ -815,6 +864,55 @@ fn shamir_split(
         shares.push(BigInt::positive(accumulator));
     }
     Ok(shares)
+}
+
+fn shamir_split_secure<R: RngCore + CryptoRng>(
+    value: &BigInt,
+    n_nodes: usize,
+    threshold: usize,
+    prime: &BigNat,
+    rng: &mut R,
+) -> Result<Vec<BigInt>, InputError> {
+    if n_nodes < threshold.saturating_mul(2).saturating_add(1) {
+        return Err(InputError(format!(
+            "{n_nodes} nodes cannot carry a threshold of {threshold}"
+        )));
+    }
+    let mut coefficients = Vec::with_capacity(threshold + 1);
+    coefficients.push(value.modulo(prime));
+    for _ in 0..threshold {
+        coefficients.push(secure_below_big(rng, prime));
+    }
+    let mut shares = Vec::with_capacity(n_nodes);
+    for x in 1..=n_nodes {
+        let mut accumulator = BigNat::zero();
+        for coefficient in coefficients.iter().rev() {
+            accumulator = accumulator.mul_small_add_mod(x, coefficient, prime);
+        }
+        shares.push(BigInt::positive(accumulator));
+    }
+    Ok(shares)
+}
+
+fn secure_below_big<R: RngCore + CryptoRng>(rng: &mut R, bound: &BigNat) -> BigNat {
+    let bits = bound.bit_len();
+    let limbs = bits.div_ceil(32) as usize;
+    loop {
+        let mut value = BigNat {
+            limbs: (0..limbs).map(|_| rng.next_u32()).collect(),
+        };
+        let used_top_bits = bits % 32;
+        if used_top_bits != 0 {
+            let mask = (1_u32 << used_top_bits) - 1;
+            if let Some(top) = value.limbs.last_mut() {
+                *top &= mask;
+            }
+        }
+        value.normalize();
+        if value < *bound {
+            return value;
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -1386,6 +1484,7 @@ impl DeterministicRng {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rand::{rngs::StdRng, SeedableRng};
 
     #[test]
     fn deterministic_random_integer_stream_matches_known_values() {
@@ -1418,5 +1517,23 @@ mod tests {
     fn shamir_party_files_reject_empty_input_and_unsafe_threshold() {
         assert!(build_shamir_party_files(&[], 7, 2, 41).is_err());
         assert!(build_shamir_party_files(&[1], 4, 2, 41).is_err());
+    }
+
+    #[test]
+    fn secure_shamir_party_files_use_the_callers_random_stream() {
+        let mut first_rng = StdRng::seed_from_u64(41);
+        let mut repeated_rng = StdRng::seed_from_u64(41);
+        let mut distinct_rng = StdRng::seed_from_u64(42);
+        let first = build_shamir_party_files_secure(&[7, -3, 0], 7, 2, &mut first_rng).unwrap();
+        let repeated =
+            build_shamir_party_files_secure(&[7, -3, 0], 7, 2, &mut repeated_rng).unwrap();
+        let distinct =
+            build_shamir_party_files_secure(&[7, -3, 0], 7, 2, &mut distinct_rng).unwrap();
+        assert_eq!(first, repeated);
+        assert_ne!(first, distinct);
+        assert_eq!(first.len(), 7);
+        assert!(first
+            .iter()
+            .all(|party| party.split_whitespace().count() == 3));
     }
 }

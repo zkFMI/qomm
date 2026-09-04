@@ -9,11 +9,13 @@ build = "build.rs"
 [dependencies]
 qomm-dsl.workspace = true
 qomm-measure.workspace = true
+rand_core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
 hex.workspace = true
+rand.workspace = true
 sha2.workspace = true
 tempfile = "3"
 
