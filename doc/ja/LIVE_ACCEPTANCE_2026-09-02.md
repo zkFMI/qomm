@@ -13,7 +13,8 @@
 - `rust/qomm-demo/src/bin/qomm_live_acceptance.rs`: デモネットワーク内で動く受入ドライバ。Gateway の WebSocket で
   Taker 席を取って RFQ を投げ(`rfq`)、Maker 席で方針を変え(`policy`)、Taker モジュールの outbox と DeFMI の hold を
   追い(`wait`)、7 ノードの health・常駐 Maker 状態・受理済み実行と DeFMI の pool note を記録し(`snapshot`)、記録から
-  合否を出す(`judge`)。署名も outbox ファイルの読み書きもしない。
+  1シナリオの合否を出し(`judge`)、全シナリオの識別子・受領証・残高・ハッシュを1つの記録へまとめる
+  (`report`)。署名も outbox ファイルの読み書きもしない。
 - `demo-network/live_acceptance.sh`: Docker ホスト側でコンテナを止め、殺し、起こす手順。観測はすべて上のバイナリに任せる。
 - ゲートウェイの変更 1 点(`rust/qomm-demo/src/distributed_mpc.rs`): 署名済み RFQ を法人 outbox へ入れる処理を、
   7 ノード全員を必要とする常駐 Maker 状態の突き合わせより前へ移した。委員会が落ちている間に署名された要求は、
@@ -28,10 +29,11 @@
   正本の状態(`/v1/outbox/reconcile`)を 5 秒に 1 回確かめ、`queue_finalized` かつ `released` なら
   Gateway の予約と残高の投影を解放してラウンドを `released`(`corporate_finalized`)として記録する。`consumed` で終端した
   未決済の要求は解放せず運用者向けに残す。`pool-sum` の 2 回目はこの修正を入れたイメージで動かした。
-- `demo-network/live_acceptance_report.py`: 全シナリオの記録と `judge` の合否を 1 つの `acceptance.json` にまとめる。
+- `qomm-live-acceptance report`: 全シナリオの記録と `judge` の合否を 1 つの `acceptance.json` にまとめるRust実装。
   request id・digest・sequence・hold id・DeFMI 受領証、7 ノードの受理済み実行、前後の Taker 残高、pool sequence、
   ノード世代の会計、全記録ファイルの SHA-256 を持ち、`judge` とは独立に同じ不変条件(識別子の連鎖、hold と受領証の一致、
-  pool の一歩前進、世代の会計)を再導出して食い違えば不合格にする。
+  pool の一歩前進、世代の会計)を再導出して食い違えば不合格にする。実装は
+  `rust/qomm-demo/src/bin/qomm_live_acceptance_report.rs` に分離し、上記バイナリの `report` サブコマンドからだけ呼ぶ。
 - `judge` の約定突き合わせ: pool id が 2 つのスナップショットで同じ束縛に残ることを仮定しない。7 ノードの
   `/v1/rounds` 受領証(round id・実行世代・入出力と persistence のダイジェスト)から残余 note の id を
   Gateway の `locate_accepted_execution` と同じ導出で再計算し、DeFMI の `currentPoolNoteID` と一致した pool を

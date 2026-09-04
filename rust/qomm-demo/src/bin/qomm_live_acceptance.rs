@@ -25,6 +25,9 @@ use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+#[path = "qomm_live_acceptance_report.rs"]
+mod report;
+
 const USAGE: &str = "usage: qomm-live-acceptance <command> [--key value ...]
 
 commands
@@ -37,6 +40,8 @@ commands
              --after-sequence) until it reaches --until
   view       record one gateway view for --seat (default observer)
   judge      turn the files a scenario recorded (--dir, --scenario) into checks
+  report     assemble all recorded scenarios into one independently re-derived
+             acceptance record (--dir, --out; repeat --scenario/--require)
   force      pin --seat to manual mode (--manual 1) or release the pin (0)
   defmi-rpc  re-present a journaled DeFMI transition (--file) and record the answer
   pool       record one standing pool's canonical DeFMI state and current note (--id)
@@ -53,6 +58,7 @@ common options
 struct Args {
     command: String,
     options: BTreeMap<String, String>,
+    repeated: BTreeMap<String, Vec<String>>,
 }
 
 impl Args {
@@ -60,6 +66,7 @@ impl Args {
         let mut raw = std::env::args().skip(1);
         let command = raw.next().ok_or_else(|| USAGE.to_string())?;
         let mut options = BTreeMap::new();
+        let mut repeated = BTreeMap::<String, Vec<String>>::new();
         while let Some(key) = raw.next() {
             let name = key
                 .strip_prefix("--")
@@ -68,9 +75,17 @@ impl Args {
             let value = raw
                 .next()
                 .ok_or_else(|| format!("--{name} needs a value\n{USAGE}"))?;
+            repeated
+                .entry(name.clone())
+                .or_default()
+                .push(value.clone());
             options.insert(name, value);
         }
-        Ok(Self { command, options })
+        Ok(Self {
+            command,
+            options,
+            repeated,
+        })
     }
 
     fn text(&self, key: &str, default: &str) -> String {
@@ -78,6 +93,10 @@ impl Args {
             .get(key)
             .cloned()
             .unwrap_or_else(|| default.to_string())
+    }
+
+    fn texts(&self, key: &str) -> Vec<String> {
+        self.repeated.get(key).cloned().unwrap_or_default()
     }
 
     fn number(&self, key: &str, default: u64) -> Result<u64, String> {
@@ -3495,6 +3514,7 @@ fn main() -> ExitCode {
         "wait" => cmd_wait(&args),
         "view" => cmd_view(&args),
         "judge" => cmd_judge(&args),
+        "report" => report::cmd_report(&args),
         "defmi-rpc" => cmd_defmi_rpc(&args),
         "pool" => cmd_pool(&args),
         "pool-guard-probe" => cmd_pool_guard_probe(&args),
@@ -3521,6 +3541,9 @@ fn main() -> ExitCode {
     // caller that wants a non-zero exit on timeout checks `reached`.
     if args.command == "wait" && document.get("reached") == Some(&Value::Bool(false)) {
         return ExitCode::from(3);
+    }
+    if args.command == "report" && document.get("pass") == Some(&Value::Bool(false)) {
+        return ExitCode::from(1);
     }
     code
 }

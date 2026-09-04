@@ -156,7 +156,7 @@
 | ファイル | 責務 |
 |---|---|
 | `rust/qomm-transport/src/lib.rs` | 通信・ノードモジュールの公開入口 |
-| `rust/qomm-transport/src/wire.rs` | 303バイトフレーム、法`2^255-19`、加法分散、HMAC |
+| `rust/qomm-transport/src/wire.rs` | wire v4の495バイトフレーム、法`2^255-19`、加法分散、HMAC |
 | `rust/qomm-transport/src/client.rs` | 毎スロット各ノードへ実またはダミーフレームを一通送る |
 | `rust/qomm-transport/src/relay.rs` | スロット単位に受信、検査、混合、転送、ノード受信箱 |
 | `rust/qomm-transport/src/order.rs` | 受付券、後決め乱数、バッチmanifest、省略証拠 |

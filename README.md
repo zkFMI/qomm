@@ -165,6 +165,12 @@ to real machines is not published.
 - [`REVIEW.md`](REVIEW.md) --- what two rounds of review found, including what was checked and found sound
 - [`ZKPI_WIRE.md`](ZKPI_WIRE.md) --- the bytes an instruction travels as, the vectors to check an implementation against, and where it can run
 
+## Enterprise PoC
+
+[Enterprise PoC guide (Japanese)](docs/ENTERPRISE_POC_JA.md) explains the
+installation, role separation, failure cases, evidence to retain and acceptance
+criteria for a company-run evaluation.
+
 ## Running it
 
 ```sh
