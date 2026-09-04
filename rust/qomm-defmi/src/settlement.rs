@@ -409,6 +409,10 @@ pub struct Carry {
     pub securities_blinding: Scalar,
     pub cash_balance: u64,
     pub cash_blinding: Scalar,
+    /// Amount-opening delta delivered to the securities receiver's wallet.
+    pub securities_payee_delta: Scalar,
+    /// Amount-opening delta delivered to the cash receiver's wallet.
+    pub cash_payee_delta: Scalar,
     /// Openings of the two rail amount commitments.  Product reservation
     /// consumption uses these (not the separately blinded reference points) so
     /// the unused escrow commitment is exactly the DvP remainder.
@@ -620,6 +624,8 @@ pub fn build_package_for_sides<R: RngCore + CryptoRng>(
         cash_balance: holdings.cash_balance - value,
         cash_blinding: cash_secrets.remainder_blinding
             + cash_gamma * Scalar::from(holdings.cash_balance - value),
+        securities_payee_delta: securities_secrets.payee_delta,
+        cash_payee_delta: cash_secrets.payee_delta,
         securities_amount_blinding: securities_secrets.amount_blinding,
         cash_amount_blinding: cash_secrets.amount_blinding,
         cash_reference_blinding: reference_blinding,

@@ -46,6 +46,7 @@ impl BlindedTag {
     }
 }
 
+#[derive(Clone)]
 pub struct AssetRegistry {
     pub key: Pedersen,
     pub count: u32,
