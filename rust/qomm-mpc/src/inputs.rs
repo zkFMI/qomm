@@ -282,6 +282,51 @@ impl GeneratedInputs {
     }
 }
 
+/// Deterministically split compact signed integers into Shamir shares formatted
+/// for MP-SPDZ `Input-P{party}-0` files.
+///
+/// This helper exists for reproducible integration tests and local protocol
+/// harnesses. It returns every party's input and uses a deterministic generator,
+/// so it must not be used as a production dealer or as a source of cryptographic
+/// randomness.
+pub fn build_shamir_party_files(
+    values: &[i128],
+    n_parties: usize,
+    max_corrupt_nodes: usize,
+    seed: i128,
+) -> Result<Vec<String>, InputError> {
+    if values.is_empty() {
+        return Err(InputError("at least one secret value is required".into()));
+    }
+    let prime = BigNat::from_decimal(ED25519_ORDER)?;
+    let mut rng = DeterministicRng::new(seed);
+    let mut per_party = vec![Vec::with_capacity(values.len()); n_parties];
+    for value in values {
+        let shares = shamir_split(
+            &BigInt::from_i128(*value),
+            n_parties,
+            max_corrupt_nodes,
+            &prime,
+            &mut rng,
+        )?;
+        for (party, share) in shares.into_iter().enumerate() {
+            per_party[party].push(share);
+        }
+    }
+    Ok(per_party
+        .into_iter()
+        .map(|shares| {
+            let mut file = shares
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(" ");
+            file.push('\n');
+            file
+        })
+        .collect())
+}
+
 /// Build deterministic per-party circuit inputs and the clear verification record.
 pub fn build_inputs(config: &InputConfig<'_>) -> Result<GeneratedInputs, InputError> {
     let mut rng = DeterministicRng::new(config.seed);
@@ -1356,5 +1401,22 @@ mod tests {
             BigNat::from_decimal(ED25519_ORDER).unwrap().to_string(),
             ED25519_ORDER
         );
+    }
+
+    #[test]
+    fn deterministic_shamir_party_files_have_one_value_per_secret() {
+        let first = build_shamir_party_files(&[7, -3, 0], 7, 2, 41).unwrap();
+        let second = build_shamir_party_files(&[7, -3, 0], 7, 2, 41).unwrap();
+        assert_eq!(first, second);
+        assert_eq!(first.len(), 7);
+        assert!(first
+            .iter()
+            .all(|file| file.split_whitespace().count() == 3));
+    }
+
+    #[test]
+    fn shamir_party_files_reject_empty_input_and_unsafe_threshold() {
+        assert!(build_shamir_party_files(&[], 7, 2, 41).is_err());
+        assert!(build_shamir_party_files(&[1], 4, 2, 41).is_err());
     }
 }
