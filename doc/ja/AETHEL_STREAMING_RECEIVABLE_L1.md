@@ -1,5 +1,7 @@
 # Aethel: ストリーム債権・与信プロバイダ・保証をAvalanche L1へ載せる設計
 
+> 2026-09-05 更新: 以下は旧VM組込み方式の設計・実装記録である。現在はアプリ固有adapter・債権証明・18メソッドをAethelが所有し、基盤はAethelをimportしない。旧RPC名はAethelホストの共通envelope内で扱い、旧snapshotは明示的な移行が必要。現行配置と検証は[Aethelの基盤分離文書](../../../aethel/docs/FOUNDATION_INDEPENDENCE_JA.md)を参照する。
+
 ## 結論
 
 Aethelは金融機関でも、単一の与信エンジンでもない。支払ストリームから将来債権を作り、分割し、
