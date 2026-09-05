@@ -18,6 +18,7 @@
 //! one that says so.
 
 pub mod compiler;
+pub mod engine_policy;
 pub mod inputs;
 pub mod persistence;
 pub mod program;

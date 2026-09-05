@@ -225,3 +225,57 @@ fn journaled_round_two_survives_node_and_coordinator_restart() {
         assert!(health["state_generation"].as_u64().unwrap() >= 3);
     }
 }
+
+#[test]
+fn hybrid_dkg_envelopes_reject_downgrade_and_sender_substitution_before_commit() {
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::Engine;
+    use ed25519_dalek::{Signer, SigningKey};
+    use qomm_transport::selective_disclosure::WinnerEnvelope;
+    let root = TempDir::new().unwrap();
+    let mut parties = (0_u16..7)
+        .map(|node| LocalParty::new(node, root.path()))
+        .collect::<Vec<_>>();
+    let plan = prepare_frost_dkg(&mut parties, [0x55; 32]).unwrap();
+    for incoming in &plan.incoming {
+        for record in incoming {
+            let envelope = WinnerEnvelope::decode(
+                &BASE64.decode(record["envelope"].as_str().unwrap()).unwrap(),
+            )
+            .unwrap();
+            assert_eq!(envelope.version, 2);
+            assert_eq!(envelope.kem_ciphertext.len(), 1120);
+        }
+    }
+    let call = |party: &mut LocalParty, incoming: &[Value]| {
+        party.call(
+            "frost_dkg_finalize",
+            json!({"broadcasts": plan.broadcasts.clone(), "incoming": incoming}),
+        )
+    };
+    let mut malformed = plan.incoming[0].clone();
+    malformed[0].as_object_mut().unwrap().remove("envelope");
+    malformed[0]["ciphertext"] = json!("classical-only record");
+    assert!(call(&mut parties[0], &malformed).is_err());
+    malformed = plan.incoming[0].clone();
+    let mut envelope = WinnerEnvelope::decode(
+        &BASE64
+            .decode(malformed[0]["envelope"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    let attacker = SigningKey::from_bytes(&[0x77; 32]);
+    envelope.taker_public = attacker.verifying_key().to_bytes();
+    envelope.signature = attacker.sign(&envelope.unsigned().unwrap());
+    malformed[0]["envelope"] = json!(BASE64.encode(envelope.encode().unwrap()));
+    assert!(call(&mut parties[0], &malformed)
+        .unwrap_err()
+        .contains("signature"));
+    assert_eq!(
+        parties[0].call("health", Value::Null).unwrap()["frost_ready"],
+        false
+    );
+    parties[0].restart();
+    finalize_frost_dkg(&mut parties, &plan).unwrap();
+    assert_ready(&mut parties);
+}

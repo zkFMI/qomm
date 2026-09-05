@@ -16,6 +16,65 @@ fn store(directory: &tempfile::TempDir) -> EncryptedKeyStore {
 }
 
 #[test]
+fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
+    use ed25519_dalek::SigningKey;
+    use qomm_transport::selective_disclosure::{open_if_winner, seal_for_winner};
+    use rand_core::OsRng;
+    let directory = tempfile::tempdir().unwrap();
+    let vault = store(&directory);
+    let purpose = "maker:m1:hybrid-delivery";
+    let old = vault
+        .generate(purpose, KeyKind::HybridKem, 100, 1000, BTreeMap::new())
+        .unwrap();
+    let taker = SigningKey::generate(&mut OsRng);
+    let old_public = vault
+        .private_key(&old, 101, false)
+        .unwrap()
+        .hybrid_kem()
+        .unwrap()
+        .public_key()
+        .unwrap();
+    let envelope =
+        seal_for_winner("m1", &old_public, b"settle", b"market", [5; 32], &taker).unwrap();
+    assert!(vault.private_key(&old, 99, false).is_err());
+    let new = vault
+        .rotate(purpose, KeyKind::HybridKem, 200, 1000, BTreeMap::new())
+        .unwrap();
+    let restored = EncryptedKeyStore::new(
+        directory.path().join("keys.qks"),
+        b"correct horse battery staple",
+    )
+    .unwrap();
+    let keys = restored
+        .private_keys_for(purpose, 201, true)
+        .unwrap()
+        .into_iter()
+        .map(|key| key.hybrid_kem().unwrap().clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        open_if_winner(&envelope, "m1", &keys, b"market", [5; 32], None).unwrap(),
+        Some(b"settle".to_vec())
+    );
+    assert!(restored.private_key(&old, 201, false).is_err());
+    assert!(restored
+        .rotate(purpose, KeyKind::X25519, 202, 1000, BTreeMap::new())
+        .is_err());
+    restored.revoke(&old, 202, "rotation complete").unwrap();
+    assert!(restored.private_key(&old, 203, true).is_err());
+    assert!(restored.private_key(&new, 1201, false).is_err());
+    let keys = restored
+        .private_keys_for(purpose, 203, true)
+        .unwrap()
+        .into_iter()
+        .map(|key| key.hybrid_kem().unwrap().clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        open_if_winner(&envelope, "m1", &keys, b"market", [5; 32], None).unwrap(),
+        None
+    );
+}
+
+#[test]
 fn private_material_is_encrypted_atomic_and_mode_0600() {
     let directory = tempfile::tempdir().unwrap();
     let vault = store(&directory);

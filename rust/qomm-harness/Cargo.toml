@@ -7,14 +7,14 @@ autobins = false
 
 [dependencies]
 qomm-demo = { path = "../qomm-demo" }
-qomm-audit = { path = "../qomm-audit" }
-qomm-dsl = { path = "../qomm-dsl" }
-qomm-measure = { path = "../qomm-measure" }
-qomm-mpc = { path = "../qomm-mpc" }
-qomm-proofs = { path = "../qomm-proofs" }
-qomm-sim = { path = "../qomm-sim" }
-qomm-transport = { path = "../qomm-transport" }
-qomm-zk = { path = "../qomm-zk" }
+qomm-audit.workspace = true
+qomm-dsl.workspace = true
+qomm-measure.workspace = true
+qomm-mpc.workspace = true
+qomm-proofs.workspace = true
+qomm-sim.workspace = true
+qomm-transport.workspace = true
+qomm-zk.workspace = true
 curve25519-dalek.workspace = true
 ed25519-dalek.workspace = true
 merlin.workspace = true

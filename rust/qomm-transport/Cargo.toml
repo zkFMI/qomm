@@ -8,6 +8,9 @@ license.workspace = true
 name = "qomm_transport"
 
 [dependencies]
+zkfmi-crypto = { workspace = true, features = ["tls"] }
+hkdf = "0.12"
+zeroize = "1.8"
 qomm-proofs.workspace = true
 qomm-dsl.workspace = true
 qomm-mpc.workspace = true

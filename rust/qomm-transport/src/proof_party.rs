@@ -49,6 +49,8 @@ use std::io::{BufRead, Read, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
+use zeroize::Zeroizing;
+use zkfmi_crypto::suite::Suite;
 
 use sha2::{Digest, Sha256};
 
@@ -79,8 +81,7 @@ use crate::quote_wire::{
     Message as QuoteMessage,
 };
 use crate::selective_disclosure::{
-    decrypt as decrypt_exchange, encrypt as encrypt_exchange, shared as exchange_shared,
-    X25519PrivateKey, X25519PublicKey,
+    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey, KEM_SUITE,
 };
 use crate::standing_pool::{
     standing_note_pool_delegation_digest, standing_note_pool_id, threshold_dvp_package_digest,
@@ -102,10 +103,10 @@ const MAX_WIRE_BYTES: usize = 1 << 20;
 const MAX_REQUEST_BYTES: usize = 8 << 20;
 const MAX_RESPONSE_BYTES: usize = 8 << 20;
 const MAX_PROOF_STATE_BYTES: usize = 32 << 20;
-const FROST_IDENTITY_DOMAIN: &[u8] = b"QOMM:FROST:PEER-IDENTITY:v1";
-const FROST_MANIFEST_DOMAIN: &[u8] = b"QOMM:FROST:PEER-MANIFEST:v1";
-const FROST_CONFIRM_DOMAIN: &[u8] = b"QOMM:FROST:PEER-CONFIRM:v1";
-const FROST_EXCHANGE_DOMAIN: &[u8] = b"QOMM:FROST:DKG-EXCHANGE:v1";
+const FROST_IDENTITY_DOMAIN: &[u8] = b"QOMM:FROST:PEER-IDENTITY:v2";
+const FROST_MANIFEST_DOMAIN: &[u8] = b"QOMM:FROST:PEER-MANIFEST:v2";
+const FROST_CONFIRM_DOMAIN: &[u8] = b"QOMM:FROST:PEER-CONFIRM:v2";
+const FROST_EXCHANGE_DOMAIN: &[u8] = b"QOMM:FROST:DKG-EXCHANGE:v2";
 const PROOF_STATE_MAGIC: &[u8; 8] = b"QOMMPS01";
 const PROOF_STATE_AAD: &[u8] = b"QOMM:PROOF-PARTY-STATE:v1";
 const PROOF_STATE_SALT_BYTES: usize = 16;
@@ -356,6 +357,9 @@ struct DurableProofState {
     proof_completed: Vec<String>,
     #[serde(default)]
     completed_evidence: BTreeMap<String, DurableCompletedProof>,
+    /// Required in v3. Ordered non-payment operations must retain their action
+    /// binding independently of DvP proofs and across a restart.
+    application_controls: BTreeMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -404,6 +408,10 @@ struct DurableCompletedProof {
     securities_reserve: Option<String>,
     #[serde(default)]
     cash_reserve: Option<String>,
+    #[serde(default)]
+    opening_shares: BTreeMap<String, Value>,
+    #[serde(default)]
+    application_action_digest: Option<String>,
 }
 
 #[derive(Clone)]
@@ -417,6 +425,64 @@ struct CompletedProof {
     maker_is_payer: Option<bool>,
     securities_reserve: Option<[u8; 32]>,
     cash_reserve: Option<[u8; 32]>,
+    opening_shares: BTreeMap<String, Value>,
+    application_action_digest: Option<[u8; 32]>,
+}
+
+/// Public-only evidence retained by this particular proof node. No secret
+/// share or opening is exported. Applications use this in an in-process
+/// verifier, never accept it from an RPC caller as a `verified` assertion.
+pub struct CompletedApplicationProof<'a> {
+    pub job_id: [u8; 32],
+    pub payment_digest: [u8; 64],
+    pub quote_digest: [u8; 32],
+    pub maker_handle: [u8; 32],
+    pub taker_handle: [u8; 32],
+    pub maker_is_payer: bool,
+    pub securities_reserve: [u8; 32],
+    pub cash_reserve: [u8; 32],
+    pub opening_shares: &'a BTreeMap<String, Value>,
+    pub committee_public: &'a frost::keys::PublicKeyPackage,
+}
+
+/// Deliberately has no generic RPC dispatch. An application listener must
+/// install its own typed verifier, including executed-job/policy, reservation
+/// authority, complete public proofs, and exact encrypted-opening bindings.
+/// The transport retains one-use FROST nonces and durable action binding.
+pub trait ApplicationStatementVerifier {
+    fn verify(
+        &self,
+        evidence: CompletedApplicationProof<'_>,
+    ) -> Result<ApplicationStatementAuthorization, String>;
+}
+
+pub struct ApplicationStatementAuthorization {
+    pub message: [u8; 32],
+    /// Bind all immutable action bytes. An application may exclude a stale
+    /// canonical parent here to re-certify after unrelated ledger activity,
+    /// but must not exclude the operation, reserve heads, proofs or outputs.
+    pub action_digest: [u8; 32],
+}
+
+/// In-process extension for an application's ordered control operations, such
+/// as cancellation of a reservation. It is deliberately NOT an RPC method or
+/// an alternative way to certify a payment. The installed application verifier
+/// must check its node-owned ordering/state evidence, owner authorization,
+/// canonical reservation head and exact operation before returning authority.
+pub trait ApplicationControlVerifier {
+    fn verify(
+        &self,
+        committee_public: &frost::keys::PublicKeyPackage,
+    ) -> Result<ApplicationControlAuthorization, String>;
+}
+
+pub struct ApplicationControlAuthorization {
+    /// Domain-separated identity of the immutable ordered control operation.
+    pub control_id: [u8; 32],
+    pub message: [u8; 32],
+    /// Must bind the operation, reservation and head. Only a stale canonical
+    /// parent may be excluded to permit recertification of that same action.
+    pub action_digest: [u8; 32],
 }
 
 struct ProofStateStore {
@@ -521,9 +587,17 @@ impl ProofStateStore {
             PROOF_STATE_AAD,
             &raw[at..],
         )?;
-        let state: DurableProofState = serde_json::from_slice(&clear)
+        let value: Value = serde_json::from_slice(&clear)
             .map_err(|_| "proof-party state authentication failed".to_string())?;
-        if state.version != 2 {
+        if value.get("version").and_then(Value::as_u64) != Some(4) {
+            return Err(
+                "proof state requires explicit hybrid-key migration; legacy state was preserved"
+                    .into(),
+            );
+        }
+        let state: DurableProofState = serde_json::from_value(value)
+            .map_err(|_| "proof-party state schema is invalid".to_string())?;
+        if state.version != 4 {
             return Err(
                 "unsupported proof-party state version; securely reprovision this non-production node"
                     .into(),
@@ -628,19 +702,21 @@ struct ProofJob {
     /// the public response. A standing-pool allocation cannot be authorized
     /// from evaluations alone.
     dvp_response_issued: bool,
+    opening_shares: BTreeMap<String, Value>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 struct FrostPeerEntry {
     party: u16,
     identity_public: String,
+    exchange_suite: Suite,
     exchange_public: String,
     self_signature: String,
 }
 
 struct FrostPeer {
     identity: VerifyingKey,
-    exchange: X25519PublicKey,
+    exchange: WinnerPublicKey,
 }
 
 struct PendingPeers {
@@ -693,8 +769,10 @@ pub struct ProofParty {
     reserved: BTreeSet<[u8; 32]>,
     completed: BTreeSet<[u8; 32]>,
     completed_evidence: BTreeMap<[u8; 32], CompletedProof>,
+    application_controls: BTreeMap<[u8; 32], [u8; 32]>,
     identity: SigningKey,
-    exchange: X25519PrivateKey,
+    exchange: WinnerPrivateKey,
+    exchange_seed: Zeroizing<[u8; 96]>,
     pending_peers: Option<PendingPeers>,
     peers: Option<PendingPeers>,
     dkg_round1: Option<PendingDkgRound1>,
@@ -728,9 +806,12 @@ impl ProofParty {
             state_store.read()?
         } else {
             let identity = SigningKey::generate(&mut OsRng);
-            let exchange = X25519PrivateKey::generate()?;
+            let mut exchange_seed = Zeroizing::new([0_u8; 96]);
+            OsRng
+                .try_fill_bytes(exchange_seed.as_mut())
+                .map_err(|error| error.to_string())?;
             let state = DurableProofState {
-                version: 2,
+                version: 4,
                 generation: 0,
                 proof_configuration_digest: hex::encode(config.security_digest()),
                 node: config.node,
@@ -739,7 +820,7 @@ impl ProofParty {
                 threshold: config.threshold,
                 trusted_defmi_receipt_public: config.trusted_defmi_receipt_public.map(hex::encode),
                 identity_private: BASE64.encode(identity.to_bytes()),
-                exchange_private: BASE64.encode(exchange.raw_private_key()?),
+                exchange_private: BASE64.encode(exchange_seed.as_slice()),
                 frost_session: None,
                 frost_key_package: None,
                 frost_public_package: None,
@@ -754,6 +835,7 @@ impl ProofParty {
                 proof_reserved: Vec::new(),
                 proof_completed: Vec::new(),
                 completed_evidence: BTreeMap::new(),
+                application_controls: BTreeMap::new(),
             };
             state_store.write(&state)?;
             state
@@ -1009,8 +1091,34 @@ impl ProofParty {
                             &proof.cash_reserve,
                             "completed cash reserve",
                         )?,
+                        opening_shares: proof.opening_shares.clone(),
+                        application_action_digest: proof
+                            .application_action_digest
+                            .as_deref()
+                            .map(|value| {
+                                Self::hex32(
+                                    Some(&Value::String(value.into())),
+                                    "stored application action",
+                                )
+                            })
+                            .transpose()?,
                     },
                 ))
+            })
+            .collect::<Result<BTreeMap<_, _>, String>>()?;
+        let application_controls = state
+            .application_controls
+            .iter()
+            .map(|(id, action)| {
+                let id = Self::hex32(Some(&Value::String(id.clone())), "stored control id")?;
+                let action = Self::hex32(
+                    Some(&Value::String(action.clone())),
+                    "stored control action",
+                )?;
+                if id == [0; 32] || action == [0; 32] {
+                    return Err("stored control binding is empty".into());
+                }
+                Ok((id, action))
             })
             .collect::<Result<BTreeMap<_, _>, String>>()?;
         let frost_key = state
@@ -1043,6 +1151,15 @@ impl ProofParty {
         {
             return Err("stored FROST state is incomplete".into());
         }
+        let exchange_bytes = Zeroizing::new(
+            BASE64
+                .decode(&state.exchange_private)
+                .map_err(|_| "stored hybrid exchange seed is malformed".to_string())?,
+        );
+        let exchange_seed = Zeroizing::new(
+            <[u8; 96]>::try_from(exchange_bytes.as_slice())
+                .map_err(|_| "stored hybrid exchange seed must be 96 bytes".to_string())?,
+        );
         let mut party = Self {
             config,
             allowed_root,
@@ -1051,14 +1168,13 @@ impl ProofParty {
             reserved: decode_set(&state.proof_reserved, "stored proof reservations")?,
             completed: decode_set(&state.proof_completed, "stored completed proofs")?,
             completed_evidence,
+            application_controls,
             identity: SigningKey::from_bytes(&decode32(
                 &state.identity_private,
                 "stored FROST identity",
             )?),
-            exchange: X25519PrivateKey::from_raw(&decode32(
-                &state.exchange_private,
-                "stored FROST exchange key",
-            )?)?,
+            exchange: WinnerPrivateKey::from_seed(&exchange_seed),
+            exchange_seed,
             pending_peers: None,
             peers: None,
             dkg_round1: pending_round1,
@@ -1090,6 +1206,7 @@ impl ProofParty {
         if !party.reserved.is_disjoint(&party.completed)
             || !party.frost_reserved.is_disjoint(&party.frost_consumed)
             || party.completed_evidence.len() > MAX_COMPLETED_EVIDENCE
+            || party.application_controls.len() > MAX_COMPLETED_EVIDENCE
             || party
                 .completed_evidence
                 .keys()
@@ -1182,7 +1299,7 @@ impl ProofParty {
         let encode_set =
             |values: &BTreeSet<[u8; 32]>| values.iter().map(hex::encode).collect::<Vec<_>>();
         Ok(DurableProofState {
-            version: 2,
+            version: 4,
             generation,
             proof_configuration_digest: hex::encode(self.config.security_digest()),
             node: self.config.node,
@@ -1191,7 +1308,7 @@ impl ProofParty {
             threshold: self.config.threshold,
             trusted_defmi_receipt_public: self.config.trusted_defmi_receipt_public.map(hex::encode),
             identity_private: BASE64.encode(self.identity.to_bytes()),
-            exchange_private: BASE64.encode(self.exchange.raw_private_key()?),
+            exchange_private: BASE64.encode(self.exchange_seed.as_slice()),
             frost_session: self.frost_session.map(hex::encode),
             frost_key_package: self
                 .frost_key
@@ -1273,9 +1390,18 @@ impl ProofParty {
                             maker_is_payer: proof.maker_is_payer,
                             securities_reserve: proof.securities_reserve.map(hex::encode),
                             cash_reserve: proof.cash_reserve.map(hex::encode),
+                            opening_shares: proof.opening_shares.clone(),
+                            application_action_digest: proof
+                                .application_action_digest
+                                .map(hex::encode),
                         },
                     )
                 })
+                .collect(),
+            application_controls: self
+                .application_controls
+                .iter()
+                .map(|(id, action)| (hex::encode(id), hex::encode(action)))
                 .collect(),
         })
     }
@@ -1551,17 +1677,125 @@ impl ProofParty {
         self.persist()
     }
 
+    /// Local extension point; `handle`/`dispatch` cannot select a verifier or
+    /// call this method. Failed verification never authorizes a FROST nonce.
+    pub fn authorize_application_statement<V: ApplicationStatementVerifier>(
+        &mut self,
+        job_id: [u8; 32],
+        verifier: &V,
+    ) -> Result<[u8; 32], String> {
+        if !self.state_healthy || !self.completed.contains(&job_id) {
+            return Err("application signing requires a healthy completed local proof".into());
+        }
+        let proof = self
+            .completed_evidence
+            .get(&job_id)
+            .ok_or_else(|| "application signing lacks local completed evidence".to_string())?;
+        if proof.opening_shares.len() != 4 || self.frost_key.is_none() {
+            return Err(
+                "application signing requires the node's four encrypted openings and key".into(),
+            );
+        }
+        let public = self
+            .frost_public
+            .as_ref()
+            .ok_or_else(|| "application signing committee is not initialized".to_string())?;
+        let missing =
+            || "application signing lacks locally bound payment endpoints or reserves".to_string();
+        let authorized = verifier.verify(CompletedApplicationProof {
+            job_id,
+            payment_digest: proof.payment_digest,
+            quote_digest: proof.quote_digest,
+            maker_handle: proof.maker_handle.ok_or_else(missing)?,
+            taker_handle: proof.taker_handle.ok_or_else(missing)?,
+            maker_is_payer: proof.maker_is_payer.ok_or_else(missing)?,
+            securities_reserve: proof.securities_reserve.ok_or_else(missing)?,
+            cash_reserve: proof.cash_reserve.ok_or_else(missing)?,
+            opening_shares: &proof.opening_shares,
+            committee_public: public,
+        })?;
+        if authorized.message == [0; 32]
+            || authorized.action_digest == [0; 32]
+            || proof
+                .application_action_digest
+                .is_some_and(|prior| prior != authorized.action_digest)
+        {
+            return Err("application proof cannot authorize an empty or different action".into());
+        }
+        let signing_job = Self::signing_job(&authorized.message);
+        // Check replay before changing even the in-memory action binding.
+        if self.frost_reserved.contains(&signing_job)
+            || self.frost_consumed.contains(&signing_job)
+            || self.frost_nonces.contains_key(&signing_job)
+        {
+            return Err("application signing job is already reserved or consumed".into());
+        }
+        self.completed_evidence
+            .get_mut(&job_id)
+            .ok_or_else(|| "application proof evidence disappeared".to_string())?
+            .application_action_digest = Some(authorized.action_digest);
+        // Persists the action and message together, before nonce generation.
+        self.authorize_frost(signing_job, &authorized.message)?;
+        Ok(authorized.message)
+    }
+
+    /// The typed application guard, not the generic proof transport, supplies
+    /// the verifier. No fake completed payment proof or health signature is
+    /// used for a control operation. The existing one-use nonce journal applies.
+    pub fn authorize_application_control<V: ApplicationControlVerifier>(
+        &mut self,
+        verifier: &V,
+    ) -> Result<[u8; 32], String> {
+        if !self.state_healthy || self.frost_key.is_none() {
+            return Err("control signing requires a healthy initialized committee".into());
+        }
+        let authorized = verifier.verify(
+            self.frost_public
+                .as_ref()
+                .ok_or("control signing committee is not initialized")?,
+        )?;
+        if authorized.control_id == [0; 32]
+            || authorized.message == [0; 32]
+            || authorized.action_digest == [0; 32]
+            || self
+                .application_controls
+                .get(&authorized.control_id)
+                .is_some_and(|prior| *prior != authorized.action_digest)
+            || (!self
+                .application_controls
+                .contains_key(&authorized.control_id)
+                && self.application_controls.len() >= MAX_COMPLETED_EVIDENCE)
+        {
+            return Err(
+                "control signing cannot authorize an empty, different or unbounded action".into(),
+            );
+        }
+        let job = Self::signing_job(&authorized.message);
+        if self.frost_reserved.contains(&job)
+            || self.frost_consumed.contains(&job)
+            || self.frost_nonces.contains_key(&job)
+        {
+            return Err("control signing job is already reserved or consumed".into());
+        }
+        self.application_controls
+            .insert(authorized.control_id, authorized.action_digest);
+        // The action and message become durable together before nonce release.
+        self.authorize_frost(job, &authorized.message)?;
+        Ok(authorized.message)
+    }
+
     fn identity_body(
         session: &[u8; 32],
         party: u16,
         identity: &[u8; 32],
-        exchange: &[u8; 32],
+        exchange: &[u8],
     ) -> Vec<u8> {
         [
             FROST_IDENTITY_DOMAIN,
             session,
             &party.to_be_bytes(),
             identity,
+            &KEM_SUITE.encode(),
             exchange,
         ]
         .concat()
@@ -1645,10 +1879,12 @@ impl ProofParty {
                 .map_err(|_| "FROST identity key is malformed")?
                 .try_into()
                 .map_err(|_| "FROST identity key is malformed")?;
-            let exchange_raw: [u8; 32] = hex::decode(&entry.exchange_public)
-                .map_err(|_| "FROST exchange key is malformed")?
-                .try_into()
+            if entry.exchange_suite != KEM_SUITE {
+                return Err("FROST peers require hybrid KEM keys".into());
+            }
+            let exchange_raw = hex::decode(&entry.exchange_public)
                 .map_err(|_| "FROST exchange key is malformed")?;
+            let exchange = WinnerPublicKey::from_raw(&exchange_raw)?;
             let signature_raw: [u8; 64] = hex::decode(&entry.self_signature)
                 .map_err(|_| "FROST peer self-signature is malformed")?
                 .try_into()
@@ -1663,15 +1899,10 @@ impl ProofParty {
                 .map_err(|_| "FROST exchange key lacks its node identity signature")?;
             body.extend_from_slice(&entry.party.to_be_bytes());
             body.extend_from_slice(&identity_raw);
+            body.extend_from_slice(&entry.exchange_suite.encode());
             body.extend_from_slice(&exchange_raw);
             body.extend_from_slice(&signature_raw);
-            peers.insert(
-                entry.party,
-                FrostPeer {
-                    identity,
-                    exchange: X25519PublicKey::from_raw(&exchange_raw)?,
-                },
-            );
+            peers.insert(entry.party, FrostPeer { identity, exchange });
         }
         let own_party = self.config.node + 1;
         let own = entries
@@ -1699,23 +1930,6 @@ impl ProofParty {
             &recipient.to_be_bytes(),
         ]
         .concat()
-    }
-
-    fn exchange_key(
-        &self,
-        session: &[u8; 32],
-        sender: u16,
-        recipient: u16,
-        peer: &X25519PublicKey,
-    ) -> Result<[u8; 32], String> {
-        Ok(Sha256::new()
-            .chain_update(FROST_EXCHANGE_DOMAIN)
-            .chain_update(session)
-            .chain_update(sender.to_be_bytes())
-            .chain_update(recipient.to_be_bytes())
-            .chain_update(exchange_shared(&self.exchange, peer)?)
-            .finalize()
-            .into())
     }
 
     fn frost_broadcasts(
@@ -1842,6 +2056,7 @@ impl ProofParty {
                 Ok(json!({
                     "party": party,
                     "identity_public": hex::encode(identity_public),
+                    "exchange_suite": KEM_SUITE,
                     "exchange_public": hex::encode(exchange_public),
                     "self_signature": hex::encode(signature.to_bytes()),
                 }))
@@ -2009,20 +2224,18 @@ impl ProofParty {
                         .get(&recipient)
                         .ok_or_else(|| "FROST directed package names an unknown peer".to_string())?
                         .exchange;
-                    let key = self.exchange_key(&session, sender, recipient, peer)?;
-                    let mut nonce = [0_u8; 12];
-                    OsRng.fill_bytes(&mut nonce);
-                    let ciphertext = encrypt_exchange(
-                        &key,
-                        &nonce,
+                    let envelope = seal_for_winner(
+                        &recipient.to_string(),
+                        peer,
                         &package,
                         &Self::exchange_aad(&session, sender, recipient),
+                        peers.digest,
+                        &self.identity,
                     )?;
                     encrypted.push(json!({
                         "sender": sender,
                         "recipient": recipient,
-                        "nonce": hex::encode(nonce),
-                        "ciphertext": BASE64.encode(ciphertext),
+                        "envelope": BASE64.encode(envelope.encode()?),
                     }));
                 }
                 self.dkg_round1 = None;
@@ -2108,36 +2321,36 @@ impl ProofParty {
                     if sender == own_party || recipient != own_party {
                         return Err("FROST directed package has the wrong endpoints".into());
                     }
-                    let nonce: [u8; 12] = hex::decode(
-                        envelope
-                            .get("nonce")
-                            .and_then(Value::as_str)
-                            .ok_or_else(|| "FROST directed nonce is absent".to_string())?,
-                    )
-                    .map_err(|_| "FROST directed nonce is malformed")?
-                    .try_into()
-                    .map_err(|_| "FROST directed nonce is malformed")?;
-                    let ciphertext = BASE64
+                    let encoded = BASE64
                         .decode(
                             envelope
-                                .get("ciphertext")
+                                .get("envelope")
                                 .and_then(Value::as_str)
-                                .ok_or_else(|| "FROST directed ciphertext is absent".to_string())?,
+                                .ok_or_else(|| {
+                                    "FROST hybrid directed envelope is absent".to_string()
+                                })?,
                         )
-                        .map_err(|_| "FROST directed ciphertext is malformed")?;
-                    let peer = &peers
+                        .map_err(|_| "FROST directed envelope is malformed")?;
+                    let envelope = WinnerEnvelope::decode(&encoded)?;
+                    let peer = peers
                         .peers
                         .get(&sender)
-                        .ok_or_else(|| "FROST directed sender is unknown".to_string())?
-                        .exchange;
-                    let key = self.exchange_key(&session, sender, recipient, peer)?;
-                    let clear = decrypt_exchange(
-                        &key,
-                        &nonce,
-                        &ciphertext,
-                        &Self::exchange_aad(&session, sender, recipient),
-                    )?
-                    .ok_or_else(|| "FROST directed package authentication failed".to_string())?;
+                        .ok_or_else(|| "FROST directed sender is unknown".to_string())?;
+                    // KEM encryption alone does not authenticate a sender.
+                    // Require the roster-pinned identity signature as well.
+                    let clear = Zeroizing::new(
+                        open_if_winner(
+                            &envelope,
+                            &recipient.to_string(),
+                            std::slice::from_ref(&self.exchange),
+                            &Self::exchange_aad(&session, sender, recipient),
+                            peers.digest,
+                            Some(&peer.identity),
+                        )?
+                        .ok_or_else(|| {
+                            "FROST directed package authentication failed".to_string()
+                        })?,
+                    );
                     let identifier = frost::Identifier::try_from(sender)
                         .map_err(|_| "FROST directed sender identifier is invalid")?;
                     if received
@@ -3096,6 +3309,7 @@ impl ProofParty {
                         securities_reserve: None,
                         cash_reserve: None,
                         dvp_response_issued: false,
+                        opening_shares: BTreeMap::new(),
                     },
                 );
                 self.reserved.insert(job_id);
@@ -3849,6 +4063,9 @@ impl ProofParty {
                             .into(),
                     );
                 }
+                if let Some(prior) = job.opening_shares.get(leg) {
+                    return Ok(prior.clone());
+                }
                 let (value_share, blinding_share) = match leg {
                     "securities_delivery" => job
                         .zkpi_bound
@@ -3880,14 +4097,20 @@ impl ProofParty {
                     &recipient_view,
                     &mut OsRng,
                 )?;
-                Ok(json!({
+                let response = json!({
                     "party": encrypted.party,
                     "context": hex::encode(opening_context(&job_id, leg)?),
                     "recipient_view": hex::encode(recipient_view.compress().to_bytes()),
                     "ephemeral": hex::encode(encrypted.ephemeral.compress().to_bytes()),
                     "masked_value": hex::encode(encrypted.masked_value.to_bytes()),
                     "masked_blinding": hex::encode(encrypted.masked_blinding.to_bytes()),
-                }))
+                });
+                self.jobs
+                    .get_mut(&job_id)
+                    .ok_or_else(|| "claim opening proof job disappeared".to_string())?
+                    .opening_shares
+                    .insert(leg.to_owned(), response.clone());
+                Ok(response)
             }
             "sign_admission_attestation" => {
                 let slot = params
@@ -4033,6 +4256,8 @@ impl ProofParty {
                                 .securities_reserve
                                 .map(|value| value.compress().to_bytes()),
                             cash_reserve: job.cash_reserve.map(|value| value.compress().to_bytes()),
+                            opening_shares: job.opening_shares,
+                            application_action_digest: None,
                         },
                     );
                 }
@@ -4197,6 +4422,10 @@ pub fn serve<R: BufRead, W: Write>(
         writer.flush().map_err(|error| error.to_string())?;
     }
 }
+
+#[cfg(test)]
+#[path = "proof_party_application_tests.rs"]
+mod application_signing_tests;
 
 #[cfg(test)]
 mod bounded_request_tests {

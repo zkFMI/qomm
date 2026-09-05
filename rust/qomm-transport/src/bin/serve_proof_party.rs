@@ -1,6 +1,6 @@
 //! Mutually authenticated production endpoint for one proof/FROST participant.
 
-use openssl::ssl::{SslAcceptor, SslMethod, SslVerifyMode, SslVersion};
+use openssl::ssl::{SslAcceptor, SslMethod, SslVerifyMode};
 use openssl::x509::X509;
 use qomm_transport::node_service::{
     certificate_fingerprint, load_owner_private_key, os_installation_boundary_id,
@@ -145,8 +145,7 @@ fn tls_acceptor(config: &Config, base: &Path) -> Result<SslAcceptor, String> {
     let private_key = load_owner_private_key(resolve(base, &config.private_key))?;
     let mut builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls_server())
         .map_err(|error| error.to_string())?;
-    builder
-        .set_min_proto_version(Some(SslVersion::TLS1_3))
+    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
         .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(resolve(base, &config.certificate))

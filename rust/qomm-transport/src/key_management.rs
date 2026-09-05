@@ -1,6 +1,6 @@
 //! Encrypted key lifecycle and short-lived mutual-TLS certificates.
 
-use crate::selective_disclosure::X25519PrivateKey;
+use crate::selective_disclosure::{WinnerPrivateKey, X25519PrivateKey};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
@@ -28,6 +28,7 @@ use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use zeroize::Zeroizing;
 
 pub const MAGIC: &[u8; 8] = b"QOMMKEY1";
 const AAD: &[u8] = b"QOMM:KEYSTORE:v1";
@@ -40,6 +41,8 @@ const NONCE_BYTES: usize = 12;
 pub enum KeyKind {
     Ed25519,
     X25519,
+    #[serde(rename = "x25519_mlkem768")]
+    HybridKem,
     /// A Ristretto scalar used as an anonymous legal-entity credential.
     /// Its public field is the corresponding compressed base-point multiple.
     Ristretto,
@@ -115,6 +118,7 @@ pub struct PublicSnapshot {
 pub enum StoredPrivateKey {
     Ed25519(Box<SigningKey>),
     X25519(X25519PrivateKey),
+    HybridKem(WinnerPrivateKey),
     Ristretto(Scalar),
 }
 
@@ -123,6 +127,7 @@ impl fmt::Debug for StoredPrivateKey {
         formatter.write_str(match self {
             Self::Ed25519(_) => "StoredPrivateKey::Ed25519([redacted])",
             Self::X25519(_) => "StoredPrivateKey::X25519([redacted])",
+            Self::HybridKem(_) => "StoredPrivateKey::HybridKem([redacted])",
             Self::Ristretto(_) => "StoredPrivateKey::Ristretto([redacted])",
         })
     }
@@ -133,6 +138,9 @@ impl StoredPrivateKey {
         match self {
             Self::Ed25519(key) => Ok(key.to_bytes()),
             Self::X25519(key) => key.raw_private_key(),
+            Self::HybridKem(_) => {
+                Err("hybrid KEM seeds cannot be exported as a 32-byte key".into())
+            }
             Self::Ristretto(secret) => Ok(secret.to_bytes()),
         }
     }
@@ -140,14 +148,21 @@ impl StoredPrivateKey {
     pub fn ed25519(&self) -> Option<&SigningKey> {
         match self {
             Self::Ed25519(key) => Some(key),
-            Self::X25519(_) | Self::Ristretto(_) => None,
+            Self::X25519(_) | Self::HybridKem(_) | Self::Ristretto(_) => None,
         }
     }
 
     pub fn ristretto_scalar(&self) -> Option<&Scalar> {
         match self {
             Self::Ristretto(secret) => Some(secret),
-            Self::Ed25519(_) | Self::X25519(_) => None,
+            Self::Ed25519(_) | Self::X25519(_) | Self::HybridKem(_) => None,
+        }
+    }
+
+    pub fn hybrid_kem(&self) -> Option<&WinnerPrivateKey> {
+        match self {
+            Self::HybridKem(key) => Some(key),
+            _ => None,
         }
     }
 }
@@ -441,21 +456,49 @@ impl EncryptedKeyStore {
         let (public, private) = match kind {
             KeyKind::Ed25519 => {
                 let key = SigningKey::generate(&mut OsRng);
-                (key.verifying_key().to_bytes(), key.to_bytes())
+                (
+                    key.verifying_key().to_bytes().to_vec(),
+                    Zeroizing::new(key.to_bytes().to_vec()),
+                )
             }
             KeyKind::X25519 => {
                 let key = X25519PrivateKey::generate()?;
-                (key.public_key()?.raw_public_key()?, key.raw_private_key()?)
+                (
+                    key.public_key()?.raw_public_key()?.to_vec(),
+                    Zeroizing::new(key.raw_private_key()?.to_vec()),
+                )
+            }
+            KeyKind::HybridKem => {
+                let mut seed = Zeroizing::new([0_u8; 96]);
+                OsRng
+                    .try_fill_bytes(seed.as_mut())
+                    .map_err(|error| error.to_string())?;
+                let key = WinnerPrivateKey::from_seed(&seed);
+                (
+                    key.public_key()?.raw_public_key()?,
+                    Zeroizing::new(seed.to_vec()),
+                )
             }
             KeyKind::Ristretto => {
                 let secret = Scalar::random(&mut OsRng);
                 (
-                    (RISTRETTO_BASEPOINT_POINT * secret).compress().to_bytes(),
-                    secret.to_bytes(),
+                    (RISTRETTO_BASEPOINT_POINT * secret)
+                        .compress()
+                        .to_bytes()
+                        .to_vec(),
+                    Zeroizing::new(secret.to_bytes().to_vec()),
                 )
             }
         };
         self.mutate(|data| {
+            if kind != KeyKind::HybridKem
+                && data
+                    .keys
+                    .iter()
+                    .any(|record| record.purpose == purpose && record.kind == KeyKind::HybridKem)
+            {
+                return Err("a hybrid KEM purpose cannot rotate back to a classical key".into());
+            }
             let generation = data
                 .keys
                 .iter()
@@ -468,7 +511,7 @@ impl EncryptedKeyStore {
                 Sha256::new()
                     .chain_update(b"QOMM:KEY-ID:v1")
                     .chain_update(purpose.as_bytes())
-                    .chain_update(public)
+                    .chain_update(&public)
                     .finalize(),
             );
             for record in &mut data.keys {
@@ -483,7 +526,7 @@ impl EncryptedKeyStore {
                 purpose_generation: generation,
                 kind,
                 public: BASE64.encode(public),
-                private: BASE64.encode(private),
+                private: BASE64.encode(private.as_slice()),
                 created_at: now,
                 not_after: now
                     .checked_add(lifetime)
@@ -545,15 +588,30 @@ impl EncryptedKeyStore {
         allow_retired: bool,
     ) -> Result<StoredPrivateKey, String> {
         let record = self.record(key_id)?;
-        if record.state == "revoked" || at > record.not_after {
-            return Err("the key is revoked or expired".into());
+        if record.state == "revoked" || at > record.not_after || at < record.created_at {
+            return Err("the key is revoked, expired or not yet valid".into());
         }
         if record.state != "active" && !allow_retired {
             return Err("the key is no longer active".into());
         }
-        let raw: [u8; 32] = BASE64
-            .decode(record.private)
-            .map_err(|error| error.to_string())?
+        let bytes = Zeroizing::new(
+            BASE64
+                .decode(&record.private)
+                .map_err(|error| error.to_string())?,
+        );
+        if record.kind == KeyKind::HybridKem {
+            let seed: &[u8; 96] = bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| "stored hybrid KEM seed is not 96 bytes".to_string())?;
+            let key = WinnerPrivateKey::from_seed(seed);
+            if BASE64.encode(key.public_key()?.raw_public_key()?) != record.public {
+                return Err("stored hybrid KEM public key does not match its seed".into());
+            }
+            return Ok(StoredPrivateKey::HybridKem(key));
+        }
+        let raw: [u8; 32] = bytes
+            .as_slice()
             .try_into()
             .map_err(|_| "stored private key is not 32 bytes".to_string())?;
         match record.kind {
@@ -561,6 +619,7 @@ impl EncryptedKeyStore {
                 &raw,
             )))),
             KeyKind::X25519 => Ok(StoredPrivateKey::X25519(X25519PrivateKey::from_raw(&raw)?)),
+            KeyKind::HybridKem => unreachable!("handled above"),
             KeyKind::Ristretto => {
                 let secret = Option::<Scalar>::from(Scalar::from_canonical_bytes(raw))
                     .filter(|secret| *secret != Scalar::ZERO)
@@ -587,6 +646,7 @@ impl EncryptedKeyStore {
                 record.purpose == purpose
                     && record.state != "revoked"
                     && at <= record.not_after
+                    && at >= record.created_at
                     && (record.state == "active" || include_retired)
             })
             .map(|record| self.private_key(&record.key_id, at, include_retired))
@@ -626,6 +686,9 @@ impl EncryptedKeyStore {
         let (id, raw) = match key {
             StoredPrivateKey::Ed25519(key) => (Id::ED25519, key.to_bytes()),
             StoredPrivateKey::X25519(key) => (Id::X25519, key.raw_private_key()?),
+            StoredPrivateKey::HybridKem(_) => {
+                return Err("hybrid KEM seeds cannot be materialized as classical PKCS#8".into())
+            }
             StoredPrivateKey::Ristretto(_) => {
                 return Err("Ristretto credentials cannot be materialized as PKCS#8".into())
             }

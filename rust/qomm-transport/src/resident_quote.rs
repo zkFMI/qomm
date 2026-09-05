@@ -236,6 +236,7 @@ impl CircuitCache {
         let compiler =
             OfficialCompiler::from_checkout(root.as_ref()).map_err(|error| error.to_string())?;
         let root = compiler.root().to_path_buf();
+        qomm_mpc::engine_policy::verify(&root)?;
         if !root.join("malicious-shamir-party.x").is_file() {
             return Err(format!(
                 "{} is missing malicious-shamir-party.x",

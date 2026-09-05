@@ -837,6 +837,23 @@ impl ResidentMpcConfig {
                 ));
             }
         }
+        qomm_mpc::engine_policy::verify(&self.mp_spdz_root)?;
+        for (configured, artifact) in [
+            (&self.party_binary, "malicious-shamir-party.x"),
+            (&self.library, "libSPDZ.so"),
+        ] {
+            if configured
+                .canonicalize()
+                .map_err(|error| error.to_string())?
+                != self
+                    .mp_spdz_root
+                    .join(artifact)
+                    .canonicalize()
+                    .map_err(|error| error.to_string())?
+            {
+                return Err("resident MPC must execute the receipt-bound hybrid engine".into());
+            }
+        }
         verify_digest_file(&self.host_file, &self.host_file_sha256, false)?;
         verify_digest_file(&self.party_binary, &self.party_binary_sha256, true)?;
         verify_digest_file(&self.library, &self.library_sha256, false)?;
@@ -1176,9 +1193,18 @@ pub fn execute_resident_party(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
     #[cfg(target_os = "macos")]
-    command.env("DYLD_LIBRARY_PATH", &config.mp_spdz_root);
+    const LIBRARY_PATH: &str = "DYLD_LIBRARY_PATH";
     #[cfg(not(target_os = "macos"))]
-    command.env("LD_LIBRARY_PATH", &config.mp_spdz_root);
+    const LIBRARY_PATH: &str = "LD_LIBRARY_PATH";
+    // Preserve the operator's OpenSSL 3.5 runtime path after clearing the
+    // remaining environment. The engine itself refuses unsupported groups.
+    let inherited = std::env::var_os(LIBRARY_PATH).unwrap_or_default();
+    let library_paths = std::iter::once(config.mp_spdz_root.clone())
+        .chain(std::env::split_paths(&inherited).filter(|path| !path.as_os_str().is_empty()));
+    command.env(
+        LIBRARY_PATH,
+        std::env::join_paths(library_paths).map_err(|error| error.to_string())?,
+    );
     let mut child = command
         .spawn()
         .map_err(|error| format!("stock MP-SPDZ party failed to start: {error}"))?;

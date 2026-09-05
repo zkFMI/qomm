@@ -20,7 +20,7 @@ use qomm_proofs::threshold_gadgets::{
 };
 use qomm_proofs::threshold_sigma::{combine_commitments, share_commitment, PartyId};
 use qomm_transport::selective_disclosure::{
-    open_if_winner, seal_for_winner, WinnerEnvelope, X25519PrivateKey, X25519PublicKey,
+    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey, KEM_SUITE,
 };
 use qomm_zk::pedersen::Pedersen;
 use qomm_zk::shamir;
@@ -383,9 +383,9 @@ fn node_main(args: Vec<OsString>) -> HarnessResult<()> {
 
     let key = Pedersen::new(b"qomm:quote:v1");
     let started = Instant::now();
-    let recipient_secret = X25519PrivateKey::generate()?;
+    let recipient_secret = WinnerPrivateKey::generate()?;
     let recipient_public = recipient_secret.public_key()?.raw_public_key()?;
-    println!("KEY {party} {}", hex::encode(recipient_public));
+    println!("KEY {party} {}", hex::encode(&recipient_public));
     std::io::stdout().flush()?;
 
     let mut key_line = String::new();
@@ -618,7 +618,7 @@ fn write_encrypted_deliveries(
     mailbox: &Path,
     dealer: PartyId,
     deliveries: &BTreeMap<PartyId, Vec<(Scalar, Scalar)>>,
-    recipient_keys: &BTreeMap<PartyId, X25519PublicKey>,
+    recipient_keys: &BTreeMap<PartyId, WinnerPublicKey>,
 ) -> HarnessResult<()> {
     let signer = SigningKey::generate(&mut OsRng);
     for (recipient, delivered) in deliveries {
@@ -704,7 +704,7 @@ fn read_private(
     path: &Path,
     dealer: PartyId,
     recipient: PartyId,
-    recipient_secret: &X25519PrivateKey,
+    recipient_secret: &WinnerPrivateKey,
 ) -> HarnessResult<Vec<(Scalar, Scalar)>> {
     let encrypted = fs::read_to_string(path)?;
     let plaintext = decrypt_private(dealer, recipient, recipient_secret, &encrypted)?;
@@ -735,7 +735,7 @@ fn private_path(mailbox: &Path, dealer: PartyId, recipient: PartyId) -> PathBuf 
 fn decode_recipient_keys(
     line: &str,
     quorum: &[PartyId],
-) -> HarnessResult<BTreeMap<PartyId, X25519PublicKey>> {
+) -> HarnessResult<BTreeMap<PartyId, WinnerPublicKey>> {
     let encoded = line
         .strip_prefix("KEYS ")
         .ok_or("parent omitted the recipient-key bundle")?;
@@ -765,7 +765,7 @@ fn private_quote_digest() -> [u8; 32] {
 fn encrypt_private(
     dealer: PartyId,
     recipient: PartyId,
-    recipient_public: &X25519PublicKey,
+    recipient_public: &WinnerPublicKey,
     plaintext: &[u8],
     signer: &SigningKey,
 ) -> HarnessResult<String> {
@@ -779,9 +779,10 @@ fn encrypt_private(
         signer,
     )?;
     Ok(format!(
-        "v{} {} {} {} {} {} {} {}\n",
+        "v{} {} {} {} {} {} {} {} {}\n",
         envelope.version,
-        hex::encode(envelope.ephemeral_public),
+        hex::encode(envelope.suite.encode()),
+        hex::encode(envelope.kem_ciphertext),
         hex::encode(envelope.nonce),
         hex::encode(envelope.context_digest),
         hex::encode(envelope.quote_digest),
@@ -794,22 +795,23 @@ fn encrypt_private(
 fn decrypt_private(
     dealer: PartyId,
     recipient: PartyId,
-    recipient_secret: &X25519PrivateKey,
+    recipient_secret: &WinnerPrivateKey,
     encoded: &str,
 ) -> HarnessResult<Vec<u8>> {
     let fields = encoded.split_whitespace().collect::<Vec<_>>();
-    if fields.len() != 8 || fields[0] != "v1" {
+    if fields.len() != 9 || fields[0] != "v2" || fields[1] != hex::encode(KEM_SUITE.encode()) {
         return Err("an encrypted private delivery is malformed".into());
     }
     let envelope = WinnerEnvelope {
         version: fields[0][1..].parse()?,
-        ephemeral_public: decode_fixed(fields[1], "ephemeral public key")?,
-        nonce: decode_fixed(fields[2], "nonce")?,
-        context_digest: decode_fixed(fields[3], "context digest")?,
-        quote_digest: decode_fixed(fields[4], "quote digest")?,
-        ciphertext: hex::decode(fields[5])?,
-        taker_public: decode_fixed(fields[6], "taker public key")?,
-        signature: Signature::from_bytes(&decode_fixed(fields[7], "signature")?),
+        suite: KEM_SUITE,
+        kem_ciphertext: hex::decode(fields[2])?,
+        nonce: decode_fixed(fields[3], "nonce")?,
+        context_digest: decode_fixed(fields[4], "context digest")?,
+        quote_digest: decode_fixed(fields[5], "quote digest")?,
+        ciphertext: hex::decode(fields[6])?,
+        taker_public: decode_fixed(fields[7], "taker public key")?,
+        signature: Signature::from_bytes(&decode_fixed(fields[8], "signature")?),
     };
     open_if_winner(
         &envelope,
@@ -822,12 +824,12 @@ fn decrypt_private(
     .ok_or_else(|| "private delivery authentication failed for this recipient".into())
 }
 
-fn decode_key(value: &str) -> HarnessResult<[u8; 32]> {
-    decode_fixed(value, "X25519 public key")
+fn decode_key(value: &str) -> HarnessResult<Vec<u8>> {
+    hex::decode(value).map_err(Into::into)
 }
 
-fn decode_public_key(value: &str) -> HarnessResult<X25519PublicKey> {
-    X25519PublicKey::from_raw(&decode_key(value)?).map_err(Into::into)
+fn decode_public_key(value: &str) -> HarnessResult<WinnerPublicKey> {
+    WinnerPublicKey::from_raw(&decode_key(value)?).map_err(Into::into)
 }
 
 fn decode_fixed<const N: usize>(value: &str, what: &str) -> HarnessResult<[u8; N]> {
@@ -956,8 +958,8 @@ mod tests {
 
     #[test]
     fn a_child_cannot_read_another_childs_private_material_from_the_filesystem() {
-        let first_secret = X25519PrivateKey::generate().unwrap();
-        let second_secret = X25519PrivateKey::generate().unwrap();
+        let first_secret = WinnerPrivateKey::generate().unwrap();
+        let second_secret = WinnerPrivateKey::generate().unwrap();
         let second_public = second_secret.public_key().unwrap();
         let signer = SigningKey::generate(&mut OsRng);
         let plaintext = format!(

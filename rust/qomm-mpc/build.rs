@@ -20,6 +20,8 @@
 //! unlikely.
 use std::path::{Path, PathBuf};
 use std::process::Command;
+#[path = "src/engine_policy.rs"]
+mod engine_policy;
 
 fn main() {
     // Declared unconditionally, so the compiler can tell a misspelt cfg from an
@@ -45,13 +47,7 @@ fn main() {
         return;
     };
     let root = root.canonicalize().unwrap_or(root);
-    if !root.join("libSPDZ.so").exists() && !root.join("libSPDZ.a").exists() {
-        println!(
-            "cargo:warning=no libSPDZ in {}; run `make libSPDZ.so` there first",
-            root.display()
-        );
-        return;
-    }
+    verify_hybrid_engine(&root);
     println!("cargo:rerun-if-changed={}", root.join("CONFIG").display());
 
     let out = PathBuf::from(std::env::var("OUT_DIR").unwrap());
@@ -162,6 +158,20 @@ fn main() {
         println!("cargo:rustc-link-arg={flag}");
     }
     println!("cargo:rustc-cfg=have_spdz");
+}
+
+/// A configured native engine must be the hybrid build, with the actual
+/// library and standalone executable bound to its build receipt. A missing
+/// engine or a stale classical build cannot silently become a no-engine test.
+fn verify_hybrid_engine(root: &Path) {
+    println!(
+        "cargo:rerun-if-changed={}",
+        root.join(engine_policy::RECEIPT).display()
+    );
+    for name in engine_policy::ARTIFACTS {
+        println!("cargo:rerun-if-changed={}", root.join(name).display());
+    }
+    engine_policy::verify(root).expect("the configured native engine must require hybrid TLS");
 }
 
 /// The flags MP-SPDZ compiled itself with, from MP-SPDZ.

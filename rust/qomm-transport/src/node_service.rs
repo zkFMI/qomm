@@ -13,7 +13,7 @@ use base64::Engine;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use openssl::pkey::{PKey, Private};
-use openssl::ssl::{SslAcceptor, SslConnector, SslMethod, SslStream, SslVerifyMode, SslVersion};
+use openssl::ssl::{SslAcceptor, SslConnector, SslMethod, SslStream, SslVerifyMode};
 use qomm_proofs::kyb::{
     verify_presentation, verify_registry, EntityLimits, KybPresentation, SignedCohortRegistry,
 };
@@ -1430,8 +1430,7 @@ pub fn server_ssl_context(
     let private_key = load_owner_private_key(key)?;
     let mut builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls_server())
         .map_err(|error| error.to_string())?;
-    builder
-        .set_min_proto_version(Some(SslVersion::TLS1_3))
+    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
         .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(cert)
@@ -1462,8 +1461,7 @@ pub fn client_ssl_context(
     let private_key = load_owner_private_key(key)?;
     let mut builder =
         SslConnector::builder(SslMethod::tls_client()).map_err(|error| error.to_string())?;
-    builder
-        .set_min_proto_version(Some(SslVersion::TLS1_3))
+    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
         .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(cert)
@@ -2352,6 +2350,10 @@ impl Drop for ResidentNodeClient {
         self.close();
     }
 }
+
+#[cfg(test)]
+#[path = "tls_tests.rs"]
+mod tls_tests;
 
 #[cfg(test)]
 mod atomic_tests {

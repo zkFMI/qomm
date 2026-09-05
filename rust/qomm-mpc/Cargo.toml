@@ -6,7 +6,11 @@ license.workspace = true
 description = "MP-SPDZ as a library: run the quote circuit and read the round and byte counts from the machine rather than from its stdout."
 build = "build.rs"
 
+[build-dependencies]
+sha2.workspace = true
+
 [dependencies]
+sha2.workspace = true
 qomm-dsl.workspace = true
 qomm-measure.workspace = true
 rand_core.workspace = true
