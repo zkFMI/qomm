@@ -145,8 +145,11 @@ fn tls_acceptor(config: &Config, base: &Path) -> Result<SslAcceptor, String> {
     let private_key = load_owner_private_key(resolve(base, &config.private_key))?;
     let mut builder = SslAcceptor::mozilla_intermediate_v5(SslMethod::tls_server())
         .map_err(|error| error.to_string())?;
-    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
-        .map_err(|error| error.to_string())?;
+    zkfmi_crypto::tls::require_pqc_transport(
+        &mut builder,
+        SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT,
+    )
+    .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(resolve(base, &config.certificate))
         .map_err(|error| error.to_string())?;
@@ -156,7 +159,7 @@ fn tls_acceptor(config: &Config, base: &Path) -> Result<SslAcceptor, String> {
     builder
         .set_ca_file(resolve(base, &config.ca_certificate))
         .map_err(|error| error.to_string())?;
-    builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
+
     builder
         .check_private_key()
         .map_err(|error| error.to_string())?;

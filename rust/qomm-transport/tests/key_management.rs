@@ -232,6 +232,13 @@ fn tls_certificates_require_the_ca_and_private_files_are_not_world_readable() {
     let (node_key, node_cert) =
         issue_mutual_tls_certificate(&ca_key, &ca_cert, "node-0", &["node-0"], &["127.0.0.1"], 30)
             .unwrap();
+    assert!(zkfmi_crypto::tls::certificate_uses_pqc_authentication(
+        &ca_cert
+    ));
+    assert!(zkfmi_crypto::tls::certificate_uses_pqc_authentication(
+        &node_cert
+    ));
+    assert!(node_cert.verify(&ca_key).unwrap());
     let (key, cert, ca) = write_tls_bundle(
         directory.path().join("pki"),
         "node-0",
@@ -273,4 +280,70 @@ fn weak_passphrase_and_relaxed_permissions_fail_closed() {
     )
     .unwrap();
     assert!(vault.snapshot().unwrap_err().contains("600"));
+}
+
+#[test]
+fn node_local_csr_rejects_classical_keys_and_mismatched_authorities() {
+    use openssl::hash::MessageDigest;
+    use openssl::pkey::PKey;
+    use openssl::x509::{X509NameBuilder, X509Req};
+    use qomm_transport::key_management::{
+        create_mutual_tls_request, issue_mutual_tls_certificate_from_csr,
+    };
+    let (ca_key, ca) = create_ca("pqc-ca", 1).unwrap();
+    let (node_key, request) = create_mutual_tls_request("node-0").unwrap();
+    let cert = issue_mutual_tls_certificate_from_csr(
+        &ca_key,
+        &ca,
+        &request,
+        "node-0",
+        &["node-0"],
+        &[],
+        1,
+    )
+    .unwrap();
+    assert!(node_key.public_eq(&cert.public_key().unwrap()));
+    assert!(zkfmi_crypto::tls::certificate_uses_pqc_authentication(
+        &cert
+    ));
+    let (other_ca, _) = create_ca("other-ca", 1).unwrap();
+    assert!(issue_mutual_tls_certificate_from_csr(
+        &other_ca,
+        &ca,
+        &request,
+        "node-0",
+        &["node-0"],
+        &[],
+        1,
+    )
+    .is_err());
+    assert!(issue_mutual_tls_certificate_from_csr(
+        &ca_key,
+        &ca,
+        &request,
+        "node-1",
+        &["node-1"],
+        &[],
+        1,
+    )
+    .is_err());
+
+    let classical = PKey::generate_ed25519().unwrap();
+    let mut name = X509NameBuilder::new().unwrap();
+    name.append_entry_by_text("CN", "node-0").unwrap();
+    let mut request = X509Req::builder().unwrap();
+    request.set_version(0).unwrap();
+    request.set_subject_name(&name.build()).unwrap();
+    request.set_pubkey(&classical).unwrap();
+    request.sign(&classical, MessageDigest::null()).unwrap();
+    assert!(issue_mutual_tls_certificate_from_csr(
+        &ca_key,
+        &ca,
+        &request.build(),
+        "node-0",
+        &["node-0"],
+        &[],
+        1,
+    )
+    .is_err());
 }

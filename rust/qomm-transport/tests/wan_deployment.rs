@@ -1,9 +1,7 @@
 use ed25519_dalek::SigningKey;
 use qomm_mpc::inputs::DvpInputs;
 use qomm_mpc::program::{build_program, ProgramConfig, Reference, StopAfter};
-use qomm_transport::executor::ProgramRegistry;
 use qomm_transport::key_management::EncryptedKeyStore;
-use qomm_transport::resident_mpc::ResidentMpcConfig;
 use qomm_transport::wan_deployment::{
     apply_node_response, initialize_authority, initialize_node, initialize_node_mpc_state,
     prepare_node_mpc_runtime, sign_node_requests, NodeMpcShareBundle, WanDeploymentSpec,
@@ -342,7 +340,7 @@ fn write_private_json(path: &Path, value: &impl serde::Serialize) {
 }
 
 #[test]
-fn node_local_mpc_state_and_runtime_are_fully_bound_without_foreign_keys() {
+fn node_local_mpc_state_rejects_foreign_keys_and_unattested_engine() {
     let temporary = tempfile::tempdir().unwrap();
     let root = temporary.path();
     let spec = spec(root);
@@ -433,33 +431,8 @@ fn node_local_mpc_state_and_runtime_are_fully_bound_without_foreign_keys() {
     .contains("checkout contains transport private key"));
     fs::remove_dir_all(checkout.join("Player-Data")).unwrap();
 
-    let runtime = prepare_node_mpc_runtime(
-        &spec,
-        0,
-        &node_root,
-        &checkout,
-        &checkout.join("qomm-node-party"),
-    )
-    .unwrap();
-    assert_eq!(runtime.source_sha256, source_sha256);
-    assert_eq!(runtime.public_peer_certificates, 7);
-    assert_eq!(runtime.local_private_keys, 1);
-    assert_eq!(mode(&runtime.runtime_config), 0o600);
-    assert_eq!(mode(&runtime.launcher), 0o700);
-    assert_eq!(mode(&runtime.program_registry), 0o600);
-    let config: ResidentMpcConfig =
-        serde_json::from_slice(&fs::read(&runtime.runtime_config).unwrap()).unwrap();
-    config.verify(&source_sha256).unwrap();
-    assert_eq!(
-        config
-            .player_data_artifacts
-            .keys()
-            .filter(|name| name.ends_with(".key"))
-            .cloned()
-            .collect::<Vec<_>>(),
-        vec!["P0.key".to_string()]
-    );
-    assert!(ProgramRegistry::from_json(0, &runtime.program_registry).is_ok());
+    // This configuration fixture has a shell compiler and no native engine.
+    // It must never be promoted into a verified runnable MPC deployment.
     assert!(prepare_node_mpc_runtime(
         &spec,
         0,
@@ -468,5 +441,5 @@ fn node_local_mpc_state_and_runtime_are_fully_bound_without_foreign_keys() {
         &checkout.join("qomm-node-party"),
     )
     .unwrap_err()
-    .contains("overwrite"));
+    .contains("pinned hybrid TLS build receipt"));
 }

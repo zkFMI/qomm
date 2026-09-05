@@ -728,7 +728,10 @@ fn secure_write(path: &Path, payload: &[u8], mode: u32) -> Result<PathBuf, Strin
 }
 
 pub fn create_ca(common_name: &str, lifetime_days: u32) -> Result<(PKey<Private>, X509), String> {
-    let key = PKey::generate_ed25519().map_err(|error| error.to_string())?;
+    if common_name.trim().is_empty() || lifetime_days == 0 {
+        return Err("certificate identity and positive lifetime are required".into());
+    }
+    let key = zkfmi_crypto::tls::generate_authentication_key()?;
     let mut name = X509NameBuilder::new().map_err(|error| error.to_string())?;
     name.append_entry_by_nid(Nid::COMMONNAME, common_name)
         .map_err(|error| error.to_string())?;
@@ -801,93 +804,20 @@ pub fn issue_mutual_tls_certificate(
     ip_addresses: &[&str],
     lifetime_days: u32,
 ) -> Result<(PKey<Private>, X509), String> {
-    let key = PKey::generate_ed25519().map_err(|error| error.to_string())?;
-    let mut name = X509NameBuilder::new().map_err(|error| error.to_string())?;
-    name.append_entry_by_nid(Nid::COMMONNAME, common_name)
-        .map_err(|error| error.to_string())?;
-    let name = name.build();
-    let mut builder = X509::builder().map_err(|error| error.to_string())?;
-    builder.set_version(2).map_err(|error| error.to_string())?;
-    let mut serial = BigNum::new().map_err(|error| error.to_string())?;
-    serial
-        .rand(159, MsbOption::MAYBE_ZERO, false)
-        .map_err(|error| error.to_string())?;
-    let serial = serial.to_asn1_integer().map_err(|e| e.to_string())?;
-    builder
-        .set_serial_number(&serial)
-        .map_err(|error| error.to_string())?;
-    builder
-        .set_subject_name(&name)
-        .map_err(|error| error.to_string())?;
-    builder
-        .set_issuer_name(ca_cert.subject_name())
-        .map_err(|error| error.to_string())?;
-    builder
-        .set_pubkey(&key)
-        .map_err(|error| error.to_string())?;
-    let not_before = Asn1Time::days_from_now(0).map_err(|e| e.to_string())?;
-    builder
-        .set_not_before(&not_before)
-        .map_err(|error| error.to_string())?;
-    let not_after = Asn1Time::days_from_now(lifetime_days).map_err(|e| e.to_string())?;
-    builder
-        .set_not_after(&not_after)
-        .map_err(|error| error.to_string())?;
-    builder
-        .append_extension(
-            BasicConstraints::new()
-                .critical()
-                .build()
-                .map_err(|e| e.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-    builder
-        .append_extension(
-            KeyUsage::new()
-                .critical()
-                .digital_signature()
-                .build()
-                .map_err(|e| e.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-    builder
-        .append_extension(
-            ExtendedKeyUsage::new()
-                .server_auth()
-                .client_auth()
-                .build()
-                .map_err(|e| e.to_string())?,
-        )
-        .map_err(|error| error.to_string())?;
-    let mut san = SubjectAlternativeName::new();
-    for name in dns_names {
-        san.dns(name);
-    }
-    for address in ip_addresses {
-        san.ip(address);
-    }
-    if !dns_names.is_empty() || !ip_addresses.is_empty() {
-        let extension = san
-            .build(&builder.x509v3_context(Some(ca_cert), None))
-            .map_err(|error| error.to_string())?;
-        builder
-            .append_extension(extension)
-            .map_err(|error| error.to_string())?;
-    }
-    let authority = AuthorityKeyIdentifier::new()
-        .keyid(true)
-        .build(&builder.x509v3_context(Some(ca_cert), None))
-        .map_err(|error| error.to_string())?;
-    builder
-        .append_extension(authority)
-        .map_err(|error| error.to_string())?;
-    builder
-        .sign(ca_key, MessageDigest::null())
-        .map_err(|error| error.to_string())?;
-    Ok((key, builder.build()))
+    let (key, request) = create_mutual_tls_request(common_name)?;
+    let certificate = issue_mutual_tls_certificate_from_csr(
+        ca_key,
+        ca_cert,
+        &request,
+        common_name,
+        dns_names,
+        ip_addresses,
+        lifetime_days,
+    )?;
+    Ok((key, certificate))
 }
 
-/// Generate a node-local Ed25519 key and certificate-signing request.
+/// Generate a node-local ML-DSA-65 key and certificate-signing request.
 ///
 /// The private key never has to cross the node boundary: an offline authority
 /// can call [`issue_mutual_tls_certificate_from_csr`] with only the returned
@@ -898,7 +828,7 @@ pub fn create_mutual_tls_request(common_name: &str) -> Result<(PKey<Private>, X5
     if common_name.trim().is_empty() {
         return Err("mutual-TLS request requires a common name".into());
     }
-    let key = PKey::generate_ed25519().map_err(|error| error.to_string())?;
+    let key = zkfmi_crypto::tls::generate_authentication_key()?;
     let mut name = X509NameBuilder::new().map_err(|error| error.to_string())?;
     name.append_entry_by_nid(Nid::COMMONNAME, common_name)
         .map_err(|error| error.to_string())?;
@@ -935,6 +865,14 @@ pub fn issue_mutual_tls_certificate_from_csr(
         return Err("certificate identity and positive lifetime are required".into());
     }
     let request_key = request.public_key().map_err(|error| error.to_string())?;
+    let ca_public = ca_cert.public_key().map_err(|error| error.to_string())?;
+    if !request_key.is_a(openssl::pkey::KeyType::ML_DSA_65)
+        || !ca_key.is_a(openssl::pkey::KeyType::ML_DSA_65)
+        || !ca_key.public_eq(&ca_public)
+        || !zkfmi_crypto::tls::certificate_uses_pqc_authentication(ca_cert)
+    {
+        return Err("mutual TLS requires an ML-DSA-65 CA and node request".into());
+    }
     if !request
         .verify(&request_key)
         .map_err(|error| error.to_string())?

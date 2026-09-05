@@ -5,7 +5,7 @@ use sha2::{Digest, Sha256};
 use std::io::Read;
 use std::path::Path;
 
-pub const HEADER_SHA256: &str = "7ad764ba4abf0aa7031ee99260f8ae6f42254ef68d32864a2f74c36191b2e1ff";
+pub const HEADER_SHA256: &str = "ccc7d6a496423ead58a3fc44f66a17f7fc692928395821bc546add38cefe58aa";
 pub const RECEIPT: &str = ".pqc-tls.sha256";
 pub const ARTIFACTS: [&str; 3] = [
     "Networking/ssl_sockets.h",

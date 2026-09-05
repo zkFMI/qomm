@@ -1430,8 +1430,11 @@ pub fn server_ssl_context(
     let private_key = load_owner_private_key(key)?;
     let mut builder = SslAcceptor::mozilla_modern_v5(SslMethod::tls_server())
         .map_err(|error| error.to_string())?;
-    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
-        .map_err(|error| error.to_string())?;
+    zkfmi_crypto::tls::require_pqc_transport(
+        &mut builder,
+        SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT,
+    )
+    .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(cert)
         .map_err(|error| error.to_string())?;
@@ -1439,7 +1442,7 @@ pub fn server_ssl_context(
         .set_private_key(&private_key)
         .map_err(|error| error.to_string())?;
     builder.set_ca_file(ca).map_err(|error| error.to_string())?;
-    builder.set_verify(SslVerifyMode::PEER | SslVerifyMode::FAIL_IF_NO_PEER_CERT);
+
     builder
         .check_private_key()
         .map_err(|error| error.to_string())?;
@@ -1461,7 +1464,7 @@ pub fn client_ssl_context(
     let private_key = load_owner_private_key(key)?;
     let mut builder =
         SslConnector::builder(SslMethod::tls_client()).map_err(|error| error.to_string())?;
-    zkfmi_crypto::tls::require_hybrid_key_exchange(&mut builder)
+    zkfmi_crypto::tls::require_pqc_transport(&mut builder, SslVerifyMode::PEER)
         .map_err(|error| error.to_string())?;
     builder
         .set_certificate_chain_file(cert)
@@ -1470,7 +1473,7 @@ pub fn client_ssl_context(
         .set_private_key(&private_key)
         .map_err(|error| error.to_string())?;
     builder.set_ca_file(ca).map_err(|error| error.to_string())?;
-    builder.set_verify(SslVerifyMode::PEER);
+
     builder
         .check_private_key()
         .map_err(|error| error.to_string())?;

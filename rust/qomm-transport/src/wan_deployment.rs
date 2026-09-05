@@ -631,6 +631,11 @@ fn certificate(path: &Path) -> Result<X509, String> {
 }
 
 fn current_certificate(certificate: &X509, at: u64, name: &str) -> Result<(), String> {
+    if !zkfmi_crypto::tls::certificate_uses_pqc_authentication(certificate) {
+        return Err(format!(
+            "{name} does not use the required ML-DSA-65 authentication"
+        ));
+    }
     let at = i64::try_from(at).map_err(|_| "certificate time exceeds i64".to_string())?;
     let instant = Asn1Time::from_unix(at).map_err(|error| error.to_string())?;
     if certificate
