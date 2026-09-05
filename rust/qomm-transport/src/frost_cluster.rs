@@ -266,7 +266,7 @@ impl StdioFrostCluster {
         payment: &qomm_zkpi::Instruction,
         dvp_proofs: &DvpProofs,
         pool_remainder_proof: &ThresholdRangeProof,
-    ) -> Result<frost::Signature, String> {
+    ) -> Result<frost_coordinator::DistributedHybridSignature, String> {
         sign_standing_pool_allocation(
             &mut self.parties,
             &self.selected,
@@ -418,7 +418,7 @@ pub fn sign_standing_pool_allocation<T: ProofPartyRpc>(
     parties: &mut [T],
     selected: &[usize],
     request: StandingPoolAllocationSignatureRequest<'_>,
-) -> Result<frost::Signature, String> {
+) -> Result<frost_coordinator::DistributedHybridSignature, String> {
     let StandingPoolAllocationSignatureRequest {
         public,
         binding,
@@ -464,12 +464,8 @@ pub fn sign_standing_pool_allocation<T: ProofPartyRpc>(
             return Err("proof party did not authorize the standing pool split".into());
         }
     }
-    let signature = frost_coordinator::distributed_frost_sign(parties, selected, &message, public)?;
-    public
-        .verifying_key()
-        .verify(&message, &signature)
-        .map_err(|_| "standing pool threshold signature is invalid".to_string())?;
-    Ok(signature)
+    let policy = frost_coordinator::read_pq_committee(parties, public)?;
+    frost_coordinator::distributed_hybrid_sign(parties, selected, &message, public, &policy)
 }
 
 fn distributed_setup(

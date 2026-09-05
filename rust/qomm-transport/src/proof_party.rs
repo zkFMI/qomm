@@ -2678,6 +2678,20 @@ impl ProofParty {
                     .map_err(|_| {
                         "standing pool payment lacks this committee's signature".to_string()
                     })?;
+                self.pq_committee
+                    .as_ref()
+                    .ok_or("proof node lacks its PQ committee")?
+                    .verify(
+                        instruction
+                            .pq_approval
+                            .as_ref()
+                            .ok_or("standing pool payment lacks PQ approval")?,
+                        &instruction.digest(),
+                        now,
+                    )
+                    .map_err(|error| {
+                        format!("standing pool payment PQ approval is invalid: {error}")
+                    })?;
                 let (
                     expected_quote_digest,
                     winning_policy_digest,

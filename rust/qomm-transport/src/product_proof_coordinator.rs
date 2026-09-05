@@ -14,7 +14,9 @@ use crate::dvp_issuer::{
 use crate::dvp_wire::{
     decode as decode_dvp, encode as encode_dvp, Envelope as DvpEnvelope, Message as DvpMessage,
 };
-use crate::frost_coordinator::{distributed_frost_sign, frost_signing_job};
+use crate::frost_coordinator::{
+    distributed_hybrid_sign, frost_signing_job, DistributedHybridSignature,
+};
 use crate::limit_issuer::{
     assemble as assemble_limit, challenge as make_limit_challenge,
     relation_from_evaluations as limit_relations, statement_from_evaluations as limit_statement,
@@ -183,7 +185,7 @@ pub fn authorize_standing_pool_allocation<T: ProofPartyRpc>(
     handoff: &SettlementHandoff,
     maker_mandate: &MakerPolicyMandate,
     binding: &StandingPoolAllocationBinding,
-) -> Result<frost::Signature, String> {
+) -> Result<DistributedHybridSignature, String> {
     if parties.len() != COMMITTEE_SIZE {
         return Err("standing-pool authorization requires exactly seven parties".into());
     }
@@ -220,14 +222,16 @@ pub fn authorize_standing_pool_allocation<T: ProofPartyRpc>(
             return Err("proof party did not authorize the standing-pool allocation".into());
         }
     }
-    let signature =
-        distributed_frost_sign(parties, &SIGNING_QUORUM, &message, &handoff.frost_public)?;
-    handoff
-        .frost_public
-        .verifying_key()
-        .verify(&message, &signature)
-        .map_err(|_| "standing-pool FROST signature is invalid".to_string())?;
-    Ok(signature)
+    distributed_hybrid_sign(
+        parties,
+        &SIGNING_QUORUM,
+        &message,
+        &handoff.frost_public,
+        handoff
+            .pq_committee
+            .as_ref()
+            .ok_or("standing pool handoff lacks its PQ committee")?,
+    )
 }
 
 /// Durably close one active proof job after every pre-settlement authorization

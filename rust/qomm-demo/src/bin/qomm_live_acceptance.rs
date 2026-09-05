@@ -1340,6 +1340,14 @@ fn parse_allocation(
     dto: &Value,
 ) -> Result<qomm_defmi::note_chain::StandingNotePoolAllocation, String> {
     Ok(qomm_defmi::note_chain::StandingNotePoolAllocation {
+        pq_authorization: Some(
+            serde_json::from_value(
+                dto.get("pqAuthorization")
+                    .ok_or("allocation lacks PQ authorization")?
+                    .clone(),
+            )
+            .map_err(|error| format!("allocation PQ authorization is malformed: {error}"))?,
+        ),
         pool_id: h32(dto, "poolID")?,
         delegation_digest: h32(dto, "delegationDigest")?,
         committee_epoch: hu64(dto, "committeeEpoch")?,
@@ -1382,6 +1390,7 @@ fn allocation_json(a: &qomm_defmi::note_chain::StandingNotePoolAllocation) -> Va
         "dvpProofDigest": hex::encode(a.dvp_proof_digest),
         "remainderRangeProofDigest": hex::encode(a.remainder_range_proof_digest),
         "committeeSignature": hex::encode(&a.committee_signature),
+        "pqAuthorization": a.pq_authorization,
     })
 }
 

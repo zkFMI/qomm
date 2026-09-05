@@ -3798,6 +3798,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     dvp_proof_digest,
                     remainder_range_proof_digest,
                     committee_signature: Vec::new(),
+                    pq_authorization: None,
                 };
                 let metadata = standing_pool_reservation_metadata(
                     allocation.pool_id,
@@ -3825,7 +3826,9 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     &maker_pool.mandate,
                     &binding,
                 )?;
+                allocation.pq_authorization = Some(signature.pq);
                 allocation.committee_signature = signature
+                    .classical
                     .serialize()
                     .map_err(|_| "standing-pool FROST signature cannot be serialized")?;
                 authorization.escrow_digest = allocation.statement(&transition, &authorization)?;
