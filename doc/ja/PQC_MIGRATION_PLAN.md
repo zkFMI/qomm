@@ -94,7 +94,7 @@ PQC対応のために現行機能の意味を変えない。性能比較の基�
 - 現行の一件あたりバイト数、署名・検証時間、取引件数、CPU、メモリ、7ノードWAN遅延を測る。
 - 現行ZK、曲線署名、鍵交換、ハッシュのうち、量子計算機に対して残らない保証を明記する。
 
-**先行P0の実装（2026-09-05）:** 独立したRust workspace / crate `zkfmi-crypto` を `/Users/shukob/Research/DeFMI/zkfmi-crypto/` に作成した。版付きsuite、用途別KeyRecord、正規署名対象、バイト列のSigner / Verifier / KemEncapsulator / KemDecapsulator / ProofVerifier / CryptoProvider、Ed25519 + ML-DSA-65のAND署名検証、X25519 + ML-KEM-768のHKDF-SHA256結合を実装した。未登録方式・未知の版を拒否し、秘密鍵はzeroizeする。既存クレートはまだ依存していない。GitHub上の `shukob/zkfmi-crypto` は認証無効のため未作成で、作成時の初期公開範囲はprivateとする。
+**先行P0の実装（2026-09-05）:** 独立したRust workspace / crate `zkfmi-crypto` を `/Users/shukob/Research/DeFMI/zkfmi-crypto/` に作成した。版付きsuite、用途別KeyRecord、正規署名対象、バイト列のSigner / Verifier / KemEncapsulator / KemDecapsulator / ProofVerifier / CryptoProvider、Ed25519 + ML-DSA-65のAND署名検証、X25519 + ML-KEM-768のHKDF-SHA256結合を実装した。未登録方式・未知の版を拒否し、秘密鍵はzeroizeする。既存クレートはまだ依存していない。GitHub上の `shukob/zkfmi-crypto` は認証無効のため未作成。2026-09-05のユーザー指示により公開範囲をpublicに決定し、初回発注のprivate指定を更新した。
 
 `qomm/rust`、`defmi/rust`、`zkpi/rust` に複製されている共通クレートの統合が、P1で配線する前提である。将来の共有はdekyx-coreと同じGit URL + `rev` 固定とし、この先行作業では既存のCargo、Cargo.lock、Dockerfile、compose、pinを変更しない。KeyRecordは既存のPublicManifest / EncryptedKeyStoreやDeKYXの鍵エポックを置き換えない。スナップショットや初期登録の認可、DeKYX参照の正当性は既存サービスの責任として保持する。
 
