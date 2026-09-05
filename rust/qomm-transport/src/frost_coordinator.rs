@@ -12,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use zkfmi_crypto::quorum::{MemberApproval, QuorumApproval, QuorumPolicy};
 
 /// Public and recipient-encrypted transcript required for the final DKG step.
 /// It contains no clear signing share and can be journaled before any node is
@@ -127,6 +128,7 @@ pub fn prepare_frost_dkg<T: ProofPartyRpc>(
                 json!({
                     "party": value.get("party").cloned().unwrap_or(Value::Null),
                     "confirmation": value.get("confirmation").cloned().unwrap_or(Value::Null),
+                    "pq_confirmation": value.get("pq_confirmation").cloned().unwrap_or(Value::Null),
                 })
             })
             .collect(),
@@ -242,7 +244,73 @@ pub fn distributed_frost_sign<T: ProofPartyRpc>(
     message: &[u8],
     public: &frost::keys::PublicKeyPackage,
 ) -> Result<frost::Signature, String> {
+    // Compatibility return type while downstream wire consumers are migrated.
+    // The issuing path already requires both components; a chain verifier must
+    // retain and verify the PQ approval before claiming hybrid settlement.
+    let policy = read_pq_committee(parties, public)?;
+    Ok(distributed_hybrid_sign(parties, selected, message, public, &policy)?.classical)
+}
+
+pub struct DistributedHybridSignature {
+    pub classical: frost::Signature,
+    pub pq: QuorumApproval,
+}
+
+/// Read the agreed enrollment candidate. The receiving venue must separately
+/// authenticate and register this policy; this function grants no trust.
+pub fn read_pq_committee<T: ProofPartyRpc>(
+    parties: &mut [T],
+    public: &frost::keys::PublicKeyPackage,
+) -> Result<QuorumPolicy, String> {
+    let binding: [u8; 32] = Sha256::digest(
+        public
+            .serialize()
+            .map_err(|_| "FROST public package is invalid")?,
+    )
+    .into();
+    let mut expected: Option<QuorumPolicy> = None;
+    let member_count = parties.len();
+    for party in parties.iter_mut() {
+        let response = party.call("frost_status", json!({}))?;
+        let policy: QuorumPolicy = serde_json::from_value(
+            response
+                .get("pq_committee")
+                .cloned()
+                .ok_or("node omitted its PQ committee")?,
+        )
+        .map_err(|_| "node PQ committee is malformed")?;
+        policy.validate().map_err(|error| error.to_string())?;
+        if policy.classical_binding != binding
+            || policy.members.len() != member_count
+            || expected.as_ref().is_some_and(|prior| prior != &policy)
+        {
+            return Err("nodes disagree on the PQ/classical committee binding".into());
+        }
+        expected = Some(policy);
+    }
+    expected.ok_or_else(|| "PQ committee has no nodes".into())
+}
+
+/// Both components cover the same node-authorized message. The policy is a
+/// caller-supplied trust anchor, never taken from a signature-share response.
+pub fn distributed_hybrid_sign<T: ProofPartyRpc>(
+    parties: &mut [T],
+    selected: &[usize],
+    message: &[u8],
+    public: &frost::keys::PublicKeyPackage,
+    policy: &QuorumPolicy,
+) -> Result<DistributedHybridSignature, String> {
+    policy.validate().map_err(|error| error.to_string())?;
+    let binding: [u8; 32] = Sha256::digest(
+        public
+            .serialize()
+            .map_err(|_| "FROST public package is invalid")?,
+    )
+    .into();
     if selected.len() < 3
+        || policy.classical_binding != binding
+        || selected.len() < usize::from(policy.threshold)
+        || selected.windows(2).any(|pair| pair[0] >= pair[1])
         || selected
             .iter()
             .any(|party| !(1..=parties.len()).contains(party))
@@ -310,12 +378,35 @@ pub fn distributed_frost_sign<T: ProofPartyRpc>(
         return Err("FROST node reused a consumed signing nonce".into());
     }
     let mut decoded_shares = BTreeMap::new();
+    let mut pq_shares = Vec::new();
+    let expected_committee = hex::encode(policy.digest().map_err(|error| error.to_string())?);
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|_| "system clock precedes Unix epoch")?
+        .as_secs();
     for share in shares {
         let party = share
             .get("party")
             .and_then(Value::as_u64)
             .and_then(|value| u16::try_from(value).ok())
             .ok_or_else(|| "FROST signature-share party is invalid".to_string())?;
+        let pq_share: MemberApproval = serde_json::from_value(
+            share
+                .get("pq_approval")
+                .cloned()
+                .ok_or("node omitted its PQ approval")?,
+        )
+        .map_err(|_| "node PQ approval is malformed")?;
+        if pq_share.node != party
+            || share.get("pq_committee").and_then(Value::as_str)
+                != Some(expected_committee.as_str())
+        {
+            return Err("node substituted the PQ signer or committee".into());
+        }
+        policy
+            .verify_member(&pq_share, message, now)
+            .map_err(|error| error.to_string())?;
+        pq_shares.push(pq_share);
         let raw = BASE64
             .decode(
                 share
@@ -331,6 +422,10 @@ pub fn distributed_frost_sign<T: ProofPartyRpc>(
         );
     }
     let package = frost::SigningPackage::new(decoded_commitments, message);
-    frost::aggregate(&package, &decoded_shares, public)
-        .map_err(|_| "FROST aggregation rejected a node response".into())
+    let classical = frost::aggregate(&package, &decoded_shares, public)
+        .map_err(|_| "FROST aggregation rejected a node response".to_string())?;
+    let pq = policy
+        .assemble(pq_shares, message, now)
+        .map_err(|error| error.to_string())?;
+    Ok(DistributedHybridSignature { classical, pq })
 }

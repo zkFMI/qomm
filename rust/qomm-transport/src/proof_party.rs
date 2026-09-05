@@ -5,6 +5,8 @@
 //! neither has a request/response representation. Each process opens only its
 //! own MP-SPDZ persistence file below a configured root.
 
+#[path = "proof_party_pqc.rs"]
+mod pqc;
 use crate::mpc_result::NodePublicResultAttestation;
 use crate::order::{
     admission_principal_digest, encode_node_execution_attestation, principal_ticket_id,
@@ -51,6 +53,12 @@ use std::path::{Component, Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use zeroize::Zeroizing;
 use zkfmi_crypto::suite::Suite;
+use zkfmi_crypto::{
+    backend::{MlDsa65Signer, MlDsa65Verifier},
+    key::{KeyPurpose, KeyRecord},
+    quorum::QuorumPolicy,
+    traits::{Signer as PqSigner, Verifier as PqVerifier},
+};
 
 use sha2::{Digest, Sha256};
 
@@ -322,6 +330,10 @@ struct DurableProofState {
     trusted_defmi_receipt_public: Option<String>,
     identity_private: String,
     exchange_private: String,
+    pq_private: String,
+    pq_key: KeyRecord,
+    pq_committee: Option<QuorumPolicy>,
+    pq_identity_cache: BTreeMap<String, String>,
     frost_session: Option<String>,
     frost_key_package: Option<String>,
     frost_public_package: Option<String>,
@@ -589,7 +601,7 @@ impl ProofStateStore {
         )?;
         let value: Value = serde_json::from_slice(&clear)
             .map_err(|_| "proof-party state authentication failed".to_string())?;
-        if value.get("version").and_then(Value::as_u64) != Some(4) {
+        if value.get("version").and_then(Value::as_u64) != Some(5) {
             return Err(
                 "proof state requires explicit hybrid-key migration; legacy state was preserved"
                     .into(),
@@ -597,7 +609,7 @@ impl ProofStateStore {
         }
         let state: DurableProofState = serde_json::from_value(value)
             .map_err(|_| "proof-party state schema is invalid".to_string())?;
-        if state.version != 4 {
+        if state.version != 5 {
             return Err(
                 "unsupported proof-party state version; securely reprovision this non-production node"
                     .into(),
@@ -712,11 +724,14 @@ struct FrostPeerEntry {
     exchange_suite: Suite,
     exchange_public: String,
     self_signature: String,
+    pq_key: KeyRecord,
+    pq_self_signature: String,
 }
 
 struct FrostPeer {
     identity: VerifyingKey,
     exchange: WinnerPublicKey,
+    pq_key: KeyRecord,
 }
 
 struct PendingPeers {
@@ -773,6 +788,11 @@ pub struct ProofParty {
     identity: SigningKey,
     exchange: WinnerPrivateKey,
     exchange_seed: Zeroizing<[u8; 96]>,
+    pq_seed: Zeroizing<[u8; 32]>,
+    pq_signer: MlDsa65Signer,
+    pq_key: KeyRecord,
+    pq_committee: Option<QuorumPolicy>,
+    pq_identity_cache: BTreeMap<String, String>,
     pending_peers: Option<PendingPeers>,
     peers: Option<PendingPeers>,
     dkg_round1: Option<PendingDkgRound1>,
@@ -810,8 +830,14 @@ impl ProofParty {
             OsRng
                 .try_fill_bytes(exchange_seed.as_mut())
                 .map_err(|error| error.to_string())?;
+            let mut pq_seed = Zeroizing::new([0_u8; 32]);
+            OsRng
+                .try_fill_bytes(pq_seed.as_mut())
+                .map_err(|error| error.to_string())?;
+            let pq_key =
+                pqc::initial_record(&identity, MlDsa65Signer::from_seed(&pq_seed).public_key())?;
             let state = DurableProofState {
-                version: 4,
+                version: 5,
                 generation: 0,
                 proof_configuration_digest: hex::encode(config.security_digest()),
                 node: config.node,
@@ -821,6 +847,10 @@ impl ProofParty {
                 trusted_defmi_receipt_public: config.trusted_defmi_receipt_public.map(hex::encode),
                 identity_private: BASE64.encode(identity.to_bytes()),
                 exchange_private: BASE64.encode(exchange_seed.as_slice()),
+                pq_private: BASE64.encode(pq_seed.as_slice()),
+                pq_key,
+                pq_committee: None,
+                pq_identity_cache: BTreeMap::new(),
                 frost_session: None,
                 frost_key_package: None,
                 frost_public_package: None,
@@ -1160,6 +1190,7 @@ impl ProofParty {
             <[u8; 96]>::try_from(exchange_bytes.as_slice())
                 .map_err(|_| "stored hybrid exchange seed must be 96 bytes".to_string())?,
         );
+        let pq_seed = Zeroizing::new(decode32(&state.pq_private, "stored PQ signing seed")?);
         let mut party = Self {
             config,
             allowed_root,
@@ -1175,6 +1206,11 @@ impl ProofParty {
             )?),
             exchange: WinnerPrivateKey::from_seed(&exchange_seed),
             exchange_seed,
+            pq_signer: MlDsa65Signer::from_seed(&pq_seed),
+            pq_seed,
+            pq_key: state.pq_key,
+            pq_committee: state.pq_committee,
+            pq_identity_cache: state.pq_identity_cache,
             pending_peers: None,
             peers: None,
             dkg_round1: pending_round1,
@@ -1218,6 +1254,7 @@ impl ProofParty {
         {
             return Err("proof-party state contains contradictory lifecycle sets".into());
         }
+        party.validate_pq_state()?;
         Ok(party)
     }
 
@@ -1299,7 +1336,7 @@ impl ProofParty {
         let encode_set =
             |values: &BTreeSet<[u8; 32]>| values.iter().map(hex::encode).collect::<Vec<_>>();
         Ok(DurableProofState {
-            version: 4,
+            version: 5,
             generation,
             proof_configuration_digest: hex::encode(self.config.security_digest()),
             node: self.config.node,
@@ -1309,6 +1346,10 @@ impl ProofParty {
             trusted_defmi_receipt_public: self.config.trusted_defmi_receipt_public.map(hex::encode),
             identity_private: BASE64.encode(self.identity.to_bytes()),
             exchange_private: BASE64.encode(self.exchange_seed.as_slice()),
+            pq_private: BASE64.encode(self.pq_seed.as_slice()),
+            pq_key: self.pq_key.clone(),
+            pq_committee: self.pq_committee.clone(),
+            pq_identity_cache: self.pq_identity_cache.clone(),
             frost_session: self.frost_session.map(hex::encode),
             frost_key_package: self
                 .frost_key
@@ -1789,6 +1830,7 @@ impl ProofParty {
         party: u16,
         identity: &[u8; 32],
         exchange: &[u8],
+        pq_key: &KeyRecord,
     ) -> Vec<u8> {
         [
             FROST_IDENTITY_DOMAIN,
@@ -1797,6 +1839,7 @@ impl ProofParty {
             identity,
             &KEM_SUITE.encode(),
             exchange,
+            &serde_json::to_vec(pq_key).expect("public key record serializes"),
         ]
         .concat()
     }
@@ -1807,15 +1850,23 @@ impl ProofParty {
             .or_else(|| self.pending_peers.as_ref().map(|peers| peers.session))
     }
 
-    fn peer_confirmation(&self, peers: &PendingPeers) -> Value {
+    fn peer_confirmation(&self, peers: &PendingPeers) -> Result<Value, String> {
         let confirmation = self
             .identity
             .sign(&[FROST_CONFIRM_DOMAIN, &peers.session, &peers.digest].concat());
-        json!({
+        let pq_confirmation = self
+            .pq_signer
+            .sign(
+                KeyPurpose::Transport,
+                &[FROST_CONFIRM_DOMAIN, &peers.session, &peers.digest].concat(),
+            )
+            .map_err(|error| error.to_string())?;
+        Ok(json!({
             "party": self.config.node + 1,
             "manifest_digest": hex::encode(peers.digest),
             "confirmation": hex::encode(confirmation.to_bytes()),
-        })
+            "pq_confirmation": BASE64.encode(pq_confirmation),
+        }))
     }
 
     fn verify_peer_confirmations(peers: &PendingPeers, params: &Value) -> Result<(), String> {
@@ -1853,6 +1904,27 @@ impl ProofParty {
                 .identity
                 .verify(&body, &Signature::from_bytes(&raw))
                 .map_err(|_| "FROST manifest lacks an authentic peer confirmation")?;
+            let pq_confirmation = BASE64
+                .decode(
+                    confirmation
+                        .get("pq_confirmation")
+                        .and_then(Value::as_str)
+                        .ok_or("PQ peer confirmation is absent")?,
+                )
+                .map_err(|_| "PQ peer confirmation is malformed")?;
+            MlDsa65Verifier
+                .verify(
+                    KeyPurpose::Transport,
+                    &peers
+                        .peers
+                        .get(&party)
+                        .ok_or("PQ peer is absent")?
+                        .pq_key
+                        .public_key,
+                    &body,
+                    &pq_confirmation,
+                )
+                .map_err(|_| "PQ peer confirmation is invalid")?;
         }
         Ok(())
     }
@@ -1863,7 +1935,7 @@ impl ProofParty {
         mut entries: Vec<FrostPeerEntry>,
     ) -> Result<PendingPeers, String> {
         entries.sort_by_key(|entry| entry.party);
-        if entries.len() < self.config.threshold + 1 || entries.len() > 64 {
+        if entries.len() != self.config.n_parties || entries.len() > 64 {
             return Err("FROST peer manifest is outside its participant bound".into());
         }
         let mut peers = BTreeMap::new();
@@ -1893,16 +1965,59 @@ impl ProofParty {
                 .map_err(|_| "FROST identity key is not canonical")?;
             identity
                 .verify(
-                    &Self::identity_body(&session, entry.party, &identity_raw, &exchange_raw),
+                    &Self::identity_body(
+                        &session,
+                        entry.party,
+                        &identity_raw,
+                        &exchange_raw,
+                        &entry.pq_key,
+                    ),
                     &Signature::from_bytes(&signature_raw),
                 )
                 .map_err(|_| "FROST exchange key lacks its node identity signature")?;
+            entry
+                .pq_key
+                .valid_at(pqc::now()?)
+                .map_err(|error| error.to_string())?;
+            if entry.pq_key.suite != zkfmi_crypto::quorum::SUITE
+                || entry.pq_key.purpose != KeyPurpose::SettlementInstruction
+            {
+                return Err("FROST peer lacks a settlement PQ key".into());
+            }
+            let pq_signature = BASE64
+                .decode(&entry.pq_self_signature)
+                .map_err(|_| "PQ peer self-signature is malformed")?;
+            MlDsa65Verifier
+                .verify(
+                    KeyPurpose::Transport,
+                    &entry.pq_key.public_key,
+                    &Self::identity_body(
+                        &session,
+                        entry.party,
+                        &identity_raw,
+                        &exchange_raw,
+                        &entry.pq_key,
+                    ),
+                    &pq_signature,
+                )
+                .map_err(|_| "PQ peer self-signature is invalid")?;
+            body.extend_from_slice(
+                &serde_json::to_vec(&entry.pq_key).map_err(|error| error.to_string())?,
+            );
+            body.extend_from_slice(&pq_signature);
             body.extend_from_slice(&entry.party.to_be_bytes());
             body.extend_from_slice(&identity_raw);
             body.extend_from_slice(&entry.exchange_suite.encode());
             body.extend_from_slice(&exchange_raw);
             body.extend_from_slice(&signature_raw);
-            peers.insert(entry.party, FrostPeer { identity, exchange });
+            peers.insert(
+                entry.party,
+                FrostPeer {
+                    identity,
+                    exchange,
+                    pq_key: entry.pq_key.clone(),
+                },
+            );
         }
         let own_party = self.config.node + 1;
         let own = entries
@@ -1911,6 +2026,7 @@ impl ProofParty {
         if own.party != own_party
             || own.identity_public != hex::encode(self.identity.verifying_key().to_bytes())
             || own.exchange_public != hex::encode(self.exchange.public_key()?.raw_public_key()?)
+            || own.pq_key != self.pq_key
         {
             return Err("FROST manifest substituted this node's identity or exchange key".into());
         }
@@ -2033,6 +2149,7 @@ impl ProofParty {
                         "fresh"
                     },
                     "public_package": public_package,
+                    "pq_committee": self.pq_committee,
                     "state_generation": self.state_generation,
                 }))
             }
@@ -2047,18 +2164,23 @@ impl ProofParty {
                 let party = self.config.node + 1;
                 let identity_public = self.identity.verifying_key().to_bytes();
                 let exchange_public = self.exchange.public_key()?.raw_public_key()?;
-                let signature = self.identity.sign(&Self::identity_body(
+                let body = Self::identity_body(
                     &session,
                     party,
                     &identity_public,
                     &exchange_public,
-                ));
+                    &self.pq_key,
+                );
+                let signature = self.identity.sign(&body);
+                let pq_signature = self.pq_identity_signature(&body)?;
                 Ok(json!({
                     "party": party,
                     "identity_public": hex::encode(identity_public),
                     "exchange_suite": KEM_SUITE,
                     "exchange_public": hex::encode(exchange_public),
                     "self_signature": hex::encode(signature.to_bytes()),
+                    "pq_key": self.pq_key,
+                    "pq_self_signature": BASE64.encode(pq_signature),
                 }))
             }
             "frost_configure_peers" => {
@@ -2078,9 +2200,9 @@ impl ProofParty {
                     if existing.session != pending.session || existing.digest != pending.digest {
                         return Err("FROST peer manifest was already configured differently".into());
                     }
-                    return Ok(self.peer_confirmation(existing));
+                    return self.peer_confirmation(existing);
                 }
-                let result = self.peer_confirmation(&pending);
+                let result = self.peer_confirmation(&pending)?;
                 self.pending_peers = Some(pending);
                 Ok(result)
             }
@@ -2370,6 +2492,8 @@ impl ProofParty {
                 let encoded = public
                     .serialize()
                     .map_err(|_| "FROST public key serialization failed")?;
+                let pq_committee = self.make_pq_committee(peers, &encoded)?;
+                self.pq_committee = Some(pq_committee);
                 self.frost_key = Some(key_package);
                 self.frost_public = Some(public);
                 self.frost_session = Some(session);
@@ -3144,9 +3268,15 @@ impl ProofParty {
                         .ok_or_else(|| "FROST DKG is not complete".to_string())?,
                 )
                 .map_err(|_| "FROST node refused its signing round")?;
+                let committee = self.pq_committee.as_ref().ok_or("PQ committee is absent")?;
+                let pq_approval = committee
+                    .sign_member(self.config.node + 1, &self.pq_signer, &message, pqc::now()?)
+                    .map_err(|error| error.to_string())?;
                 Ok(json!({
                     "party": self.config.node + 1,
                     "share": BASE64.encode(share.serialize()),
+                    "pq_approval": pq_approval,
+                    "pq_committee": hex::encode(committee.digest().map_err(|error| error.to_string())?),
                 }))
             }
             "load" => {

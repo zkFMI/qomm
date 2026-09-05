@@ -16,6 +16,7 @@ struct LocalParty {
     root: PathBuf,
     party: ProofParty,
     next_id: u64,
+    health_enabled: bool,
 }
 
 impl LocalParty {
@@ -40,17 +41,26 @@ impl LocalParty {
     }
 
     fn new(node: u16, root: &Path) -> Self {
+        Self::with_health(node, root, false)
+    }
+
+    fn with_health(node: u16, root: &Path, health_enabled: bool) -> Self {
         fs::set_permissions(root, fs::Permissions::from_mode(0o700)).unwrap();
+        let mut config = Self::config(node, root);
+        config.allow_health_signing = health_enabled;
         Self {
             node,
             root: root.to_path_buf(),
-            party: ProofParty::new(Self::config(node, root)).unwrap(),
+            party: ProofParty::new(config).unwrap(),
             next_id: 1,
+            health_enabled,
         }
     }
 
     fn restart(&mut self) {
-        self.party = ProofParty::new(Self::config(self.node, &self.root)).unwrap();
+        let mut config = Self::config(self.node, &self.root);
+        config.allow_health_signing = self.health_enabled;
+        self.party = ProofParty::new(config).unwrap();
         self.next_id = 1;
     }
 }
@@ -72,6 +82,85 @@ impl ProofPartyRpc for LocalParty {
         response
             .result
             .ok_or_else(|| "local proof party omitted its result".into())
+    }
+}
+
+#[test]
+fn actual_node_pq_approvals_bind_the_dkg_and_survive_restart() {
+    // This is the existing domain-separated health authorization, explicitly
+    // enabled for this cryptographic regression. It is not a payment proof.
+    use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+    use qomm_transport::frost_coordinator::{
+        distributed_hybrid_sign, frost_signing_job, read_pq_committee,
+    };
+    use sha2::{Digest, Sha256};
+    let roots = (0..7).map(|_| TempDir::new().unwrap()).collect::<Vec<_>>();
+    let mut parties = roots
+        .iter()
+        .enumerate()
+        .map(|(node, root)| LocalParty::with_health(node as u16, root.path(), true))
+        .collect::<Vec<_>>();
+    let session = [42_u8; 32];
+    let first = parties[0]
+        .call("frost_identity", json!({"session": hex::encode(session)}))
+        .unwrap();
+    parties[0].restart();
+    assert_eq!(
+        first,
+        parties[0]
+            .call("frost_identity", json!({"session": hex::encode(session)}))
+            .unwrap()
+    );
+    let plan = prepare_frost_dkg(&mut parties, session).unwrap();
+    let public = finalize_frost_dkg(&mut parties, &plan).unwrap();
+    let policy = read_pq_committee(&mut parties, &public).unwrap();
+    assert_eq!(policy.members.len(), 7);
+    assert_eq!(policy.threshold, 3);
+    let cluster = [43_u8; 32];
+    for stage in [1_u8, 2] {
+        let message: [u8; 32] = Sha256::new()
+            .chain_update(b"QOMM:FROST:HEALTH:v1")
+            .chain_update(session)
+            .chain_update([stage])
+            .chain_update(cluster)
+            .finalize()
+            .into();
+        assert!(
+            distributed_hybrid_sign(&mut parties, &[1, 2, 3], &message, &public, &policy).is_err()
+        );
+        for party in &mut parties[..3] {
+            party
+                .call(
+                    "authorize_health",
+                    json!({
+                        "signing_job_id": hex::encode(frost_signing_job(&message)),
+                        "message": BASE64.encode(message), "cluster_digest": hex::encode(cluster),
+                        "stage": if stage == 1 { "pre-restart" } else { "post-restart" },
+                    }),
+                )
+                .unwrap();
+        }
+        let signed =
+            distributed_hybrid_sign(&mut parties, &[1, 2, 3], &message, &public, &policy).unwrap();
+        public
+            .verifying_key()
+            .verify(&message, &signed.classical)
+            .unwrap();
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs();
+        policy.verify(&signed.pq, &message, now).unwrap();
+        let mut tampered = signed.pq;
+        tampered.signatures[0].signature[0] ^= 1;
+        assert!(policy.verify(&tampered, &message, now).is_err());
+        for party in &mut parties {
+            party.restart();
+        }
+        assert_eq!(policy, read_pq_committee(&mut parties, &public).unwrap());
+        assert!(
+            distributed_hybrid_sign(&mut parties, &[1, 2, 3], &message, &public, &policy).is_err()
+        );
     }
 }
 
@@ -102,6 +191,7 @@ fn configure_and_confirm(parties: &mut [LocalParty], session: [u8; 32]) {
                 json!({
                     "party": response["party"].clone(),
                     "confirmation": response["confirmation"].clone(),
+                    "pq_confirmation": response["pq_confirmation"].clone(),
                 })
             })
             .collect(),

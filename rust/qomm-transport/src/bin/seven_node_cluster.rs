@@ -1428,6 +1428,7 @@ fn distributed_frost_setup(
                 json!({
                     "party": value.get("party").cloned().unwrap_or(Value::Null),
                     "confirmation": value.get("confirmation").cloned().unwrap_or(Value::Null),
+                    "pq_confirmation": value.get("pq_confirmation").cloned().unwrap_or(Value::Null),
                 })
             })
             .collect(),

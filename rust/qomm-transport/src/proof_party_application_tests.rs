@@ -31,6 +31,29 @@ fn fixture(root: &Path) -> ProofParty {
         .remove(&frost::Identifier::try_from(1_u16).unwrap())
         .unwrap();
     party.frost_key = Some(frost::keys::KeyPackage::try_from(share).unwrap());
+    let members = (1_u16..=7)
+        .map(|node| zkfmi_crypto::quorum::QuorumMember {
+            node,
+            key: if node == 1 {
+                party.pq_key.clone()
+            } else {
+                pqc::initial_record(
+                    &SigningKey::generate(&mut OsRng),
+                    MlDsa65Signer::from_seed(&[node as u8; 32]).public_key(),
+                )
+                .unwrap()
+            },
+        })
+        .collect();
+    party.pq_committee = Some(QuorumPolicy {
+        version: zkfmi_crypto::suite::Version::V1,
+        epoch: 1,
+        purpose: KeyPurpose::SettlementInstruction,
+        context: [b"QOMM:MPC-SETTLEMENT-COMMITTEE:v1".as_slice(), &[9; 32]].concat(),
+        classical_binding: Sha256::digest(public.serialize().unwrap()).into(),
+        threshold: 3,
+        members,
+    });
     party.frost_public = Some(public);
     party.frost_session = Some([9; 32]);
     party.completed.insert([1; 32]);
@@ -294,7 +317,7 @@ fn control_history_is_required_by_the_new_durable_schema() {
         .unwrap()
         .remove("application_controls");
     assert!(serde_json::from_value::<DurableProofState>(value).is_err());
-    assert_eq!(state.version, 4);
+    assert_eq!(state.version, 5);
 }
 
 #[test]
