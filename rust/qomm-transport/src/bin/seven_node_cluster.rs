@@ -50,6 +50,10 @@ use qomm_transport::executor::{
 use qomm_transport::external_kyb::{
     read_external_kyb_bundle, read_external_kyb_trust_anchor, VerifiedExternalKyb,
 };
+use qomm_transport::frost_coordinator::{
+    distributed_frost_setup, distributed_frost_sign, distributed_hybrid_sign, frost_signing_job,
+    read_pq_committee,
+};
 use qomm_transport::key_management::{
     create_ca, issue_mutual_tls_certificate, write_tls_bundle, EncryptedKeyStore, KeyKind,
 };
@@ -1354,160 +1358,6 @@ fn run_proof_party(arguments: &[String]) -> Result<(), String> {
     serve_proof_party(&mut party, stdin.lock(), stdout.lock())
 }
 
-fn distributed_frost_setup(
-    parties: &mut [ProofPartyChild],
-    session: [u8; 32],
-) -> Result<frost::keys::PublicKeyPackage, String> {
-    let statuses = parties
-        .iter_mut()
-        .map(|party| party.call("frost_status", json!({})))
-        .collect::<Result<Vec<_>, _>>()?;
-    let ready = statuses
-        .iter()
-        .filter(|status| status.get("ready").and_then(Value::as_bool) == Some(true))
-        .count();
-    if ready != 0 {
-        if ready != parties.len() {
-            return Err("FROST durable group is present on only part of the node set".into());
-        }
-        let expected_session = hex::encode(session);
-        if statuses.iter().any(|status| {
-            status.get("session").and_then(Value::as_str) != Some(expected_session.as_str())
-        }) {
-            return Err("FROST durable group belongs to another DKG session".into());
-        }
-        let encoded = statuses
-            .iter()
-            .map(|status| {
-                BASE64
-                    .decode(
-                        status
-                            .get("public_package")
-                            .and_then(Value::as_str)
-                            .ok_or_else(|| {
-                                "FROST ready node omitted its public package".to_string()
-                            })?,
-                    )
-                    .map_err(|_| "FROST durable public package is malformed".to_string())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-        if encoded.iter().skip(1).any(|value| value != &encoded[0]) {
-            return Err("FROST durable nodes disagree on the group public key".into());
-        }
-        return frost::keys::PublicKeyPackage::deserialize(&encoded[0])
-            .map_err(|_| "FROST durable public key cannot be decoded".into());
-    }
-    let identities = parties
-        .iter_mut()
-        .map(|party| party.call("frost_identity", json!({"session": hex::encode(session)})))
-        .collect::<Result<Vec<_>, _>>()?;
-    let entries = Value::Array(identities.clone());
-    let confirmations = parties
-        .iter_mut()
-        .map(|party| {
-            party.call(
-                "frost_configure_peers",
-                json!({
-                    "session": hex::encode(session),
-                    "entries": entries.clone(),
-                }),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let manifest_digests = confirmations
-        .iter()
-        .filter_map(|value| value.get("manifest_digest").and_then(Value::as_str))
-        .collect::<BTreeSet<_>>();
-    if manifest_digests.len() != 1 || confirmations.len() != parties.len() {
-        return Err("FROST nodes did not confirm one identical peer manifest".into());
-    }
-    let confirmation_values = Value::Array(
-        confirmations
-            .iter()
-            .map(|value| {
-                json!({
-                    "party": value.get("party").cloned().unwrap_or(Value::Null),
-                    "confirmation": value.get("confirmation").cloned().unwrap_or(Value::Null),
-                    "pq_confirmation": value.get("pq_confirmation").cloned().unwrap_or(Value::Null),
-                })
-            })
-            .collect(),
-    );
-    for party in parties.iter_mut() {
-        party.call(
-            "frost_confirm_peers",
-            json!({"confirmations": confirmation_values.clone()}),
-        )?;
-    }
-    let broadcasts = parties
-        .iter_mut()
-        .map(|party| party.call("frost_dkg_round1", json!({})))
-        .collect::<Result<Vec<_>, _>>()?;
-    let broadcast_values = Value::Array(broadcasts.clone());
-    let directed = parties
-        .iter_mut()
-        .map(|party| {
-            party.call(
-                "frost_dkg_round2",
-                json!({"broadcasts": broadcast_values.clone()}),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut incoming = (0..parties.len()).map(|_| Vec::new()).collect::<Vec<_>>();
-    for sender in directed {
-        for envelope in sender
-            .get("encrypted")
-            .and_then(Value::as_array)
-            .ok_or_else(|| "FROST node omitted its encrypted directed packages".to_string())?
-        {
-            let recipient = envelope
-                .get("recipient")
-                .and_then(Value::as_u64)
-                .and_then(|value| usize::try_from(value).ok())
-                .filter(|value| (1..=parties.len()).contains(value))
-                .ok_or_else(|| "FROST directed package has an invalid recipient".to_string())?;
-            incoming[recipient - 1].push(envelope.clone());
-        }
-    }
-    let mut encoded_public = Vec::new();
-    for (party, incoming) in parties.iter_mut().zip(incoming) {
-        let result = party.call(
-            "frost_dkg_finalize",
-            json!({
-                "broadcasts": broadcast_values.clone(),
-                "incoming": incoming,
-            }),
-        )?;
-        encoded_public.push(
-            BASE64
-                .decode(
-                    result
-                        .get("public_package")
-                        .and_then(Value::as_str)
-                        .ok_or_else(|| "FROST node omitted the group public key".to_string())?,
-                )
-                .map_err(|_| "FROST public key package is malformed")?,
-        );
-    }
-    if encoded_public
-        .iter()
-        .skip(1)
-        .any(|package| package != &encoded_public[0])
-    {
-        return Err("FROST nodes derived different group public keys".into());
-    }
-    frost::keys::PublicKeyPackage::deserialize(&encoded_public[0])
-        .map_err(|_| "FROST group public key cannot be decoded".into())
-}
-
-fn frost_signing_job(message: &[u8]) -> [u8; 32] {
-    Sha256::new()
-        .chain_update(b"QOMM:FROST:SIGNING-JOB:v1")
-        .chain_update(message)
-        .finalize()
-        .into()
-}
-
 fn authorize_zkpi_signing(
     parties: &mut [ProofPartyChild],
     selected: &[usize],
@@ -1567,106 +1417,8 @@ fn authorize_health_signing(
     Ok(())
 }
 
-fn distributed_frost_sign(
-    parties: &mut [ProofPartyChild],
-    selected: &[usize],
-    message: &[u8],
-    public: &frost::keys::PublicKeyPackage,
-) -> Result<frost::Signature, String> {
-    if selected.len() < 3
-        || selected
-            .iter()
-            .any(|party| !(1..=parties.len()).contains(party))
-    {
-        return Err("FROST signing quorum is outside the configured node set".into());
-    }
-    let signing_job = frost_signing_job(message);
-    let encoded_message = BASE64.encode(message);
-    let commitments = selected
-        .iter()
-        .map(|party| {
-            parties[*party - 1].call(
-                "frost_commit",
-                json!({
-                    "job_id": hex::encode(signing_job),
-                    "message": encoded_message,
-                }),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let mut decoded_commitments = BTreeMap::new();
-    for commitment in &commitments {
-        let party = commitment
-            .get("party")
-            .and_then(Value::as_u64)
-            .and_then(|value| u16::try_from(value).ok())
-            .ok_or_else(|| "FROST commitment party is invalid".to_string())?;
-        let raw = BASE64
-            .decode(
-                commitment
-                    .get("commitments")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "FROST commitment is absent".to_string())?,
-            )
-            .map_err(|_| "FROST commitment is malformed")?;
-        decoded_commitments.insert(
-            frost::Identifier::try_from(party).map_err(|_| "FROST identifier is invalid")?,
-            frost::round1::SigningCommitments::deserialize(&raw)
-                .map_err(|_| "FROST commitment cannot be decoded")?,
-        );
-    }
-    let commitment_values = Value::Array(commitments.clone());
-    let shares = selected
-        .iter()
-        .map(|party| {
-            parties[*party - 1].call(
-                "frost_sign",
-                json!({
-                    "job_id": hex::encode(signing_job),
-                    "message": encoded_message,
-                    "commitments": commitment_values.clone(),
-                }),
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    let replay = parties[selected[0] - 1].call(
-        "frost_sign",
-        json!({
-            "job_id": hex::encode(signing_job),
-            "message": encoded_message,
-            "commitments": commitment_values,
-        }),
-    );
-    if replay.is_ok() {
-        return Err("FROST node reused a consumed signing nonce".into());
-    }
-    let mut decoded_shares = BTreeMap::new();
-    for share in shares {
-        let party = share
-            .get("party")
-            .and_then(Value::as_u64)
-            .and_then(|value| u16::try_from(value).ok())
-            .ok_or_else(|| "FROST signature-share party is invalid".to_string())?;
-        let raw = BASE64
-            .decode(
-                share
-                    .get("share")
-                    .and_then(Value::as_str)
-                    .ok_or_else(|| "FROST signature share is absent".to_string())?,
-            )
-            .map_err(|_| "FROST signature share is malformed")?;
-        decoded_shares.insert(
-            frost::Identifier::try_from(party).map_err(|_| "FROST identifier is invalid")?,
-            frost::round2::SignatureShare::deserialize(&raw)
-                .map_err(|_| "FROST signature share cannot be decoded")?,
-        );
-    }
-    let package = frost::SigningPackage::new(decoded_commitments, message);
-    frost::aggregate(&package, &decoded_shares, public)
-        .map_err(|_| "FROST aggregation rejected a node response".into())
-}
-
 struct LiveProofEvidence {
+    pq_committee: qomm_zkpi::QuorumPolicy,
     job_id: [u8; 32],
     lane: usize,
     admission_sequence: u64,
@@ -1702,6 +1454,8 @@ struct LiveProofEvidence {
 impl LiveProofEvidence {
     fn into_handoff(self, frost_public: frost::keys::PublicKeyPackage) -> SettlementHandoff {
         SettlementHandoff {
+            pq_committee: Some(self.pq_committee),
+            typed_pq_authorization: None,
             job_id: self.job_id,
             lane: self.lane,
             admission_sequence: self.admission_sequence,
@@ -2055,10 +1809,19 @@ fn prove_persistence_lane(
         &amount_range_wire,
         &price_range_wire,
     )?;
-    let signature =
-        distributed_frost_sign(proof_parties, &quorum, &partial.digest(), frost_public)?;
-    let instruction = partial.sealed(signature);
-    let venue = Venue::new(key.clone(), &bounds, frost_public.clone()).require_threshold_ranges();
+    let pq_committee = read_pq_committee(proof_parties, frost_public)?;
+    let signed = distributed_hybrid_sign(
+        proof_parties,
+        &quorum,
+        &partial.digest(),
+        frost_public,
+        &pq_committee,
+    )?;
+    let instruction = partial.sealed_hybrid(signed.classical, signed.pq);
+    let venue = Venue::new(key.clone(), &bounds, frost_public.clone())
+        .require_threshold_ranges()
+        .require_pq_committee(pq_committee.clone())
+        .map_err(str::to_string)?;
     venue.verify(&instruction, now).map_err(str::to_string)?;
 
     // Prove the selected quote lies on the executable side of the Taker's
@@ -2437,6 +2200,7 @@ fn prove_persistence_lane(
     }
     let instruction_digest = Sha256::digest(qomm_zkpi::wire::encode(&instruction)).into();
     Ok(LiveProofEvidence {
+        pq_committee,
         job_id,
         lane,
         admission_sequence,
@@ -3368,6 +3132,10 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
             price_bits: 32,
             max_horizon: 3_600,
             frost_public: frost_public.clone(),
+            pq_committee: qomm_transport::frost_coordinator::read_pq_committee(
+                &mut proof_parties,
+                &frost_public,
+            )?,
             valid_from: now.saturating_sub(1).max(1),
             valid_until: now.saturating_add(3_600),
         },
@@ -3911,12 +3679,18 @@ fn finalize_settlement_handoff(
                 }),
             )?;
         }
-        let authorization = distributed_frost_sign(
+        let policy = record
+            .pq_committee
+            .as_ref()
+            .ok_or("finalized handoff lacks its PQ committee")?;
+        let signed = distributed_hybrid_sign(
             &mut proof_parties,
             &selected,
             &message,
             &record.frost_public,
+            policy,
         )?;
+        let authorization = signed.classical;
         record
             .frost_public
             .verifying_key()
@@ -3924,6 +3698,7 @@ fn finalize_settlement_handoff(
             .map_err(|_| "finalized typed zkPI signature is invalid")?;
         record.execution_context = Some(context);
         record.typed_authorization = Some(authorization);
+        record.typed_pq_authorization = Some(signed.pq);
         record.typed_instruction()?;
     }
     write_settlement_handoff(output_path, &handoff)?;

@@ -1052,6 +1052,7 @@ impl DefmiMarketEpoch {
             before_state_root: before,
         };
         let typed = TypedInstruction {
+            pq_authorization: None,
             authorization: sign_reserve_context(
                 proof_parties,
                 &[1, 4, 7],
@@ -2664,14 +2665,12 @@ impl DefmiMarketEpoch {
         &mut self,
         registry_digest: [u8; 32],
         frost_public: &frost::keys::PublicKeyPackage,
+        pq_committee: &qomm_zkpi::QuorumPolicy,
         _now: u64,
         existing_only: bool,
     ) -> Result<[u8; 32], String> {
         if registry_digest == [0; 32] {
             return Err("DeFMI settlement verifier has an empty policy registry".into());
-        }
-        if self.registry_digest == Some(registry_digest) {
-            return self.rpc.state_root();
         }
         let frost_public_package = frost_public
             .serialize()
@@ -2681,11 +2680,12 @@ impl DefmiMarketEpoch {
         let verifier_amount_bits = PRODUCT_ZKPI_AMOUNT_BITS as u16;
         let verifier_price_bits = PRODUCT_ZKPI_PRICE_BITS as u16;
         let epoch_digest = hash_parts(&[
-            b"QOMM:DEMO:MARKET-EPOCH:v3",
+            b"QOMM:DEMO:MARKET-EPOCH:v4",
             &self.venue_id,
             &self.defmi_id,
             &registry_digest,
             &frost_public_package,
+            &pq_committee.digest().map_err(|error| error.to_string())?,
             &verifier_eligibility_bits.to_be_bytes(),
             &verifier_span_bits.to_be_bytes(),
             &verifier_amount_bits.to_be_bytes(),
@@ -2710,6 +2710,7 @@ impl DefmiMarketEpoch {
             price_bits: verifier_price_bits,
             max_horizon: 3_600,
             frost_public_package,
+            pq_committee: pq_committee.clone(),
             valid_from: 1,
             valid_until: DEMO_INFRASTRUCTURE_VALID_UNTIL,
         };

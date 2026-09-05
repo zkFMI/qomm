@@ -2601,9 +2601,18 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 .frost_public
                 .as_ref()
                 .ok_or_else(|| "DeFMI market has no resident FROST public package".to_string())?;
+            let mut proof_parties = self
+                .endpoints
+                .iter()
+                .cloned()
+                .map(|endpoint| HttpProofPartyClient::new(endpoint, self.timeout))
+                .collect::<Vec<_>>();
+            let pq_committee =
+                qomm_transport::frost_coordinator::read_pq_committee(&mut proof_parties, public)?;
             market.register_verifier(
                 registry_digest,
                 public,
+                &pq_committee,
                 now,
                 self.require_existing_maker_authority,
             )?;

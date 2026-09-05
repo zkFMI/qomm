@@ -310,8 +310,18 @@ pub fn finalize_product_settlement<T: ProofPartyRpc>(
             return Err("proof party did not authorize the typed settlement".into());
         }
     }
-    let authorization =
-        distributed_frost_sign(parties, &SIGNING_QUORUM, &message, &handoff.frost_public)?;
+    let policy = handoff
+        .pq_committee
+        .as_ref()
+        .ok_or("typed settlement requires its PQ committee")?;
+    let signed = crate::frost_coordinator::distributed_hybrid_sign(
+        parties,
+        &SIGNING_QUORUM,
+        &message,
+        &handoff.frost_public,
+        policy,
+    )?;
+    let authorization = signed.classical;
     handoff
         .frost_public
         .verifying_key()
@@ -319,6 +329,7 @@ pub fn finalize_product_settlement<T: ProofPartyRpc>(
         .map_err(|_| "typed product settlement signature is invalid".to_string())?;
     handoff.execution_context = Some(context);
     handoff.typed_authorization = Some(authorization);
+    handoff.typed_pq_authorization = Some(signed.pq);
     handoff.typed_instruction()?;
     Ok(())
 }
@@ -1253,11 +1264,19 @@ pub fn prove_product_settlement<T: ProofPartyRpc>(
         &amount_range_wire,
         &price_range_wire,
     )?;
-    let signature =
-        distributed_frost_sign(parties, &SIGNING_QUORUM, &partial.digest(), frost_public)?;
-    let instruction = partial.sealed(signature);
+    let pq_committee = crate::frost_coordinator::read_pq_committee(parties, frost_public)?;
+    let signed = crate::frost_coordinator::distributed_hybrid_sign(
+        parties,
+        &SIGNING_QUORUM,
+        &partial.digest(),
+        frost_public,
+        &pq_committee,
+    )?;
+    let instruction = partial.sealed_hybrid(signed.classical, signed.pq);
     Venue::new(key.clone(), &bounds, frost_public.clone())
         .require_threshold_ranges()
+        .require_pq_committee(pq_committee.clone())
+        .map_err(str::to_string)?
         .verify(&instruction, request.now)
         .map_err(str::to_string)?;
 
@@ -1722,6 +1741,8 @@ pub fn prove_product_settlement<T: ProofPartyRpc>(
         return Err("signed MPC execution receipts derive another proof job".into());
     }
     let handoff = SettlementHandoff {
+        pq_committee: Some(pq_committee),
+        typed_pq_authorization: None,
         job_id: request.job_id,
         lane: request.execution.lane,
         admission_sequence: request.admission_sequence,

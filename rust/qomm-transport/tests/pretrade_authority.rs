@@ -119,6 +119,9 @@ fn private_authority_roundtrip_and_pinned_defmi_ack_bind_both_reservations() {
             amount_bits: 16,
             price_bits: 32,
             max_horizon: 3_600,
+            pq_committee: zkfmi_crypto::test_support::committee(
+                Sha256::digest(frost_public.serialize().unwrap()).into(),
+            ),
             frost_public,
             valid_from: 1,
             valid_until: 1_000,

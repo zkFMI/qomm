@@ -30,7 +30,7 @@ use std::path::{Path, PathBuf};
 use crate::mandate::{Direction, MakerPolicyMandate, TakerExecutionMandate, ZERO};
 use crate::order::{verify_admission_lane, NodeAdmissionAttestation, COMMITTEE_NODES};
 
-const AUTHORITY_VERSION: u8 = 4;
+const AUTHORITY_VERSION: u8 = 5;
 const ACK_VERSION: u8 = 1;
 const ACK_DOMAIN: &[u8] = b"QOMM:DEFMI:PRETRADE-ACK:v1";
 const MAX_AUTHORITIES: usize = 4096;
@@ -96,6 +96,7 @@ pub struct PretradeSettlementVerifier {
     pub price_bits: u16,
     pub max_horizon: u64,
     pub frost_public: frost::keys::PublicKeyPackage,
+    pub pq_committee: qomm_zkpi::QuorumPolicy,
     pub valid_from: u64,
     pub valid_until: u64,
 }
@@ -535,6 +536,7 @@ struct WireSettlementVerifier {
     price_bits: u16,
     max_horizon: u64,
     frost_public: String,
+    pq_committee: qomm_zkpi::QuorumPolicy,
     valid_from: u64,
     valid_until: u64,
 }
@@ -565,6 +567,8 @@ fn settlement_verifier_wire(
     if frost_public.is_empty() || frost_public.len() > 64 * 1024 {
         return Err("pre-trade FROST public package is outside its bound".into());
     }
+    qomm_zkpi::validate_settlement_committee(&value.pq_committee, &value.frost_public)
+        .map_err(str::to_string)?;
     Ok(WireSettlementVerifier {
         epoch: value.epoch,
         quote_registry_digest: hex::encode(value.quote_registry_digest),
@@ -574,6 +578,7 @@ fn settlement_verifier_wire(
         price_bits: value.price_bits,
         max_horizon: value.max_horizon,
         frost_public: hex::encode(frost_public),
+        pq_committee: value.pq_committee.clone(),
         valid_from: value.valid_from,
         valid_until: value.valid_until,
     })
@@ -594,6 +599,7 @@ fn settlement_verifier_from_wire(
         max_horizon: value.max_horizon,
         frost_public: frost::keys::PublicKeyPackage::deserialize(&frost_public_raw)
             .map_err(|_| "pre-trade FROST public package is invalid".to_string())?,
+        pq_committee: value.pq_committee,
         valid_from: value.valid_from,
         valid_until: value.valid_until,
     };

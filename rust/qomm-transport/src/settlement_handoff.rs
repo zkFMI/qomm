@@ -17,6 +17,7 @@ use qomm_proofs::threshold_range::ThresholdRangeProof;
 use qomm_zkpi::typed::{ExecutionContext, TypedInstruction};
 use qomm_zkpi::{frost, typed, typed_wire, Instruction, DEFAULT_DOMAIN};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs::{self, File, OpenOptions};
 use std::io::Write;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
@@ -33,7 +34,7 @@ use crate::proof_codec::{
     encode_quote_verification, encode_threshold_range, QuoteVerificationBundle,
 };
 
-pub const HANDOFF_VERSION: u8 = 7;
+pub const HANDOFF_VERSION: u8 = 8;
 const MAX_PRIVATE_RECORD_BYTES: usize = 64 << 20;
 
 pub struct SettlementHandoff {
@@ -72,9 +73,48 @@ pub struct SettlementHandoff {
     pub asset_blinding: Scalar,
     pub execution_context: Option<ExecutionContext>,
     pub typed_authorization: Option<frost::Signature>,
+    /// Evidence accompanying the record, not the venue's enrollment authority.
+    pub pq_committee: Option<zkfmi_crypto::quorum::QuorumPolicy>,
+    pub typed_pq_authorization: Option<zkfmi_crypto::quorum::QuorumApproval>,
 }
 
 impl SettlementHandoff {
+    fn verify_hybrid_evidence(&self) -> Result<(), String> {
+        match (&self.pq_committee, &self.instruction.pq_approval) {
+            (Some(policy), Some(approval)) => {
+                let package = self
+                    .frost_public
+                    .serialize()
+                    .map_err(|_| "FROST package is malformed")?;
+                let expected: [u8; 32] = Sha256::digest(package).into();
+                if policy.classical_binding != expected
+                    || policy.purpose != zkfmi_crypto::key::KeyPurpose::SettlementInstruction
+                {
+                    return Err("handoff PQ committee differs from its classical committee".into());
+                }
+                policy
+                    .verify_archived_signatures(approval, &self.instruction.digest())
+                    .map_err(|error| error.to_string())?;
+                if let Some(context) = &self.execution_context {
+                    let typed = self
+                        .typed_pq_authorization
+                        .as_ref()
+                        .ok_or("handoff lacks its typed PQ authorization")?;
+                    let message = typed::digest_for(&self.instruction, context, DEFAULT_DOMAIN)
+                        .map_err(str::to_string)?;
+                    policy
+                        .verify_archived_signatures(typed, &message)
+                        .map_err(|error| error.to_string())?;
+                } else if self.typed_pq_authorization.is_some() {
+                    return Err("handoff has PQ typed authorization without its context".into());
+                }
+            }
+            (None, None) if self.typed_pq_authorization.is_none() => (),
+            _ => return Err("handoff has incomplete hybrid evidence".into()),
+        }
+        Ok(())
+    }
+
     pub fn verify_opening_envelopes(&self) -> Result<(), String> {
         let payer = self.instruction.payer_handle;
         let payee = self.instruction.payee_handle;
@@ -102,6 +142,9 @@ impl SettlementHandoff {
     }
 
     pub fn typed_instruction(&self) -> Result<TypedInstruction, String> {
+        // Archive integrity does not grant trust or check live validity. The
+        // execution venue independently uses its registered policy and clock.
+        self.verify_hybrid_evidence()?;
         let context = self
             .execution_context
             .clone()
@@ -116,6 +159,7 @@ impl SettlementHandoff {
             .verify(&digest, &authorization)
             .map_err(|_| "settlement handoff typed authorization is invalid".to_string())?;
         Ok(TypedInstruction {
+            pq_authorization: self.typed_pq_authorization.clone(),
             payment: self.instruction.clone(),
             context,
             authorization,
@@ -280,6 +324,8 @@ struct WireRecord {
     execution_context: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     typed_authorization: Option<String>,
+    pq_committee: Option<zkfmi_crypto::quorum::QuorumPolicy>,
+    typed_pq_authorization: Option<String>,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -433,6 +479,7 @@ fn decode_opening_envelope(value: WireOpeningEnvelope) -> Result<OpeningEnvelope
 }
 
 fn encode_record(value: &SettlementHandoff) -> Result<WireRecord, String> {
+    value.verify_hybrid_evidence()?;
     if value.execution_context.is_some() != value.typed_authorization.is_some() {
         return Err("settlement handoff has only half of its typed authorization".into());
     }
@@ -440,6 +487,17 @@ fn encode_record(value: &SettlementHandoff) -> Result<WireRecord, String> {
         value.typed_instruction()?;
     }
     Ok(WireRecord {
+        pq_committee: value.pq_committee.clone(),
+        typed_pq_authorization: value
+            .typed_pq_authorization
+            .as_ref()
+            .map(|approval| {
+                approval
+                    .encode()
+                    .map(|wire| BASE64.encode(wire))
+                    .map_err(|error| error.to_string())
+            })
+            .transpose()?,
         job_id: hex32(value.job_id),
         lane: value.lane,
         admission_sequence: value.admission_sequence,
@@ -553,6 +611,17 @@ fn decode_record(value: WireRecord) -> Result<SettlementHandoff, String> {
         })
         .transpose()?;
     let record = SettlementHandoff {
+        pq_committee: value.pq_committee,
+        typed_pq_authorization: value
+            .typed_pq_authorization
+            .map(|encoded| {
+                let bytes = BASE64
+                    .decode(encoded)
+                    .map_err(|_| "typed PQ authorization is not base64")?;
+                zkfmi_crypto::quorum::QuorumApproval::decode(&bytes)
+                    .map_err(|_| "typed PQ authorization is invalid")
+            })
+            .transpose()?,
         job_id: parse_hex32(&value.job_id, "job_id")?,
         lane: value.lane,
         admission_sequence: value.admission_sequence,
@@ -601,6 +670,7 @@ fn decode_record(value: WireRecord) -> Result<SettlementHandoff, String> {
     if record.execution_context.is_some() {
         record.typed_instruction()?;
     }
+    record.verify_hybrid_evidence()?;
     record.verify_opening_envelopes()?;
     Ok(record)
 }

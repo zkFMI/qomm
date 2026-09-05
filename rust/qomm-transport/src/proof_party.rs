@@ -3072,6 +3072,12 @@ impl ProofParty {
                     public,
                 )
                 .require_threshold_ranges()
+                .require_pq_committee(
+                    self.pq_committee
+                        .clone()
+                        .ok_or("proof node lacks its PQ committee")?,
+                )
+                .map_err(str::to_string)?
                 .verify(&payment, now)
                 .map_err(|error| format!("typed authorization payment failed: {error}"))?;
                 let expected = typed::digest_for(&payment, &context, DEFAULT_DOMAIN)
