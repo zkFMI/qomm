@@ -302,6 +302,7 @@ dependencies = [
  "serde",
  "sha2",
  "thiserror 2.0.20",
+ "zkfmi-crypto",
 ]
 
 [[package]]
@@ -968,6 +969,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "tempfile",
+ "zkfmi-crypto",
  "zkpi-defmi-sdk",
 ]
 

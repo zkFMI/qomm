@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+zkfmi-crypto.workspace = true
 qomm-transport.workspace = true
 zkpi-defmi-sdk.workspace = true
 qomm-audit.workspace = true

@@ -141,7 +141,7 @@ pub struct DefmiKybBundle {
 pub struct DefmiMarketEpoch {
     rpc: AvalancheRpcClient,
     authorizer: QuorumAuthorizer,
-    governance_keys: BTreeMap<String, SigningKey>,
+    governance_keys: BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
     venue_id: [u8; 32],
     defmi_id: [u8; 32],
     epoch: u64,
@@ -3282,25 +3282,25 @@ fn require_hex(value: &Value, name: &str, expected: [u8; 32]) -> Result<(), Stri
 
 fn development_committee(
     domain: &str,
-) -> Result<(QuorumAuthorizer, BTreeMap<String, SigningKey>), String> {
-    let keys = (0..7)
-        .map(|index| {
-            (
-                format!("node-{index}"),
-                SigningKey::from_bytes(&digest(&format!("key:{index}"))),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+) -> Result<
+    (
+        QuorumAuthorizer,
+        BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
+    ),
+    String,
+> {
+    let keys =
+        qomm_defmi::governance::public_development_keys().map_err(|error| error.to_string())?;
     let nodes = keys
         .iter()
         .map(|(name, key)| (name.clone(), key.verifying_key()))
-        .collect::<BTreeMap<String, VerifyingKey>>();
+        .collect::<BTreeMap<String, zkfmi_crypto::key::KeyRecord>>();
     Ok((QuorumAuthorizer::new(nodes, 3, 1, domain)?, keys))
 }
 
 fn approve(
     authorizer: &QuorumAuthorizer,
-    keys: &BTreeMap<String, SigningKey>,
+    keys: &BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
     statement: [u8; 32],
     before_root: [u8; 32],
 ) -> Result<QuorumApproval, String> {
@@ -3460,7 +3460,7 @@ mod tests {
         let statement = digest("statement");
         let before = digest("before");
         let approval = approve(&authorizer, &keys, statement, before).unwrap();
-        assert!(authorizer.verify(&statement, &before, &approval));
+        assert!(authorizer.at(100).verify(&statement, &before, &approval));
         assert_eq!(approval.approvals.len(), 3);
     }
 

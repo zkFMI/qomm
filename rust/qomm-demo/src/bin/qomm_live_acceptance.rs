@@ -1180,23 +1180,15 @@ fn development_quorum(
 ) -> Result<
     (
         qomm_defmi::facility::QuorumAuthorizer,
-        BTreeMap<String, ed25519_dalek::SigningKey>,
+        BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
     ),
     String,
 > {
-    let keys: BTreeMap<String, ed25519_dalek::SigningKey> = (0..7)
-        .map(|index| {
-            let seed: [u8; 32] = Sha256::digest(format!("key:{index}").as_bytes()).into();
-            (
-                format!("node-{index}"),
-                ed25519_dalek::SigningKey::from_bytes(&seed),
-            )
-        })
-        .collect();
+    let keys = qomm_defmi::governance::public_development_keys()?;
     let nodes = keys
         .iter()
         .map(|(name, key)| (name.clone(), key.verifying_key()))
-        .collect::<BTreeMap<String, ed25519_dalek::VerifyingKey>>();
+        .collect::<BTreeMap<String, zkfmi_crypto::key::KeyRecord>>();
     let authorizer = qomm_defmi::facility::QuorumAuthorizer::new(nodes, 3, 1, domain)?;
     Ok((authorizer, keys))
 }
@@ -1398,11 +1390,13 @@ fn approval_json(approval: &qomm_defmi::facility::QuorumApproval) -> Value {
     json!({
         "statement": hex::encode(approval.statement),
         "signerEpoch": approval.signer_epoch,
+        "suite": approval.suite,
+        "committeeDigest": hex::encode(approval.committee_digest),
         "domain": approval.domain,
         "beforeRoot": hex::encode(approval.before_root),
         "approvals": approval.approvals.iter().map(|signed| json!({
             "nodeID": signed.node_id,
-            "signature": hex::encode(signed.signature.to_bytes()),
+            "signature": hex::encode(&signed.signature),
         })).collect::<Vec<_>>(),
     })
 }
@@ -1546,7 +1540,7 @@ fn cmd_pool_cas_probe(args: &Args) -> Result<Value, String> {
     let (authorizer, keys) = development_quorum(&domain)?;
     // A genuine, different 3-of-7 subset (nodes 1, 3, 5).
     let signer_ids = ["node-1", "node-3", "node-5"];
-    let signers: BTreeMap<String, ed25519_dalek::SigningKey> = signer_ids
+    let signers: BTreeMap<String, qomm_defmi::governance::GovernanceSigner> = signer_ids
         .iter()
         .map(|id| {
             (
@@ -1557,7 +1551,7 @@ fn cmd_pool_cas_probe(args: &Args) -> Result<Value, String> {
         .collect();
     let statement = authorization.statement(&transition)?;
     let approval_live = authorizer.approve(statement, current_root, &signers)?;
-    if !authorizer.verify(&statement, &current_root, &approval_live) {
+    if !authorizer.verify_now(&statement, &current_root, &approval_live) {
         return Err("the rebuilt approval does not verify under the development committee".into());
     }
     let old_root_bytes = hex::decode(&old_root)
