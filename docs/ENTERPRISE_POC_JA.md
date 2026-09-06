@@ -47,7 +47,7 @@ PoC開始前に記録する。最新版へ自動更新するスクリプトは�
 ## 1. ソースと基準試験を固定する
 
 ```sh
-git clone https://github.com/shukob/qomm.git
+git clone https://github.com/zkFMI/qomm.git
 cd qomm
 git checkout <社内で承認したcommit>
 git rev-parse HEAD
@@ -123,7 +123,7 @@ MP-SPDZの`-T`、すなわち許容する不正party数であり、署名の`k-o
 ## 4. DeFMI決済まで確認する
 
 追加署名なしの実決済経路は、DeFMIリポジトリの
-[`docs/ENTERPRISE_POC_JA.md`](https://github.com/shukob/defmi/blob/main/docs/ENTERPRISE_POC_JA.md)
+[`docs/ENTERPRISE_POC_JA.md`](https://github.com/zkFMI/defmi/blob/main/docs/ENTERPRISE_POC_JA.md)
 に従って行う。最終段階では次を別プロセスまたは別コンテナにする。
 
 - Maker法人参加モジュール。
@@ -578,7 +578,7 @@ sha256sum malicious-shamir-party.x libSPDZ.so
 ## 13. QOMM Rust workspaceを構築する
 
 ```sh
-git clone https://github.com/shukob/qomm.git
+git clone https://github.com/zkFMI/qomm.git
 cd qomm
 git checkout <承認したcommit>
 git rev-parse HEAD

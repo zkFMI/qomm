@@ -1,12 +1,12 @@
 # qomm
 
-**QOMM** is *query-oblivious market making*. It settles through [zkpi](https://github.com/shukob/zkpi) and [defmi](https://github.com/shukob/defmi), a *zero-knowledge payment instruction* and a *decentralized financial market infrastructure*.
+**QOMM** is *query-oblivious market making*. It settles through [zkpi](https://github.com/zkFMI/zkpi) and [defmi](https://github.com/zkFMI/defmi), a *zero-knowledge payment instruction* and a *decentralized financial market infrastructure*.
 
 Oblivious market making: quote without disclosing the request, the pricing rule, or the market.
 
 ## Deployment target
 
-QOMM is chain-independent until settlement. The product path emits zkPI instructions to DeFMI, whose current execution target is the dedicated non-EVM Avalanche L1 in the [defmi repository](https://github.com/shukob/defmi).
+QOMM is chain-independent until settlement. The product path emits zkPI instructions to DeFMI, whose current execution target is the dedicated non-EVM Avalanche L1 in the [defmi repository](https://github.com/zkFMI/defmi).
 
 
 ## What it does
