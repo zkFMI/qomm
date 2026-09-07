@@ -794,11 +794,9 @@ impl DefmiMarketEpoch {
             || mandate.venue_id == ZERO
             || mandate.defmi_id != self.defmi_id
             || mandate.entity_commitment != presentation.entity_commitment()
-            || mandate.taker_public
-                != *snapshot
-                    .public_keys
-                    .get("settlement")
-                    .ok_or_else(|| "Taker participant has no settlement key".to_string())?
+            // The mandate names the Taker's hybrid settlement application
+            // key (its 32-byte fingerprint), not the classical settlement key.
+            || mandate.taker_public != snapshot.settlement_application_key.to_bytes()
             || maximum_amount == 0
         {
             return Err("Taker note reservation differs from its signed participant scope".into());
@@ -1524,12 +1522,7 @@ impl DefmiMarketEpoch {
         if mandate.defmi_id != self.defmi_id {
             return Err("expired release targets another DeFMI domain".into());
         }
-        if mandate.taker_public
-            != *snapshot
-                .public_keys
-                .get("settlement")
-                .ok_or_else(|| "Taker participant has no settlement key".to_string())?
-        {
+        if mandate.taker_public != snapshot.settlement_application_key.to_bytes() {
             return Err("expired release uses another Taker settlement key".into());
         }
         if maximum_amount == 0 {
@@ -1839,11 +1832,9 @@ impl DefmiMarketEpoch {
             || snapshot.participant_id == ZERO
             || mandate.venue_id != self.venue_id
             || mandate.defmi_id != self.defmi_id
-            || mandate.maker_public
-                != *snapshot
-                    .public_keys
-                    .get("quote")
-                    .ok_or_else(|| "Maker participant has no quote key".to_string())?
+            // The mandate names the Maker's hybrid quote application key (its
+            // 32-byte fingerprint), which is what the participant signs with.
+            || mandate.maker_public != snapshot.quote_application_key.to_bytes()
             || maximum_amount == 0
         {
             return Err("Maker pool request differs from its signed participant scope".into());
