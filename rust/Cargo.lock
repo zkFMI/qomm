@@ -351,6 +351,7 @@ dependencies = [
 [[package]]
 name = "dekyx-core"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/dekyx.git?rev=09c2c1a7295e8cab592aca6af2f89381c3c110ac#09c2c1a7295e8cab592aca6af2f89381c3c110ac"
 dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
@@ -999,6 +1000,7 @@ dependencies = [
 [[package]]
 name = "qomm-audit"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "ed25519-dalek",
  "hex",
@@ -1017,6 +1019,7 @@ dependencies = [
 [[package]]
 name = "qomm-defmi"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/defmi.git?rev=1b9b0b1d28f6cbd30479fc01399e541ac9379519#1b9b0b1d28f6cbd30479fc01399e541ac9379519"
 dependencies = [
  "base64",
  "bulletproofs",
@@ -1070,6 +1073,7 @@ dependencies = [
 [[package]]
 name = "qomm-dsl"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "sha2",
 ]
@@ -1107,10 +1111,12 @@ version = "0.1.0"
 [[package]]
 name = "qomm-measure"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 
 [[package]]
 name = "qomm-mpc"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "qomm-dsl",
  "qomm-measure",
@@ -1123,6 +1129,7 @@ dependencies = [
 [[package]]
 name = "qomm-proofs"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "bulletproofs",
  "curve25519-dalek",
@@ -1140,6 +1147,7 @@ dependencies = [
 [[package]]
 name = "qomm-sim"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "qomm-measure",
 ]
@@ -1147,6 +1155,7 @@ dependencies = [
 [[package]]
 name = "qomm-transport"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "base64",
  "curve25519-dalek",
@@ -1175,6 +1184,7 @@ dependencies = [
 [[package]]
 name = "qomm-zk"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "bulletproofs",
  "curve25519-dalek",
@@ -1187,6 +1197,7 @@ dependencies = [
 [[package]]
 name = "qomm-zkpi"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/zkpi.git?rev=6228efed75648ac546cd5926797c847deb681dff#6228efed75648ac546cd5926797c847deb681dff"
 dependencies = [
  "bulletproofs",
  "curve25519-dalek",
@@ -1801,6 +1812,7 @@ dependencies = [
 [[package]]
 name = "zkpi-defmi-sdk"
 version = "0.1.0"
+source = "git+https://github.com/zkFMI/defmi.git?rev=1b9b0b1d28f6cbd30479fc01399e541ac9379519#1b9b0b1d28f6cbd30479fc01399e541ac9379519"
 dependencies = [
  "curve25519-dalek",
  "ed25519-dalek",
