@@ -265,9 +265,9 @@ hold ID、cash reservation IDを再利用できない。
 
 - `mvp/dekyx`（DeKYX）: issuer directory（鍵回転、失効リスト、検証付き再読込）、KYC/KYB credential、資格属性の選択開示、scope別Schnorr presentation、replay台帳、Aethel adapter。
 - `aethel-core`: DeKYX issuer鍵の保証登録と失効公開、artifact束縛context、provider（鍵rotation・状態制御付き）、stream、series、decision、guarantee（release付き）、funding、issuance、default、claim状態機械。
-- `qomm-zkpi`: streaming receivable用typed contextと固定wire format。旧`confidential_subject`は削除済みで、KYB/匿名主体はDeKYXだけが実装する。
+- `zkpi`: streaming receivable用typed contextと固定wire format。旧`confidential_subject`は削除済みで、KYB/匿名主体はDeKYXだけが実装する。
 - `mvp/deccp`（DeCCP）: 独立したclearing/保証枠core（zkPI検証必須、DeFMI receipt必須、三つのnetting mode、担保・証拠金・default waterfall、秘匿保証枠CAS、承認付きsnapshot復元とhost認証済みsnapshot復元）とAethel adapter。VMの保証経路はこのadapter経由に切替済み。
-- `qomm-defmi`: credential issuer参加roleとspecialist credit providerを追加し、既存facility/hold/note/DvPを再利用。
+- `defmi`: credential issuer参加roleとspecialist credit providerを追加し、既存facility/hold/note/DvPを再利用。
 - `qomm-avalanche-vm`: Aethel state rootとDeCCP clearing book、18種類のtransaction、DeFMI backingとzkPIの結合検査、DeKYX/DeCCP port実装。
 
 production前には、法的assignment registry、provider onboarding/governance、実データsource attestation、

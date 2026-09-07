@@ -15,15 +15,15 @@ use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
 use ed25519_dalek::Signer;
-use qomm_defmi::avalanche::{AvalancheClient, CanonicalNoteClaim};
-use qomm_defmi::facility::{
+use defmi::avalanche::{AvalancheClient, CanonicalNoteClaim};
+use defmi::facility::{
     CreditFacilityRelationProof, CreditFacilityTransition, CreditTransitionKind, ZERO,
 };
-use qomm_defmi::note_chain::{
+use defmi::note_chain::{
     materialize_claim, ClaimOwnershipProof, NoteClaimKind, NoteClaimMaterialization, NoteOutput,
     NoteSpend,
 };
-use qomm_defmi::notes::{encode_spend_proof, Address, NoteLedger, Wallet};
+use defmi::notes::{encode_spend_proof, Address, NoteLedger, Wallet};
 use qomm_mpc::program::PRODUCT_DVP_REMAINDER_BITS;
 use qomm_proofs::kyb::{
     present, verify_presentation, verify_registry, BusinessAttributes, KybCredential,
@@ -31,7 +31,7 @@ use qomm_proofs::kyb::{
 use qomm_transport::key_management::{EncryptedKeyStore, KeyKind};
 use qomm_transport::kyb_wire::{KybPresentationWire, KybRegistryWire};
 use qomm_transport::mandate::{decode_taker_mandate, Direction, TakerExecutionMandate};
-use qomm_zk::pedersen::Pedersen;
+use zkfmi_zk::pedersen::Pedersen;
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};

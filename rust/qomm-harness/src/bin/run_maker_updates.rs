@@ -3,7 +3,7 @@ use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
 use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::roles::{check_field_width, dealt_body, split, ComputingNode, InputParty};
-use qomm_zk::pedersen::Pedersen;
+use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -85,7 +85,7 @@ fn run_main() -> HarnessResult<()> {
         }
     }
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "n_nodes": options.n_nodes,
         "value_bits": options.value_bits,
         "group": options.group,

@@ -122,7 +122,7 @@ fn run_main() -> HarnessResult<()> {
         .unwrap_or(0.0);
     let ratio = (here != 0.0).then(|| round_half_even_places(5.5 / here, 2));
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "n_parties": {"exact": options.parties},
         "threshold": {"exact": options.threshold},
         "field_bits": {"exact": options.field_bits},

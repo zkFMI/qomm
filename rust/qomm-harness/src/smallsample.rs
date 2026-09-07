@@ -3,7 +3,7 @@
 //! beta comes from `qomm-sim`, the same numerical implementation used by the
 //! DP audit, rather than being copied into the harness.
 
-use qomm_measure::beta::beta_ppf;
+use zkfmi_measure::beta::beta_ppf;
 use serde_json::{json, Value};
 
 pub fn t_critical(n: usize, alpha: f64) -> Result<f64, &'static str> {
@@ -15,7 +15,7 @@ pub fn t_critical(n: usize, alpha: f64) -> Result<f64, &'static str> {
     Ok((degrees * (1.0 / x - 1.0)).sqrt())
 }
 
-pub use qomm_measure::fsum::fsum;
+pub use zkfmi_measure::fsum::fsum;
 
 pub fn mean_ci(values: &[f64], alpha: f64) -> Value {
     let n = values.len();

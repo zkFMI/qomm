@@ -158,7 +158,7 @@ fn run_main() -> HarnessResult<()> {
     }
 
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "bits": options.bits,
         "parties": options.parties,
         "threshold": options.threshold,

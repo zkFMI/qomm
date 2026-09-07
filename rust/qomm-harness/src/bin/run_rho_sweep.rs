@@ -89,7 +89,7 @@ fn run_main() -> HarnessResult<()> {
         arms.insert("tape".into(), result);
     }
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "rustc": rustc_version(),
         "rhos": options.rhos,
         "seeds": options.seeds,

@@ -539,7 +539,7 @@ saying because it was a fair thing to suspect. Sweeping it: 2 pairs 1.01, 4 pair
 Three scripts multiplied the standard error by 1.96 at every `n`. At the eight
 seeds the disclosure-harm arms ran, the multiplier the sample earns is 2.365; at
 the five seeds a per-symbol cell runs, 2.776. The quantile is now derived from
-the incomplete beta now in `rust/qomm-measure/src/beta.rs`, checked against the published table
+the incomplete beta now in `rust/zkfmi-measure/src/beta.rs`, checked against the published table
 at eight degrees of freedom (12.706, 4.303, 2.776, 2.365, 2.179, 2.086, 2.064,
 1.980 --- all agreeing to four places).
 
@@ -2028,7 +2028,7 @@ commit that carried it and pinned:
 | where | what was pinned |
 |---|---|
 | `qomm-harness/src/measure.rs` | the whole public contract of the locked measurement contract |
-| `qomm-measure/src/hosts.rs` | the retired reader's contract |
+| `zkfmi-measure/src/hosts.rs` | the retired reader's contract |
 | `qomm-mpc/tests/program_parity.rs` | six generated programs, by length and SHA-256 |
 | `qomm-mpc/tests/all_files_parity.rs` | 27 cases: outputs, status, stdout, stderr, file bytes |
 | `qomm-harness/src/bin/zk_bench.rs` | the `platform.machine()` shell-out |

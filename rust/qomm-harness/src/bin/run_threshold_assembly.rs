@@ -5,8 +5,8 @@ use qomm_proofs::threshold_quote::{deal_quote_shares, joint_prove_quote};
 use qomm_proofs::threshold_range::{
     deal_bits, joint_prove_range_from_contributions, verify_threshold_range,
 };
-use qomm_zk::bitrange::{prove_range, verify_range};
-use qomm_zk::pedersen::Pedersen;
+use zkfmi_zk::bitrange::{prove_range, verify_range};
+use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -239,7 +239,7 @@ fn run_main() -> HarnessResult<()> {
     }
 
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "group": options.group,
         "quote_rows": quote_rows,
         "assemble_is": "total CPU over recipient-scoped node contributions, run serially in one process; a deployment runs the members at once, so assemble_per_node_ms is what a node waits for",

@@ -114,7 +114,7 @@ Taker の正本上の在庫は USD/JPY 428 単位(Gateway が DeFMI の最終請
 つまり同一 Taker からの 2 件目は、法人モジュールの枠検査(`queued RFQs exceed the corporate cash or inventory limit`)より
 手前の「未決予約は 1 件」で止まる。二重予約は署名の前に無くなる。合計枠の検査そのものは
 `rust/qomm-demo/src/participant_node.rs` の `enqueue_outbox` が outbox ファイルロックの下で行い、正本側の検査は
-`rust/qomm-defmi/tests/facility.rs` の同時 RFQ 試験が gate で走る。
+`rust/defmi/tests/facility.rs` の同時 RFQ 試験が gate で走る。
 
 ### 3b. 同じ Maker pool を合計で超える 2 件の買い(`concurrent-pool`, `pool-sum`)
 
@@ -198,7 +198,7 @@ compare-and-swap には正当な経路では到達しない。それを実機で
 ### 3d. 正本の pool 守りそのものを、受理済みの配分遷移の再提示で確かめる(`pool-replay`)
 
 Gateway は `QOMM_DEFMI_JOURNAL_DIR` に、DeFMI へ発行した遷移(method と params)をそのまま日誌に書く
-(`rust/qomm-defmi/src/avalanche.rs` の `journal_issued_transition`。内容は全て正本が受け取るものなので秘密はない)。
+(`rust/defmi/src/avalanche.rs` の `journal_issued_transition`。内容は全て正本が受け取るものなので秘密はない)。
 1 件の売りを通常経路で決済させ、その配分遷移 `issueStandingNotePoolAllocation` を日誌から取り出して
 (`06-journaled-allocation.json`)、受入 CLI の `defmi-rpc` でそのまま再提示する(`07-replay.json`)。遷移・証明・委員会署名は
 受理済みのもので、改変も迂回もない。正本は、pool の現在 note が遷移の名指す親 note ではなくなっているため拒否しなければ
@@ -215,7 +215,7 @@ sequence 0 → 1)。
   `k-of-n DeFMI approval is invalid` として**拒否**された。k-of-n 承認は期待状態根を束縛しているため、根を差し替えた遷移は
   承認検査で落ちる。状態は動かない(`08-after-replay.json`)。
 
-したがって pool note の compare-and-swap(`rust/qomm-avalanche-vm/src/execution.rs` の
+したがって pool note の compare-and-swap(`rust/defmi-avalanche-vm/src/execution.rs` の
 `standing allocation is stale or outside its Maker mandate`)は、正当な承認者集合が stale な配分に改めて署名した場合にだけ
 到達する最後の守りで、誠実な Gateway・誠実な承認者の経路では手前の層(Gateway の鏡、トランザクション id の重複排除、
 期待状態根を束縛する k-of-n 承認)が先に止める。この compare-and-swap 自体を直接叩く単体試験は workspace に無い
@@ -269,7 +269,7 @@ Rust の gate(`make rust-test`: fmt --check、clippy `-D warnings`、release 全
 `cargo test --workspace --all-targets --all-features --release --no-fail-fast`、`cargo build --release --workspace` を
 host-a(softbank)で走らせ、赤かった項目を次のように直した。ログは `artifacts/live_acceptance/2026-09-02/gates/`。
 
-- `rust/qomm-defmi/tests/facility.rs`: 引数 8 個の試験補助関数 `certified_admission_population` を
+- `rust/defmi/tests/facility.rs`: 引数 8 個の試験補助関数 `certified_admission_population` を
   `AdmissionPopulation` 構造体で受ける形にした(clippy `too_many_arguments`)。振る舞いは同じ。
 - `rust/qomm-mpc` の生成器契約(V7 → V8): 2026-09-01 の生成器の変更(DvP 証人が勝者 Maker の pool-before 開示値と
   その残余の範囲証明を持ち、Taker の買い側現金予約を価格×数量にする。常駐 Maker 状態の作業の一部で、
@@ -279,7 +279,7 @@ host-a(softbank)で走らせ、赤かった項目を次のように直した。�
   契約を V8 として再発行した。V8 の値は host-a の生成器出力から取り、host-b の独立実行と一致することを確かめた。
   出所と差分の説明は各契約定数の直前のコメントに書いた。ハッシュだけを置き換えたのではなく、`dvp_handoff.rs` は
   新しい証人行(`dvp_maker_pool_before` / `dvp_maker_delivery` / `dvp_maker_pool_remainder` とその bit 分解)を要求する。
-- `rust/qomm-measure/src/hosts.rs` の「出荷ファイルに実機名が無い」試験: この作業の文書と、他セッションの
+- `rust/zkfmi-measure/src/hosts.rs` の「出荷ファイルに実機名が無い」試験: この作業の文書と、他セッションの
   project-memory・受入記録・UI 監査 README・Makefile に実機名が入っていた。文書側は公開ラベル(`host-a`/`host-b`)へ
   置換し、Makefile の承認済み遠隔ホスト一覧は出荷しない `scripts/remote_hosts.txt`(`.gitignore` 済み、先頭が既定)
   へ移して `REMOTE_TEST_HOST` は環境変数からも受け取るようにした。どちらも無ければ `remote-test` は

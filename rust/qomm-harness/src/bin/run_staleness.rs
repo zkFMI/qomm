@@ -118,7 +118,7 @@ fn run_main() -> HarnessResult<()> {
         }
     }
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "block_seconds": BLOCK_SECONDS,
         "gaps_blocks": options.gaps,
         "gaps_seconds": options.gaps.iter().map(|gap| *gap as f64 * BLOCK_SECONDS).collect::<Vec<_>>(),

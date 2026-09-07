@@ -11,55 +11,55 @@
 
 以下の「試験」は、各ファイルが主に固定している契約を説明する。ファイル名だけでなく、何が壊れたときに失敗するかを示す。
 
-## 2. `qomm-zk`: 共通暗号部品
+## 2. `zkfmi-zk`: 共通暗号部品
 
 ### 製品コード
 
 | ファイル | 責務 |
 |---|---|
-| `rust/qomm-zk/src/lib.rs` | 公開モジュールをまとめる |
-| `rust/qomm-zk/src/pedersen.rs` | Ristretto255上のPedersenコミットメントと資産別生成元 |
-| `rust/qomm-zk/src/sigma.rs` | 開示、同値、積、線形、0/1のσ証明とバッチ検証 |
-| `rust/qomm-zk/src/range.rs` | Bulletproofsによる8/16/32/64ビット範囲証明 |
-| `rust/qomm-zk/src/bitrange.rs` | 任意幅のビット分解型範囲・上下限証明 |
-| `rust/qomm-zk/src/or_dleq.rs` | Chaum–PedersenをOR合成した一対多資格証明 |
-| `rust/qomm-zk/src/oneofmany.rs` | Groth–Kohlweiss型の対数サイズ一対多証明 |
-| `rust/qomm-zk/src/adaptor.rs` | PvP用のアダプター署名、完成、秘密抽出 |
-| `rust/qomm-zk/src/shamir.rs` | Shamir分散、再構成、Berlekamp–Welchによる不正断片位置特定 |
-| `rust/qomm-zk/examples/range_compare.rs` | Bulletproofsとビット分解方式の速度・大きさ比較例 |
+| `rust/zkfmi-zk/src/lib.rs` | 公開モジュールをまとめる |
+| `rust/zkfmi-zk/src/pedersen.rs` | Ristretto255上のPedersenコミットメントと資産別生成元 |
+| `rust/zkfmi-zk/src/sigma.rs` | 開示、同値、積、線形、0/1のσ証明とバッチ検証 |
+| `rust/zkfmi-zk/src/range.rs` | Bulletproofsによる8/16/32/64ビット範囲証明 |
+| `rust/zkfmi-zk/src/bitrange.rs` | 任意幅のビット分解型範囲・上下限証明 |
+| `rust/zkfmi-zk/src/or_dleq.rs` | Chaum–PedersenをOR合成した一対多資格証明 |
+| `rust/zkfmi-zk/src/oneofmany.rs` | Groth–Kohlweiss型の対数サイズ一対多証明 |
+| `rust/zkfmi-zk/src/adaptor.rs` | PvP用のアダプター署名、完成、秘密抽出 |
+| `rust/zkfmi-zk/src/shamir.rs` | Shamir分散、再構成、Berlekamp–Welchによる不正断片位置特定 |
+| `rust/zkfmi-zk/examples/range_compare.rs` | Bulletproofsとビット分解方式の速度・大きさ比較例 |
 
 ### 試験
 
 | ファイル | 固定する契約 |
 |---|---|
-| `rust/qomm-zk/tests/sigma.rs` | 正しいσ証明を受理し、文脈・値・証明改変を拒否する |
-| `rust/qomm-zk/tests/bitrange.rs` | 任意幅、上下限、範囲外、構成改変を検査する |
-| `rust/qomm-zk/tests/oneofmany.rs` | 正しい集合所属と非所属・証明改変を区別する |
-| `rust/qomm-zk/tests/shamir.rs` | 再構成、欠損、不正断片の位置特定能力を検査する |
+| `rust/zkfmi-zk/tests/sigma.rs` | 正しいσ証明を受理し、文脈・値・証明改変を拒否する |
+| `rust/zkfmi-zk/tests/bitrange.rs` | 任意幅、上下限、範囲外、構成改変を検査する |
+| `rust/zkfmi-zk/tests/oneofmany.rs` | 正しい集合所属と非所属・証明改変を区別する |
+| `rust/zkfmi-zk/tests/shamir.rs` | 再構成、欠損、不正断片の位置特定能力を検査する |
 
-## 3. `qomm-zkpi`: 支払・受渡し指図
+## 3. `zkpi`: 支払・受渡し指図
 
 ### 製品コード
 
 | ファイル | 責務 |
 |---|---|
-| `rust/qomm-zkpi/src/lib.rs` | `Bounds`、`Instruction`、`Issuer`、`Venue`、FROST DKGと検証 |
-| `rust/qomm-zkpi/src/typed.rs` | 予約・消費・解除・決済の操作種別、Maker/Taker役割、両予約、mandate、価格証明、状態根を旧zkPIへ結ぶ |
-| `rust/qomm-zkpi/src/typed_wire.rs` | 型付き実行文脈の固定バイナリ形式と厳格な復号 |
-| `rust/qomm-zkpi/src/handles.rs` | 本人種から会場別に結合困難なハンドルを導出 |
-| `rust/qomm-zkpi/src/wire.rs` | 固定版付きバイナリ形式の符号化、厳格な復号、仕様出力 |
-| `rust/qomm-zkpi/src/wire_vectors.rs` | 正常・異常な相互運用ベクトルを生成 |
-| `rust/qomm-zkpi/src/bin/verify.rs` | 標準入力から指図を読む独立検証CLI |
+| `rust/zkpi/src/lib.rs` | `Bounds`、`Instruction`、`Issuer`、`Venue`、FROST DKGと検証 |
+| `rust/zkpi/src/typed.rs` | 予約・消費・解除・決済の操作種別、Maker/Taker役割、両予約、mandate、価格証明、状態根を旧zkPIへ結ぶ |
+| `rust/zkpi/src/typed_wire.rs` | 型付き実行文脈の固定バイナリ形式と厳格な復号 |
+| `rust/zkpi/src/handles.rs` | 本人種から会場別に結合困難なハンドルを導出 |
+| `rust/zkpi/src/wire.rs` | 固定版付きバイナリ形式の符号化、厳格な復号、仕様出力 |
+| `rust/zkpi/src/wire_vectors.rs` | 正常・異常な相互運用ベクトルを生成 |
+| `rust/zkpi/src/bin/verify.rs` | 標準入力から指図を読む独立検証CLI |
 
 ### 試験・測定
 
 | ファイル | 固定する契約 |
 |---|---|
-| `rust/qomm-zkpi/tests/instruction.rs` | 範囲、期限、領域分離、署名、ヌリファイア二重使用、DKG |
-| `rust/qomm-zkpi/tests/wire.rs` | round-trip、途中切れ、末尾余り、未知版、不正点、ベクトル |
-| `rust/qomm-zkpi/tests/typed.rs` | 役割、方向、予約、事前承認、価格証明、状態根、型付きFROST署名 |
-| `rust/qomm-zkpi/tests/threshold_instruction.rs` | 共同範囲証明から作る支払指図と改変拒否 |
-| `rust/qomm-zkpi/benches/wire.rs` | 指図の符号化・復号・検証時間とバイト数 |
+| `rust/zkpi/tests/instruction.rs` | 範囲、期限、領域分離、署名、ヌリファイア二重使用、DKG |
+| `rust/zkpi/tests/wire.rs` | round-trip、途中切れ、末尾余り、未知版、不正点、ベクトル |
+| `rust/zkpi/tests/typed.rs` | 役割、方向、予約、事前承認、価格証明、状態根、型付きFROST署名 |
+| `rust/zkpi/tests/threshold_instruction.rs` | 共同範囲証明から作る支払指図と改変拒否 |
+| `rust/zkpi/benches/wire.rs` | 指図の符号化・復号・検証時間とバイト数 |
 
 ## 4. `qomm-dsl`: 価格規則の制限言語
 
@@ -241,71 +241,71 @@
 | `rust/qomm-audit/tests/publication_ledger.rs` | 予算・公開の原子性、ノードと正本の再実行拒否、出力改変拒否 |
 | `rust/qomm-audit/tests/locate.rs` | 許容数までの不正断片位置を特定し、超過時は失敗する |
 
-## 9. `qomm-defmi`: 複数資産の秘密決済
+## 9. `defmi`: 複数資産の秘密決済
 
 ### 製品コード
 
 | ファイル | 責務 |
 |---|---|
-| `rust/qomm-defmi/src/lib.rs` | DeFMIモジュールの公開入口と機能フラグ |
-| `rust/qomm-defmi/src/assets.rs` | 資産別生成元、転送ごとの盲検化タグ、登録集合所属 |
-| `rust/qomm-defmi/src/ledger.rs` | 口座コミットメント台帳、発行、prepare/commit/unwind移転 |
-| `rust/qomm-defmi/src/settlement.rs` | zkPIに結ぶ口座型DvP、数量×価格、両脚原子更新 |
-| `rust/qomm-defmi/src/asset_link.rs` | 秘密資産タグのコミットメントとDeFMI資産IDを結ぶ証明 |
-| `rust/qomm-defmi/src/product.rs` | mandate、匿名KYB、予約、限界価格、型付きzkPI、DvPを製品決済へ結ぶ唯一の入口 |
-| `rust/qomm-defmi/src/notes.rs` | 閲覧・支出鍵、ノート、リング支出、シリアル、二重使用防止 |
-| `rust/qomm-defmi/src/note_settlement.rs` | ノート型の証券・現金DvP |
-| `rust/qomm-defmi/src/note_chain.rs` | CSD署名発行、一回限りノート、予約lock、使用済みserial、受渡・返却請求権を専用Avalanche正本へ投影する |
-| `rust/qomm-defmi/src/netting.rs` | BIS Model 1/2/3、参加者別差額、サイクル宣誓 |
-| `rust/qomm-defmi/src/ccp.rs` | 署名債務、更改、清算参加者、ウォーターフォール、破綻分離 |
-| `rust/qomm-defmi/src/credit.rs` | 担保ヘアカット、秘密信用枠、階層順序、再適用防止 |
-| `rust/qomm-defmi/src/central_bank_liquidity.rs` | 日銀型の法人単位共通担保、国債評価、日中貸越予約、国債・担保・貸越・資金の同時更新、担保返却、入金・返済、他の日銀与信、営業日切替 |
-| `rust/qomm-defmi/src/cross_domain.rs` | 異なるDeFMIの予約・確定証明・claim・返却、公開共通取引IDを持たない相手先別結合値 |
-| `rust/qomm-defmi/src/pvp.rs` | 二台帳間のアダプター署名型payment-versus-payment |
-| `rust/qomm-defmi/src/chain.rs` | チェーン中立のメモリ状態、状態根、エスクロー遷移、拒否理由 |
-| `rust/qomm-defmi/src/facility.rs` | SQLite永続資産・口座・保証主体・法人合算枠・予約・受付順・商品バッチ・受領記録 |
-| `rust/qomm-defmi/src/avalanche.rs` | 全商品操作のAvalanche RPC、送信前検査、確定後投影、停止窓の冪等復旧 |
-| `rust/qomm-defmi/src/reconcile.rs` | 原簿総数とのコミットメント照合と差異位置探索 |
-| `rust/qomm-defmi/src/register.rs` | 厳格CSV原簿、署名、総数型・個別位置型の取込み |
-| `rust/qomm-defmi/src/viewing.rs` | 範囲別閲覧鍵、閲覧許可、限定支出開示、期間更新 |
-| `rust/qomm-defmi/src/vetting.rs` | 固定群の盲検化ハンドルと一対多審査証明 |
-| `rust/qomm-defmi/src/bin/settle_wasm.rs` | 同じ決済検証器をnative/WASIで測る入口 |
+| `rust/defmi/src/lib.rs` | DeFMIモジュールの公開入口と機能フラグ |
+| `rust/defmi/src/assets.rs` | 資産別生成元、転送ごとの盲検化タグ、登録集合所属 |
+| `rust/defmi/src/ledger.rs` | 口座コミットメント台帳、発行、prepare/commit/unwind移転 |
+| `rust/defmi/src/settlement.rs` | zkPIに結ぶ口座型DvP、数量×価格、両脚原子更新 |
+| `rust/defmi/src/asset_link.rs` | 秘密資産タグのコミットメントとDeFMI資産IDを結ぶ証明 |
+| `rust/defmi/src/product.rs` | mandate、匿名KYB、予約、限界価格、型付きzkPI、DvPを製品決済へ結ぶ唯一の入口 |
+| `rust/defmi/src/notes.rs` | 閲覧・支出鍵、ノート、リング支出、シリアル、二重使用防止 |
+| `rust/defmi/src/note_settlement.rs` | ノート型の証券・現金DvP |
+| `rust/defmi/src/note_chain.rs` | CSD署名発行、一回限りノート、予約lock、使用済みserial、受渡・返却請求権を専用Avalanche正本へ投影する |
+| `rust/defmi/src/netting.rs` | BIS Model 1/2/3、参加者別差額、サイクル宣誓 |
+| `rust/defmi/src/ccp.rs` | 署名債務、更改、清算参加者、ウォーターフォール、破綻分離 |
+| `rust/defmi/src/credit.rs` | 担保ヘアカット、秘密信用枠、階層順序、再適用防止 |
+| `rust/defmi/src/central_bank_liquidity.rs` | 日銀型の法人単位共通担保、国債評価、日中貸越予約、国債・担保・貸越・資金の同時更新、担保返却、入金・返済、他の日銀与信、営業日切替 |
+| `rust/defmi/src/cross_domain.rs` | 異なるDeFMIの予約・確定証明・claim・返却、公開共通取引IDを持たない相手先別結合値 |
+| `rust/defmi/src/pvp.rs` | 二台帳間のアダプター署名型payment-versus-payment |
+| `rust/defmi/src/chain.rs` | チェーン中立のメモリ状態、状態根、エスクロー遷移、拒否理由 |
+| `rust/defmi/src/facility.rs` | SQLite永続資産・口座・保証主体・法人合算枠・予約・受付順・商品バッチ・受領記録 |
+| `rust/defmi/src/avalanche.rs` | 全商品操作のAvalanche RPC、送信前検査、確定後投影、停止窓の冪等復旧 |
+| `rust/defmi/src/reconcile.rs` | 原簿総数とのコミットメント照合と差異位置探索 |
+| `rust/defmi/src/register.rs` | 厳格CSV原簿、署名、総数型・個別位置型の取込み |
+| `rust/defmi/src/viewing.rs` | 範囲別閲覧鍵、閲覧許可、限定支出開示、期間更新 |
+| `rust/defmi/src/vetting.rs` | 固定群の盲検化ハンドルと一対多審査証明 |
+| `rust/defmi/src/bin/settle_wasm.rs` | 同じ決済検証器をnative/WASIで測る入口 |
 
 ### 試験
 
 | ファイル | 固定する契約 |
 |---|---|
-| `rust/qomm-defmi/tests/atomic_transfer.rs` | prepare/commit/unwindと価値保存 |
-| `rust/qomm-defmi/tests/dvp.rs` | zkPI、証券量、現金額、二脚原子性、二重使用 |
-| `rust/qomm-defmi/tests/notes.rs` | ノート走査、リング支出、シリアル、釣銭、改変 |
-| `rust/qomm-defmi/tests/note_settlement.rs` | ノート型DvPの両脚・リング・指図結合 |
-| `rust/qomm-defmi/tests/note_chain.rs` | CSD発行、匿名予約、委任消費、受渡・返却請求権、後段ノート化、改変・再利用拒否 |
-| `rust/qomm-defmi/tests/netting.rs` | Model 1/2/3、差額、閉鎖、残高不足、サイクル |
-| `rust/qomm-defmi/tests/ccp.rs` | 債務署名、更改、宣誓、参加者別ウォーターフォール |
-| `rust/qomm-defmi/tests/credit.rs` | 信用枠、担保価値、階層順序、解決ID再利用 |
-| `rust/qomm-defmi/src/central_bank_liquidity.rs`内試験 | 国債評価、法人合算予約、同時担保DVP、全体巻戻し、価格下落、予約失効後の回復、担保返却、入金・返済、日末延滞、翌営業日開始 |
-| `rust/qomm-defmi/tests/cross_domain.rs` | 二つの独立DeFMIの予約、k-of-n確定証明、claim、分断時返却 |
-| `rust/qomm-defmi/tests/pvp.rs` | 署名適応、秘密抽出、二脚完成、時間切れ解放 |
-| `rust/qomm-defmi/tests/chain.rs` | 状態根、遷移、エスクロー、期限、ヌリファイア整理 |
-| `rust/qomm-defmi/tests/facility.rs` | 資産・口座、k-of-n、旧状態、冪等性、rollback、受領記録鎖 |
-| `rust/qomm-defmi/tests/avalanche.rs` | RPC形式、TLS境界、応答ID、合意待ち、前後状態根一致 |
-| `rust/qomm-defmi/tests/reconcile.rs` | 合計一致、差異、改変、二分探索、開示予算 |
-| `rust/qomm-defmi/tests/register.rs` | CSV形式、署名、総数・位置、重複・不正行 |
-| `rust/qomm-defmi/tests/viewing.rs` | 範囲派生、許可、期限、支出開示、期間外到着 |
-| `rust/qomm-defmi/tests/vetting.rs` | 固定群、所属・非所属、文脈、群改変 |
+| `rust/defmi/tests/atomic_transfer.rs` | prepare/commit/unwindと価値保存 |
+| `rust/defmi/tests/dvp.rs` | zkPI、証券量、現金額、二脚原子性、二重使用 |
+| `rust/defmi/tests/notes.rs` | ノート走査、リング支出、シリアル、釣銭、改変 |
+| `rust/defmi/tests/note_settlement.rs` | ノート型DvPの両脚・リング・指図結合 |
+| `rust/defmi/tests/note_chain.rs` | CSD発行、匿名予約、委任消費、受渡・返却請求権、後段ノート化、改変・再利用拒否 |
+| `rust/defmi/tests/netting.rs` | Model 1/2/3、差額、閉鎖、残高不足、サイクル |
+| `rust/defmi/tests/ccp.rs` | 債務署名、更改、宣誓、参加者別ウォーターフォール |
+| `rust/defmi/tests/credit.rs` | 信用枠、担保価値、階層順序、解決ID再利用 |
+| `rust/defmi/src/central_bank_liquidity.rs`内試験 | 国債評価、法人合算予約、同時担保DVP、全体巻戻し、価格下落、予約失効後の回復、担保返却、入金・返済、日末延滞、翌営業日開始 |
+| `rust/defmi/tests/cross_domain.rs` | 二つの独立DeFMIの予約、k-of-n確定証明、claim、分断時返却 |
+| `rust/defmi/tests/pvp.rs` | 署名適応、秘密抽出、二脚完成、時間切れ解放 |
+| `rust/defmi/tests/chain.rs` | 状態根、遷移、エスクロー、期限、ヌリファイア整理 |
+| `rust/defmi/tests/facility.rs` | 資産・口座、k-of-n、旧状態、冪等性、rollback、受領記録鎖 |
+| `rust/defmi/tests/avalanche.rs` | RPC形式、TLS境界、応答ID、合意待ち、前後状態根一致 |
+| `rust/defmi/tests/reconcile.rs` | 合計一致、差異、改変、二分探索、開示予算 |
+| `rust/defmi/tests/register.rs` | CSV形式、署名、総数・位置、重複・不正行 |
+| `rust/defmi/tests/viewing.rs` | 範囲派生、許可、期限、支出開示、期間外到着 |
+| `rust/defmi/tests/vetting.rs` | 固定群、所属・非所属、文脈、群改変 |
 
 ### ベンチマーク
 
 | ファイル | 測るもの |
 |---|---|
-| `rust/qomm-defmi/benches/settle.rs` | 口座型DvPの証明・検証・決済とバイト数 |
-| `rust/qomm-defmi/benches/note_dvp.rs` | 匿名集合サイズ別のノートDvP |
-| `rust/qomm-defmi/benches/rings.rs` | リング証明と状態根の拡大 |
-| `rust/qomm-defmi/benches/ccp.rs` | 更改・清算参加者処理 |
-| `rust/qomm-defmi/benches/pvp.rs` | 二台帳PvPと露出時間 |
-| `rust/qomm-defmi/benches/reconcile.rs` | 総数照合と差異位置探索 |
-| `rust/qomm-defmi/benches/same_chain.rs` | 同一チェーン上の二DeFMIとアダプター処理 |
-| `rust/qomm-defmi/benches/vetting.rs` | 固定群審査証明の生成・検証 |
+| `rust/defmi/benches/settle.rs` | 口座型DvPの証明・検証・決済とバイト数 |
+| `rust/defmi/benches/note_dvp.rs` | 匿名集合サイズ別のノートDvP |
+| `rust/defmi/benches/rings.rs` | リング証明と状態根の拡大 |
+| `rust/defmi/benches/ccp.rs` | 更改・清算参加者処理 |
+| `rust/defmi/benches/pvp.rs` | 二台帳PvPと露出時間 |
+| `rust/defmi/benches/reconcile.rs` | 総数照合と差異位置探索 |
+| `rust/defmi/benches/same_chain.rs` | 同一チェーン上の二DeFMIとアダプター処理 |
+| `rust/defmi/benches/vetting.rs` | 固定群審査証明の生成・検証 |
 
 ## 10. `qomm-sim`: 市場、攻撃、DP効果
 
@@ -394,17 +394,17 @@
 |---|---|
 | `rust/qomm-law/tests/law.rs` | 日付往復、施行、期限、義務、証拠、出力、行番号 |
 
-## 13. `qomm-measure`: 測定の共通契約
+## 13. `zkfmi-measure`: 測定の共通契約
 
 | ファイル | 責務 |
 |---|---|
-| `rust/qomm-measure/src/lib.rs` | 標本数、平均、標準偏差、中央値、範囲、決定値の区別 |
-| `rust/qomm-measure/src/fsum.rs` | 過去成果物と整合する補償和 |
-| `rust/qomm-measure/src/deterministic_random.rs` | 固定済みの決定的乱数 |
-| `rust/qomm-measure/src/rounding.rs` | 過去成果物と整合する丸め |
-| `rust/qomm-measure/src/beta.rs` | Beta分布、二項比率区間等の数値処理 |
-| `rust/qomm-measure/src/hosts.rs` | 公開用ホスト名と実行環境情報 |
-| `rust/qomm-measure/src/bin/host_label.rs` | 現在ホストの公開ラベルを返すCLI |
+| `rust/zkfmi-measure/src/lib.rs` | 標本数、平均、標準偏差、中央値、範囲、決定値の区別 |
+| `rust/zkfmi-measure/src/fsum.rs` | 過去成果物と整合する補償和 |
+| `rust/zkfmi-measure/src/deterministic_random.rs` | 固定済みの決定的乱数 |
+| `rust/zkfmi-measure/src/rounding.rs` | 過去成果物と整合する丸め |
+| `rust/zkfmi-measure/src/beta.rs` | Beta分布、二項比率区間等の数値処理 |
+| `rust/zkfmi-measure/src/hosts.rs` | 公開用ホスト名と実行環境情報 |
+| `rust/zkfmi-measure/src/bin/host_label.rs` | 現在ホストの公開ラベルを返すCLI |
 
 ## 14. `qomm-harness`: 実行、測定、成果物生成
 
@@ -482,7 +482,7 @@
 | `rust/qomm-harness/src/bin/zk_compare.rs` | 候補証明方式を集合・値数ごとに比較 |
 | `rust/qomm-harness/src/bin/run_quote_proof.rs` | 単独生成と共同生成の価格証明をMM数別に測る |
 | `rust/qomm-harness/src/bin/issue_external_kyb.rs` | 受入用の外部KYB信頼アンカーと署名済みassertion束を安全なファイルへ発行する |
-| `rust/qomm-harness/src/bin/qomm_hsm_signer.rs` | 受入用外部署名プロセス。PINファイルを安全に読み、CSD署名要求へ応答する。物理HSMの証拠ではない |
+| `rust/qomm-harness/src/bin/zkpi-hsm-signer.rs` | 受入用外部署名プロセス。PINファイルを安全に読み、CSD署名要求へ応答する。物理HSMの証拠ではない |
 | `rust/qomm-harness/src/bin/run_state_audit.rs` | 在庫状態列の長さ別費用と全拒否条件を測る |
 | `rust/qomm-harness/src/bin/run_probe_budget.rs` | 法人単位の正確見積もり取得・小ロット探り予算を評価 |
 | `rust/qomm-harness/src/bin/run_entity_behavior.rs` | 複数資格の行動類似性を審査優先度として評価する煙試験 |
@@ -525,15 +525,15 @@
 
 | ファイル | 責務 |
 |---|---|
-| `rust/qomm-avalanche-vm/src/main.rs` | `vmid`、genesisコンパイル、AvalancheGoから起動される外部VMの入口 |
-| `rust/qomm-avalanche-vm/src/lib.rs` | VMの版、モジュール境界、Protocol 45プラグイン起動を公開 |
-| `rust/qomm-avalanche-vm/src/id.rs` | AvalancheのCB58 IDと固定32バイトIDを相互変換し、検査和を確認 |
-| `rust/qomm-avalanche-vm/src/transaction.rs` | 許可された25種類のDeFMI取引だけを正規JSONへ符号化し、取引IDを決定 |
-| `rust/qomm-avalanche-vm/src/genesis.rs` | 7委員、しきい値、公開鍵、時刻のgenesis検証と正規バイナリ化 |
-| `rust/qomm-avalanche-vm/src/state.rs` | 資産、CSD、ノート、請求権、保証主体、法人保証枠、予約、受付順、使用済み値を含む正本状態と状態根 |
-| `rust/qomm-avalanche-vm/src/execution.rs` | 25取引の合意決定的な状態遷移。旧状態、期限、承認、二重使用、枠超過、受付順、原子的一括決済を検査 |
-| `rust/qomm-avalanche-vm/src/block.rs` | 親ID、時刻、高さ、最大32取引からなる正規ブロックとID |
-| `rust/qomm-avalanche-vm/src/vm.rs` | RPCChainVM 45、mempool、Build/Verify/Accept/Reject、永続DB、再起動復元、JSON-RPC、確定状態スナップショット |
+| `rust/defmi-avalanche-vm/src/main.rs` | `vmid`、genesisコンパイル、AvalancheGoから起動される外部VMの入口 |
+| `rust/defmi-avalanche-vm/src/lib.rs` | VMの版、モジュール境界、Protocol 45プラグイン起動を公開 |
+| `rust/defmi-avalanche-vm/src/id.rs` | AvalancheのCB58 IDと固定32バイトIDを相互変換し、検査和を確認 |
+| `rust/defmi-avalanche-vm/src/transaction.rs` | 許可された25種類のDeFMI取引だけを正規JSONへ符号化し、取引IDを決定 |
+| `rust/defmi-avalanche-vm/src/genesis.rs` | 7委員、しきい値、公開鍵、時刻のgenesis検証と正規バイナリ化 |
+| `rust/defmi-avalanche-vm/src/state.rs` | 資産、CSD、ノート、請求権、保証主体、法人保証枠、予約、受付順、使用済み値を含む正本状態と状態根 |
+| `rust/defmi-avalanche-vm/src/execution.rs` | 25取引の合意決定的な状態遷移。旧状態、期限、承認、二重使用、枠超過、受付順、原子的一括決済を検査 |
+| `rust/defmi-avalanche-vm/src/block.rs` | 親ID、時刻、高さ、最大32取引からなる正規ブロックとID |
+| `rust/defmi-avalanche-vm/src/vm.rs` | RPCChainVM 45、mempool、Build/Verify/Accept/Reject、永続DB、再起動復元、JSON-RPC、確定状態スナップショット |
 
 ### AvalancheGoとの境界
 
@@ -552,8 +552,8 @@ AvalancheGo本体はフォークしない。AvalancheGoがRust実行ファイル
 
 | ファイル | 固定する契約または動作 |
 |---|---|
-| `rust/qomm-avalanche-vm/src/execution.rs`内試験 | Maker/Taker事前予約、事後署名なし決済、同時RFQ、法人合算枠、7ノード受付順、口座なしノートDvP、CSD署名、再利用拒否 |
-| `rust/qomm-avalanche-vm/src/vm.rs`内試験 | JSON-RPC、ID、保存キー、エラーコード、Protocol 45のVM動作 |
+| `rust/defmi-avalanche-vm/src/execution.rs`内試験 | Maker/Taker事前予約、事後署名なし決済、同時RFQ、法人合算枠、7ノード受付順、口座なしノートDvP、CSD署名、再利用拒否 |
+| `rust/defmi-avalanche-vm/src/vm.rs`内試験 | JSON-RPC、ID、保存キー、エラーコード、Protocol 45のVM動作 |
 | `rust/vendor/avalanche-rs-qomm/crates/avalanche-rpcchainvm/src/plugin.rs`内試験 | Runtime初期化通知がProtocol 45と実際の待受先を送り、外部アドレスを拒否すること |
 | `avalanche/defmivm/config/test-genesis.json` | 7公開鍵・3-of-7の決定的な試験genesis |
 | `avalanche/defmivm/scripts/run-local-l1.sh` | 5 AvalancheGo、資産・口座互換・決済、同一取引回復、検証者再起動、状態根一致 |
@@ -614,9 +614,9 @@ QOMM所有の回路生成、実験、編成、検証はRustである。外部MP-
 | 価格式を変える | `qomm-dsl`、`qomm-mpc/program.rs`、`qomm-proofs/rule_audit.rs`、`quote_proof.rs`、`qomm-sim/market.rs`、`qomm-demo/model.rs` |
 | MM入力項目を増やす | `qomm-mpc/program.rs`、`inputs.rs`、`qomm-proofs/policy_audit.rs`、DSLの宣言、入力検査試験 |
 | フレーム形式を変える | `wire.rs`、`client.rs`、`relay.rs`、`node_service.rs`、`run_transport.rs`、wire試験 |
-| zkPI項目を変える | `qomm-zkpi/lib.rs`、`wire.rs`、`wire_vectors.rs`、`qomm-defmi/settlement.rs`、Avalancheのstatement互換試験 |
-| DeFMI遷移文を変える | `qomm-defmi/facility.rs`、`qomm-defmi/avalanche.rs`、`qomm-avalanche-vm/execution.rs`、取引互換試験 |
-| 状態根を変える | `qomm-defmi/facility.rs`、`qomm-avalanche-vm/state.rs`、受入試験、既存genesis互換方針 |
+| zkPI項目を変える | `zkpi/lib.rs`、`wire.rs`、`wire_vectors.rs`、`defmi/settlement.rs`、Avalancheのstatement互換試験 |
+| DeFMI遷移文を変える | `defmi/facility.rs`、`defmi/avalanche.rs`、`qomm-avalanche-vm/execution.rs`、取引互換試験 |
+| 状態根を変える | `defmi/facility.rs`、`qomm-avalanche-vm/state.rs`、受入試験、既存genesis互換方針 |
 | 委員会承認文を変える | Rust `QuorumAuthorizer`、Rust VMの取引検査、Chain ID領域、全負試験 |
 | DP公開を変える | `qomm-audit/distributed_dp.rs`、`publication.rs`、`qomm-sim/disclosure.rs`、二世界監査、予算試験 |
 | ブラウザ表示を変える | `room.rs`の役割別投影、`web.rs`、`demo.js`、`demo.css`、実ブラウザ確認 |

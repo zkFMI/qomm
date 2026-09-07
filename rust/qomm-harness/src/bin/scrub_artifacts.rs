@@ -12,7 +12,7 @@ fn main() {
 
 fn run_main() -> HarnessResult<()> {
     let (root, apply) = parse_args()?;
-    let labels = qomm_measure::hosts::labels();
+    let labels = zkfmi_measure::hosts::labels();
     let mut names = labels.keys().cloned().collect::<Vec<_>>();
     names.sort_by_key(|name| std::cmp::Reverse(name.len()));
     let mut paths = Vec::new();

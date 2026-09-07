@@ -67,7 +67,7 @@ fn run() -> HarnessResult<i32> {
     }
     let options = parse_args(&raw[1..])?;
     let mut result = Map::new();
-    result.insert("host".into(), json!(qomm_measure::hosts::this_host()));
+    result.insert("host".into(), json!(zkfmi_measure::hosts::this_host()));
     result.insert("rustc".into(), json!(rustc_version()));
     result.insert("protocol".into(), json!("malicious-shamir-party.x"));
     result.insert("n_parties".into(), json!(options.n_parties));

@@ -513,7 +513,7 @@ fn initial_result(options: &Options, reference: &Value) -> Map<String, Value> {
     );
     result.insert("delay_ms".into(), json!(options.delay_ms));
     result.insert("repeats".into(), json!(options.repeats));
-    result.insert("host".into(), json!(qomm_measure::hosts::this_host()));
+    result.insert("host".into(), json!(zkfmi_measure::hosts::this_host()));
     result.insert("bit_length".into(), json!(options.bit_length));
     result.insert("argmin_arity".into(), json!(options.argmin_arity));
     result.insert("edabit".into(), json!(options.edabit));

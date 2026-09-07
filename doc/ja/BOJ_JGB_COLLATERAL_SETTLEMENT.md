@@ -175,7 +175,7 @@ DeFMIでも境界を同じように分ける。
 
 ### 中核状態機械
 
-- `rust/qomm-defmi/src/central_bank_liquidity.rs`
+- `rust/defmi/src/central_bank_liquidity.rs`
   - `BojLiquidityBook`: 法人、国債担保、予約、完了決済、使用済み入金・操作ID
   - `JgbCollateralLot`: 額面、時価、物価連動係数、掛目、評価版、担保状態
   - `ReserveIntradayLiquidity`: 法人単位の貸越余力予約
@@ -190,9 +190,9 @@ Avalanche VMの外で使っても、失敗時の部分更新は残らない。
 
 ### Avalanche合意状態
 
-- `rust/qomm-avalanche-vm/src/state.rs`
+- `rust/defmi-avalanche-vm/src/state.rs`
   - `State.boj_liquidity`が正本状態へ含まれる。
-- `rust/qomm-avalanche-vm/src/execution.rs`
+- `rust/defmi-avalanche-vm/src/execution.rs`
   - `defmivm.issueBojParticipant`
   - `defmivm.issueBojCollateralPledge`
   - `defmivm.issueBojCollateralRevalue`
@@ -204,7 +204,7 @@ Avalanche VMの外で使っても、失敗時の部分更新は残らない。
   - `defmivm.issueBojSimultaneousDvp`
   - `defmivm.issueBojEndOfDay`
   - `defmivm.issueBojOpenBusinessDay`
-- `rust/qomm-avalanche-vm/src/vm.rs`
+- `rust/defmi-avalanche-vm/src/vm.rs`
   - `defmivm.bojLiquidity`
   - `defmivm.bojParticipant`
   - `defmivm.bojCollateral`
@@ -217,7 +217,7 @@ Avalanche VMの外で使っても、失敗時の部分更新は残らない。
 
 - `defmi_schemas/japan_jgb.defmi`
   - `BOJ_COMMON_COLLATERAL`を法人単位、終業時期限として宣言する。
-- `rust/qomm-defmi-dsl`
+- `rust/defmi-dsl`
   - 中央銀行が運営する国債台帳と中央銀行マネー台帳だけを施設へ結べる。
   - 新規与信の担保内収まり、予約合計、同時DVP、日末分類を検査する。
 - `defmi_schemas/compiled/JP_JGB.*`

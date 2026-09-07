@@ -306,7 +306,7 @@ fn run_experiment(seeds: usize, steps: usize) -> Value {
         _ => None,
     };
     json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "evidence_class": "smoke_only",
         "synthetic": true,
         "config": {

@@ -79,7 +79,7 @@ fn run_main() -> HarnessResult<()> {
             .unwrap_or(Value::Null);
     }
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "n_mm": options.n_mm,
         "n_assets": options.n_assets,
         "bit_length": options.bit_length,

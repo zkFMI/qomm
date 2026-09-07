@@ -36,7 +36,7 @@ fn main() {
 fn run() -> HarnessResult<()> {
     let options = parse_args()?;
     let mut payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "config": {
             "mp_spdz_root": options.mp_spdz_root.display().to_string(),
             "out": options.out.display().to_string(),

@@ -141,7 +141,7 @@ fn run() -> HarnessResult<()> {
     }
 
     let mut result = Map::new();
-    result.insert("host".into(), json!(qomm_measure::hosts::this_host()));
+    result.insert("host".into(), json!(zkfmi_measure::hosts::this_host()));
     result.insert("deployed".into(), json!(DEPLOYED));
     result.insert(
         "why_the_second_protocol".into(),

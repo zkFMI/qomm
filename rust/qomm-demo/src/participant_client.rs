@@ -11,12 +11,12 @@ use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
-use qomm_defmi::facility::{
+use defmi::facility::{
     CreditFacilityRelationProof, CreditFacilityTransition, CreditTransitionKind,
 };
-use qomm_defmi::note_chain::{ClaimOwnershipProof, NoteClaimMaterialization, NoteOutput};
-use qomm_defmi::notes::{decode_spend_proof, Address, SpendProof};
-use qomm_defmi::participant::{EntityApproval, KeyPurpose};
+use defmi::note_chain::{ClaimOwnershipProof, NoteClaimMaterialization, NoteOutput};
+use defmi::notes::{decode_spend_proof, Address, SpendProof};
+use defmi::participant::{EntityApproval, KeyPurpose};
 use qomm_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
 use qomm_transport::kyb_wire::{KybPresentationWire, KybRegistryWire};
 use qomm_transport::mandate::{MakerPolicyMandate, TakerExecutionMandate};

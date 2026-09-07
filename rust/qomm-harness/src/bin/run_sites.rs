@@ -289,7 +289,7 @@ fn run_main() -> HarnessResult<i32> {
         })
         .collect::<Vec<_>>();
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "engine_seconds": if engine.is_empty() { Value::Null } else { qomm_harness::measure::summarise(&engine) },
         "data_sent": bytes_sent,
         "fixture": "seven parties across real sites, cross-site links carried through the machine running this script",

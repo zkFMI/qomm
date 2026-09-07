@@ -39,7 +39,7 @@ Maker/Takerと、現金支払者/資産引渡者は同じ分類ではない。
 | Takerが買う | Taker | 勝者Maker |
 | Takerが売る | 勝者Maker | Taker |
 
-`qomm-zkpi::typed::ExecutionContext`は、売買方向、Maker/Takerの秘匿ハンドル、両予約ID、RFQヌリファイアを保持し、この役割対応を検査する。
+`zkpi::typed::ExecutionContext`は、売買方向、Maker/Takerの秘匿ハンドル、両予約ID、RFQヌリファイアを保持し、この役割対応を検査する。
 
 ## 3. 実装された取引経路
 

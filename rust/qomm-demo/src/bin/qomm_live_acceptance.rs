@@ -958,7 +958,7 @@ fn point(value: &Value, key: &str) -> Result<curve25519_dalek::ristretto::Ristre
 /// replaced value commitment, recomputing its note id through the canonical
 /// `NoteOutput::derived_id` so the note stays internally consistent.
 fn reencode_note_with_commitment(dto: &Value, commitment: [u8; 32]) -> Result<Value, String> {
-    let mut note = qomm_defmi::note_chain::NoteOutput {
+    let mut note = defmi::note_chain::NoteOutput {
         note_id: [0u8; 32],
         asset_id: hex32(dto, "assetID")?,
         one_time: hex32(dto, "oneTime")?,
@@ -1182,17 +1182,17 @@ fn development_quorum(
     domain: &str,
 ) -> Result<
     (
-        qomm_defmi::facility::QuorumAuthorizer,
-        BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
+        defmi::facility::QuorumAuthorizer,
+        BTreeMap<String, defmi::governance::GovernanceSigner>,
     ),
     String,
 > {
-    let keys = qomm_defmi::governance::public_development_keys()?;
+    let keys = defmi::governance::public_development_keys()?;
     let nodes = keys
         .iter()
         .map(|(name, key)| (name.clone(), key.verifying_key()))
         .collect::<BTreeMap<String, zkfmi_crypto::key::KeyRecord>>();
-    let authorizer = qomm_defmi::facility::QuorumAuthorizer::new(nodes, 3, 1, domain)?;
+    let authorizer = defmi::facility::QuorumAuthorizer::new(nodes, 3, 1, domain)?;
     Ok((authorizer, keys))
 }
 
@@ -1206,12 +1206,12 @@ fn hu64(value: &Value, key: &str) -> Result<u64, String> {
         .ok_or_else(|| format!("{key} is not an unsigned integer"))
 }
 
-fn parse_transition(dto: &Value) -> Result<qomm_defmi::facility::CreditFacilityTransition, String> {
-    Ok(qomm_defmi::facility::CreditFacilityTransition {
+fn parse_transition(dto: &Value) -> Result<defmi::facility::CreditFacilityTransition, String> {
+    Ok(defmi::facility::CreditFacilityTransition {
         operation_id: h32(dto, "operationID")?,
         facility_id: h32(dto, "facilityID")?,
         hold_id: h32(dto, "holdID")?,
-        kind: qomm_defmi::facility::CreditTransitionKind::Hold,
+        kind: defmi::facility::CreditTransitionKind::Hold,
         query_commitment: h32(dto, "queryCommitment")?,
         amount_commitment: h32(dto, "amountCommitment")?,
         consumed_commitment: h32(dto, "consumedCommitment")?,
@@ -1229,7 +1229,7 @@ fn parse_transition(dto: &Value) -> Result<qomm_defmi::facility::CreditFacilityT
     })
 }
 
-fn transition_json(t: &qomm_defmi::facility::CreditFacilityTransition) -> Value {
+fn transition_json(t: &defmi::facility::CreditFacilityTransition) -> Value {
     json!({
         "operationID": hex::encode(t.operation_id),
         "facilityID": hex::encode(t.facility_id),
@@ -1254,9 +1254,9 @@ fn transition_json(t: &qomm_defmi::facility::CreditFacilityTransition) -> Value 
 
 fn parse_authorization(
     dto: &Value,
-) -> Result<qomm_defmi::facility::ReservationAuthorization, String> {
-    Ok(qomm_defmi::facility::ReservationAuthorization {
-        role: qomm_defmi::facility::ReservationRole::Maker,
+) -> Result<defmi::facility::ReservationAuthorization, String> {
+    Ok(defmi::facility::ReservationAuthorization {
+        role: defmi::facility::ReservationRole::Maker,
         entity_commitment: h32(dto, "entityCommitment")?,
         asset_id: h32(dto, "assetID")?,
         direction: dto
@@ -1281,7 +1281,7 @@ fn parse_authorization(
     })
 }
 
-fn authorization_json(a: &qomm_defmi::facility::ReservationAuthorization) -> Value {
+fn authorization_json(a: &defmi::facility::ReservationAuthorization) -> Value {
     json!({
         "role": "maker",
         "entityCommitment": hex::encode(a.entity_commitment),
@@ -1305,8 +1305,8 @@ fn authorization_json(a: &qomm_defmi::facility::ReservationAuthorization) -> Val
     })
 }
 
-fn parse_note(dto: &Value) -> Result<qomm_defmi::note_chain::NoteOutput, String> {
-    Ok(qomm_defmi::note_chain::NoteOutput {
+fn parse_note(dto: &Value) -> Result<defmi::note_chain::NoteOutput, String> {
+    Ok(defmi::note_chain::NoteOutput {
         note_id: h32(dto, "noteID")?,
         asset_id: h32(dto, "assetID")?,
         one_time: h32(dto, "oneTime")?,
@@ -1322,7 +1322,7 @@ fn parse_note(dto: &Value) -> Result<qomm_defmi::note_chain::NoteOutput, String>
     })
 }
 
-fn note_json(n: &qomm_defmi::note_chain::NoteOutput) -> Value {
+fn note_json(n: &defmi::note_chain::NoteOutput) -> Value {
     json!({
         "noteID": hex::encode(n.note_id),
         "assetID": hex::encode(n.asset_id),
@@ -1336,8 +1336,8 @@ fn note_json(n: &qomm_defmi::note_chain::NoteOutput) -> Value {
 
 fn parse_allocation(
     dto: &Value,
-) -> Result<qomm_defmi::note_chain::StandingNotePoolAllocation, String> {
-    Ok(qomm_defmi::note_chain::StandingNotePoolAllocation {
+) -> Result<defmi::note_chain::StandingNotePoolAllocation, String> {
+    Ok(defmi::note_chain::StandingNotePoolAllocation {
         pq_authorization: Some(
             serde_json::from_value(
                 dto.get("pqAuthorization")
@@ -1373,7 +1373,7 @@ fn parse_allocation(
     })
 }
 
-fn allocation_json(a: &qomm_defmi::note_chain::StandingNotePoolAllocation) -> Value {
+fn allocation_json(a: &defmi::note_chain::StandingNotePoolAllocation) -> Value {
     json!({
         "poolID": hex::encode(a.pool_id),
         "delegationDigest": hex::encode(a.delegation_digest),
@@ -1392,7 +1392,7 @@ fn allocation_json(a: &qomm_defmi::note_chain::StandingNotePoolAllocation) -> Va
     })
 }
 
-fn approval_json(approval: &qomm_defmi::facility::QuorumApproval) -> Value {
+fn approval_json(approval: &defmi::facility::QuorumApproval) -> Value {
     json!({
         "statement": hex::encode(approval.statement),
         "signerEpoch": approval.signer_epoch,
@@ -1546,7 +1546,7 @@ fn cmd_pool_cas_probe(args: &Args) -> Result<Value, String> {
     let (authorizer, keys) = development_quorum(&domain)?;
     // A genuine, different 3-of-7 subset (nodes 1, 3, 5).
     let signer_ids = ["node-1", "node-3", "node-5"];
-    let signers: BTreeMap<String, qomm_defmi::governance::GovernanceSigner> = signer_ids
+    let signers: BTreeMap<String, defmi::governance::GovernanceSigner> = signer_ids
         .iter()
         .map(|id| {
             (

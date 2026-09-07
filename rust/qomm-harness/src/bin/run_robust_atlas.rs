@@ -69,7 +69,7 @@ fn run_main() -> HarnessResult<()> {
         one_run(&options.root, 7, t, m, &[], "few", true)?,
     );
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "question": "Naming was rung 4 because the protocol still stopped. Does dropping the king and decoding at every party reach rung 5 --- the answer comes out anyway?",
         "setting": {
             "n_parties": n,

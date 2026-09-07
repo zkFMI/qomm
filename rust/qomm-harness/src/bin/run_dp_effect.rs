@@ -65,7 +65,7 @@ fn run_main() -> HarnessResult<()> {
         );
     }
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "rustc": rustc_version(),
         "seeds": options.seeds,
         "arms": arms,

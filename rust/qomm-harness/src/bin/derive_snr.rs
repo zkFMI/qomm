@@ -152,7 +152,7 @@ fn run_main() -> HarnessResult<()> {
         .map(|(label, count)| (label.to_string(), json!(ceiling(count))))
         .collect::<Map<_, _>>();
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "volume_cap": dp.volume_cap,
         "epsilon_per_window": dp.epsilon_per_window,
         "epsilon_per_field": epsilon_per_field,

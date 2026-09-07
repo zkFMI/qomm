@@ -24,20 +24,20 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
-use qomm_defmi::claim_redemption::NoteClaimAuthorization;
-use qomm_defmi::facility::{
+use defmi::claim_redemption::NoteClaimAuthorization;
+use defmi::facility::{
     build_threshold_dvp_consumption_from_snapshot, reserve_handle_for, CreditFacilityTransition,
     CreditHoldSnapshot, CreditTransitionKind, ReservationAuthorization, ReservationConsumption,
     ReservationRole, ZERO,
 };
-use qomm_defmi::note_chain::{
+use defmi::note_chain::{
     note_claim_recipient_commitment, standing_pool_product_settlement_statement,
     DelegatedClaimOpenings, DelegatedNoteLegProjection, NoteClaimKind, NoteOutput,
     ProductNoteBindings, StandingNotePoolAllocation, VerifiedDelegatedNoteSettlementProjection,
 };
-use qomm_defmi::participant::{EntityApproval, KeyPurpose};
-use qomm_defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
-use qomm_defmi::settlement::{build_threshold_package_from_proofs, Sides};
+use defmi::participant::{EntityApproval, KeyPurpose};
+use defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
+use defmi::settlement::{build_threshold_package_from_proofs, Sides};
 use qomm_mpc::compiler::OfficialCompiler;
 use qomm_mpc::inputs::{
     build_inputs, finish_reference, parse_policies, DvpInputs, InputConfig, QuoteProofInputs,
@@ -84,9 +84,9 @@ use qomm_transport::standing_pool::{
     standing_pool_reservation_metadata, threshold_dvp_package_digest, threshold_dvp_sides,
     threshold_range_proof_digest,
 };
-use qomm_zk::pedersen::Pedersen;
-use qomm_zkpi::typed::{AuthorizationScope, ExecutionContext, OperationKind, TradeDirection};
-use qomm_zkpi::{typed_wire, Bounds, Venue};
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi::typed::{AuthorizationScope, ExecutionContext, OperationKind, TradeDirection};
+use zkpi::{typed_wire, Bounds, Venue};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -811,7 +811,7 @@ impl QueuedRfqEnvelope {
         self.approval
             .verify_signature(
                 &self.approval_domain,
-                &qomm_defmi::participant::PurposeKey {
+                &defmi::participant::PurposeKey {
                     public_key: *public,
                     pq_public_key: snapshot
                         .pq_public_keys
@@ -858,7 +858,7 @@ pub struct DistributedMpcEngine {
     maker_pretrade_signers: Vec<MakerPretradeSigner>,
     maker_authorities: Vec<Option<CachedMakerAuthority>>,
     maker_policy_versions: Vec<u64>,
-    frost_public: Option<qomm_zkpi::frost::keys::PublicKeyPackage>,
+    frost_public: Option<zkpi::frost::keys::PublicKeyPackage>,
     defmi_market: Option<DefmiMarketEpoch>,
     /// Set only by `replay_queued` after the participant module atomically
     /// claims the oldest request. `quote` consumes it exactly once.
@@ -4143,7 +4143,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     &proof.handoff.limit_commitment,
                     &proof.handoff.limit_context,
                 );
-                let asset_link = qomm_defmi::asset_link::prove(
+                let asset_link = defmi::asset_link::prove(
                     &settlement_key,
                     proof.handoff.asset_id,
                     &typed.payment.asset_commitment,
@@ -5802,7 +5802,7 @@ fn frost_public_recall_path(session: &[u8; 32]) -> PathBuf {
 
 fn record_frost_public(
     session: &[u8; 32],
-    public: &qomm_zkpi::frost::keys::PublicKeyPackage,
+    public: &zkpi::frost::keys::PublicKeyPackage,
 ) -> Result<(), String> {
     let bytes = public
         .serialize()
@@ -5815,7 +5815,7 @@ fn record_frost_public(
 
 fn recall_frost_public(
     session: &[u8; 32],
-) -> Result<Option<qomm_zkpi::frost::keys::PublicKeyPackage>, String> {
+) -> Result<Option<zkpi::frost::keys::PublicKeyPackage>, String> {
     let path = frost_public_recall_path(session);
     let encoded = match fs::read_to_string(&path) {
         Ok(text) => text,
@@ -5825,7 +5825,7 @@ fn recall_frost_public(
     let bytes = BASE64
         .decode(encoded.trim())
         .map_err(|_| "recorded FROST public package is not base64".to_string())?;
-    qomm_zkpi::frost::keys::PublicKeyPackage::deserialize(&bytes)
+    zkpi::frost::keys::PublicKeyPackage::deserialize(&bytes)
         .map(Some)
         .map_err(|_| "recorded FROST public package cannot be decoded".into())
 }

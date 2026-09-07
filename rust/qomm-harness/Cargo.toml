@@ -10,12 +10,12 @@ zkfmi-crypto.workspace = true
 qomm-demo = { path = "../qomm-demo" }
 qomm-audit.workspace = true
 qomm-dsl.workspace = true
-qomm-measure.workspace = true
+zkfmi-measure.workspace = true
 qomm-mpc.workspace = true
 qomm-proofs.workspace = true
 qomm-sim.workspace = true
 qomm-transport.workspace = true
-qomm-zk.workspace = true
+zkfmi-zk.workspace = true
 curve25519-dalek.workspace = true
 ed25519-dalek.workspace = true
 merlin.workspace = true

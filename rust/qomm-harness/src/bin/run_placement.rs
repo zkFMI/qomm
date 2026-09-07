@@ -77,7 +77,7 @@ fn run_main() -> HarnessResult<()> {
         100.0 * share.unwrap_or(0.0)
     );
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "near_ms": options.near,
         "far_ms": options.far,
         "n_mm": options.n_mm,

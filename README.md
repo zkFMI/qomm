@@ -90,10 +90,10 @@ Rust crates:
 - `rust/qomm-transport`
 - `rust/qomm-audit`
 - `rust/qomm-demo`
-- `rust/qomm-zk`
-- `rust/qomm-zkpi`
-- `rust/qomm-measure`
-- `rust/qomm-defmi`
+- `rust/zkfmi-zk`
+- `rust/zkpi`
+- `rust/zkfmi-measure`
+- `rust/defmi`
 - `rust/zkpi-defmi-sdk`
 - `rust/qomm-harness`
 

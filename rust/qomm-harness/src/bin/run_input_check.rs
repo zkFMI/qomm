@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
-use qomm_zk::pedersen::Pedersen;
+use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use rand::RngCore;
 use serde_json::{json, Value};
@@ -447,7 +447,7 @@ fn run_main() -> HarnessResult<()> {
         return Err("--repeats/--inputs must be non-zero and --parties must be at least 4".into());
     }
     let mut result = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "group": options.group,
         "repeats": options.repeats,
         "challenge_bits": CHALLENGE_BITS,

@@ -409,7 +409,7 @@ and then settled in the clear has leaked everything the computation protected**:
 the asset, the size, the counterparties and, by difference, the policy. The
 audit trail is intact and the privacy is gone.
 
-**zkPI** (`rust/qomm-zkpi/`) makes the payment instruction itself a commitment plus a
+**zkPI** (`rust/zkpi/`) makes the payment instruction itself a commitment plus a
 proof. A settlement venue checks an instruction is well-formed, authorised and
 unspent, and learns none of the asset, the amount, the price, or which entity
 holds it --- only that *some* enrolled entity holds an instruction whose asset
@@ -603,7 +603,7 @@ masked product, names who sent them and does not stop; three refuses past the
 capacity, and seven refuses to start rather than pretending. Measured on two
 machines with two independent builds
 (`artifacts/robust_atlas.json`, `robust_atlas_host_c.json`), and the decoder is
-in Rust as `qomm-zk/src/shamir.rs` beside the commitments, because the binding
+in Rust as `zkfmi-zk/src/shamir.rs` beside the commitments, because the binding
 chain now deals over the same field.
 
 What is *not* robust is stated in the same place: the double sharings, the

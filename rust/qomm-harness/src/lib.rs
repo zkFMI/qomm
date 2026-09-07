@@ -192,14 +192,14 @@ pub fn rustc_version() -> String {
 /// agree on most inputs, which is the problem.
 pub fn fmean(values: &[f64]) -> Option<f64> {
     (!values.is_empty())
-        .then(|| qomm_measure::fsum::fsum(values.iter().copied()) / values.len() as f64)
+        .then(|| zkfmi_measure::fsum::fsum(values.iter().copied()) / values.len() as f64)
 }
 
 /// The mean `sum(values) / len(values)` computes, with the builtin's
 /// compensation. See [`fmean`] for why the two are kept apart.
 pub fn sum_mean(values: &[f64]) -> Option<f64> {
     (!values.is_empty())
-        .then(|| qomm_measure::fsum::nsum(values.iter().copied()) / values.len() as f64)
+        .then(|| zkfmi_measure::fsum::nsum(values.iter().copied()) / values.len() as f64)
 }
 
 pub fn median(values: &[f64]) -> Option<f64> {
@@ -229,7 +229,7 @@ pub fn sample_sd(values: &[f64]) -> Option<f64> {
     }
     let mean = fmean(values)?;
     Some(
-        (qomm_measure::fsum::fsum(values.iter().map(|value| (value - mean) * (value - mean)))
+        (zkfmi_measure::fsum::fsum(values.iter().map(|value| (value - mean) * (value - mean)))
             / (values.len() - 1) as f64)
             .sqrt(),
     )

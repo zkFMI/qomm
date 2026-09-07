@@ -407,7 +407,7 @@ fn run_experiment(seed: u64, max_fpr: f64) -> HarnessResult<Value> {
     let precision = (tp + fp > 0).then(|| tp as f64 / (tp + fp) as f64);
     let pair_auc = auc(&scores, &labels);
     Ok(json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "evidence_class": "smoke_only",
         "synthetic": true,
         "model_version": BehaviorScreen::VERSION,

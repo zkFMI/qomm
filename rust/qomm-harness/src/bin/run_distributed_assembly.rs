@@ -23,9 +23,9 @@ use qomm_transport::selective_disclosure::{
     open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey,
     WinnerSenderAuth, AUTH_SUITE, KEM_SUITE, VERSION,
 };
-use qomm_zk::pedersen::Pedersen;
-use qomm_zk::shamir;
-use qomm_zk::sigma::{product_challenge, verify_product};
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
+use zkfmi_zk::sigma::{product_challenge, verify_product};
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -308,7 +308,7 @@ fn run_main() -> HarnessResult<()> {
     }
 
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "group": options.group,
         "parties": options.parties,
         "threshold": options.threshold,

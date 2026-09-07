@@ -350,7 +350,7 @@ the bytes, yes --- and not what that phase will cost.
 
 Today's cohort registry holds a handful to a few dozen firms, so **OR
 composition is the default**. If the venue starts verifying many presentations
-per slot, swap in `rust/qomm-zk/src/oneofmany.rs`; the two share the group abstraction, so
+per slot, swap in `rust/zkfmi-zk/src/oneofmany.rs`; the two share the group abstraction, so
 the change is local.
 
 ### 2.2 Range proofs

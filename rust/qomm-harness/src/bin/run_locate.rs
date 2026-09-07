@@ -36,10 +36,10 @@ fn run() -> HarnessResult<()> {
     let timings = measure(options.timing_repeats)?;
     let payload = json!({
         "schema": "qomm-share-attribution-v1",
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "rustc": rustc_version(),
         "question": "Which malformed Shamir shares can be attributed without guessing?",
-        "implementation": "rust/qomm-zk/src/shamir.rs, re-exported by rust/qomm-audit/src/locate.rs",
+        "implementation": "rust/zkfmi-zk/src/shamir.rs, re-exported by rust/qomm-audit/src/locate.rs",
         "deployment": {
             "parties": 7,
             "threshold": 2,

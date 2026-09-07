@@ -14,9 +14,9 @@ use qomm_proofs::threshold_gadgets::{
 };
 use qomm_proofs::threshold_quote::RISTRETTO_SCALAR_ORDER_LE;
 use qomm_proofs::threshold_sigma::{PartyId, ScalarShares};
-use qomm_zk::pedersen::Pedersen;
-use qomm_zk::shamir;
-use qomm_zk::sigma::verify_product;
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
+use zkfmi_zk::sigma::verify_product;
 use rand::rngs::OsRng;
 use serde_json::{json, Map};
 use std::collections::BTreeMap;
@@ -251,7 +251,7 @@ fn run_main() -> HarnessResult<()> {
     }
 
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "field_bits": wires.prime.bit_length(),
         "field_matches_commitment_scalar_field": true,
         "parties": options.parties,

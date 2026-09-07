@@ -444,7 +444,7 @@ impl Room {
             || {
                 (
                     "sim",
-                    "Rust share layer and qomm-zk decoder; tournament cleartext".into(),
+                    "Rust share layer and zkfmi-zk decoder; tournament cleartext".into(),
                     true,
                     String::new(),
                 )

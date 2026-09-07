@@ -610,7 +610,7 @@ target triple、compiler版、feature、linkしたlibSPDZを記録する。
 | `discover_wan_inventory` | node inventory収集 |
 | `provision_frost_cluster` | 分散FROST DKG調整 |
 | `wan_acceptance` | WAN受入検査 |
-| `qomm-zkpi-verify` | zkPI独立検証 |
+| `zkpi-verify` | zkPI独立検証 |
 
 利用するbinaryだけを配布し、`qomm-harness`の研究用runner一式を運用nodeへ置かない。
 
@@ -1024,8 +1024,8 @@ qomm_proof_duration_seconds{proof_type}
 qomm_frost_jobs_total{result}
 qomm_reservations_total{role,result}
 qomm_reservation_conflicts_total{scope}
-qomm_zkpi_total{result}
-qomm_defmi_finality_seconds
+zkpi_total{result}
+defmi_finality_seconds
 qomm_outbox_depth{destination}
 qomm_state_sequence{node_role}
 ```

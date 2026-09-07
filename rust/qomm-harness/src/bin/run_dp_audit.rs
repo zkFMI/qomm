@@ -269,7 +269,7 @@ fn run() -> HarnessResult<()> {
 
     let fields: Vec<Value> = options.fields.iter().map(|field| json!(field)).collect();
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "config": {
             "steps": options.steps,
             "window_steps": options.window_steps,

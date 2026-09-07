@@ -10,36 +10,36 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
 use ed25519_dalek::{Signature, SigningKey};
-use qomm_defmi::asset_link::prove as prove_asset_link;
-use qomm_defmi::avalanche::{
+use defmi::asset_link::prove as prove_asset_link;
+use defmi::avalanche::{
     AvalancheClient, AvalancheNoteBridge, AvalancheRpcClient, CanonicalCreditFacility,
     CanonicalCreditHold, CanonicalNoteReservation, CanonicalStandingNotePool,
     StandingNotePoolAllocationPreview, StandingPoolProductSettlementRequest,
 };
-use qomm_defmi::facility::{
+use defmi::facility::{
     reserve_handle_for, AssetDefinition, AssetKind, CreditFacilityGrant, CreditTransitionKind,
     GuarantorDefinition, GuarantorKind, ReservationRole, ZERO,
 };
-use qomm_defmi::facility::{
+use defmi::facility::{
     AdmissionBatchPlan, AdmissionCommitteePlan, CreditFacilityTransition, QuorumApproval,
     QuorumAuthorizer, ReservationAuthorization,
 };
-use qomm_defmi::note_chain::{
+use defmi::note_chain::{
     standing_note_pool_delegation_digest, standing_note_pool_id,
     standing_pool_product_settlement_statement, verify_claim_materialization, CsdIssuerDefinition,
     NoteIssuance, NoteOutput, NoteReservationEscrow, NoteSettlementOrder, NoteSpend,
     ProductNoteNoFillReleaseOrder, ProductNoteReleaseOrder, ProductNoteSettlementOrder,
     StandingNotePoolAllocation, StandingNotePoolRegistration,
 };
-use qomm_defmi::notes::{Address, NoteLedger, Wallet};
-use qomm_defmi::participant::{
+use defmi::notes::{Address, NoteLedger, Wallet};
+use defmi::participant::{
     KeyPurpose, MpcService, MpcServiceKind, MpcServiceMember, ParticipantKeys, ParticipantRecord,
     ParticipantRole, ParticipantServiceBinding, ParticipantStatus, PurposeKey, RegisterParticipant,
     RegistryConfiguration, ServiceStatus,
 };
-use qomm_defmi::product::{verify_note_reservation, verify_taker_reservation, IdentityEvidence};
-use qomm_defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
-use qomm_defmi::settlement_verifier::SettlementVerifierConfig;
+use defmi::product::{verify_note_reservation, verify_taker_reservation, IdentityEvidence};
+use defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
+use defmi::settlement_verifier::SettlementVerifierConfig;
 use qomm_mpc::program::{
     PRODUCT_QUOTE_ELIGIBILITY_BITS, PRODUCT_QUOTE_SPAN_BITS, PRODUCT_ZKPI_AMOUNT_BITS,
     PRODUCT_ZKPI_PRICE_BITS,
@@ -53,11 +53,11 @@ use qomm_transport::order::{
     verify_admission_lane, CertifiedAdmissionLane, NodeAdmissionAttestation, OrderedAdmission,
 };
 use qomm_transport::proof_client::ProofPartyRpc;
-use qomm_zk::pedersen::Pedersen;
-use qomm_zkpi::typed::{
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi::typed::{
     AuthorizationScope, ExecutionContext, OperationKind, TradeDirection, TypedInstruction,
 };
-use qomm_zkpi::{frost, typed_wire, Bounds, Issuer, Openings, Venue};
+use zkpi::{frost, typed_wire, Bounds, Issuer, Openings, Venue};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rand_core::OsRng;
@@ -145,7 +145,7 @@ pub struct DefmiKybBundle {
 pub struct DefmiMarketEpoch {
     rpc: AvalancheRpcClient,
     authorizer: QuorumAuthorizer,
-    governance_keys: BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
+    governance_keys: BTreeMap<String, defmi::governance::GovernanceSigner>,
     venue_id: [u8; 32],
     defmi_id: [u8; 32],
     epoch: u64,
@@ -693,7 +693,7 @@ impl DefmiMarketEpoch {
                     || existing.facility.cap_commitment != cap_commitment
                     || existing.facility.risk_policy_digest != guarantor.risk_policy_digest
                     || existing.facility.status
-                        != qomm_defmi::facility::CreditFacilityStatus::Active
+                        != defmi::facility::CreditFacilityStatus::Active
                 {
                     return Err("canonical Taker facility differs from its aggregate cap".into());
                 }
@@ -730,7 +730,7 @@ impl DefmiMarketEpoch {
                     nonce: hash_parts(&[b"QOMM:DEMO:TAKER-FACILITY-NONCE:v1", &facility_id]),
                     guarantor_signature: Vec::new(),
                 };
-                grant.guarantor_signature = qomm_defmi::facility::sign_guarantor_message(
+                grant.guarantor_signature = defmi::facility::sign_guarantor_message(
                     &guarantor_key,
                     &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
                     &grant.guarantor_message()?,
@@ -1292,7 +1292,7 @@ impl DefmiMarketEpoch {
             .position(|output| output.note_id == canonical_reservation.escrow_note_id)
             .ok_or_else(|| "Taker escrow note is absent from canonical DeFMI state".to_string())?;
         let escrow = &ledger.notes[escrow_index];
-        let expected_one_time = G * qomm_defmi::notes::note_serial(
+        let expected_one_time = G * defmi::notes::note_serial(
             &covenant_scalar(b"view"),
             &covenant_scalar(b"spend"),
             &escrow.ephemeral,
@@ -1302,10 +1302,10 @@ impl DefmiMarketEpoch {
         {
             return Err("canonical covenant differs from the authorized reserve opening".into());
         }
-        let opening = qomm_defmi::notes::Opening {
+        let opening = defmi::notes::Opening {
             value: maximum_amount,
             blinding: amount_blinding,
-            serial: qomm_defmi::notes::note_serial(
+            serial: defmi::notes::note_serial(
                 &covenant_scalar(b"view"),
                 &covenant_scalar(b"spend"),
                 &escrow.ephemeral,
@@ -1622,7 +1622,7 @@ impl DefmiMarketEpoch {
             .position(|output| output.note_id == canonical_reservation.escrow_note_id)
             .ok_or_else(|| "Taker escrow note is absent from canonical DeFMI state".to_string())?;
         let escrow = &ledger.notes[escrow_index];
-        let expected_one_time = G * qomm_defmi::notes::note_serial(
+        let expected_one_time = G * defmi::notes::note_serial(
             &covenant_scalar(b"view"),
             &covenant_scalar(b"spend"),
             &escrow.ephemeral,
@@ -1632,10 +1632,10 @@ impl DefmiMarketEpoch {
         {
             return Err("canonical covenant differs from the authorized reserve opening".into());
         }
-        let opening = qomm_defmi::notes::Opening {
+        let opening = defmi::notes::Opening {
             value: maximum_amount,
             blinding: amount_blinding,
-            serial: qomm_defmi::notes::note_serial(
+            serial: defmi::notes::note_serial(
                 &covenant_scalar(b"view"),
                 &covenant_scalar(b"spend"),
                 &escrow.ephemeral,
@@ -2257,7 +2257,7 @@ impl DefmiMarketEpoch {
                     || facility.rail_asset_id != mandate.asset_id
                     || facility.cap_commitment != expected_cap
                     || facility.risk_policy_digest != guarantor.risk_policy_digest
-                    || facility.status != qomm_defmi::facility::CreditFacilityStatus::Active
+                    || facility.status != defmi::facility::CreditFacilityStatus::Active
                 {
                     return Err("canonical Maker facility differs from its signed maximum".into());
                 }
@@ -2298,7 +2298,7 @@ impl DefmiMarketEpoch {
                     nonce: hash_parts(&[b"QOMM:DEMO:MAKER-FACILITY-NONCE:v1", &facility_id]),
                     guarantor_signature: Vec::new(),
                 };
-                grant.guarantor_signature = qomm_defmi::facility::sign_guarantor_message(
+                grant.guarantor_signature = defmi::facility::sign_guarantor_message(
                     &guarantor_key,
                     &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
                     &grant.guarantor_message()?,
@@ -2763,7 +2763,7 @@ impl DefmiMarketEpoch {
     pub fn registered_pq_committee(
         &self,
         public: &frost::keys::PublicKeyPackage,
-    ) -> Result<qomm_zkpi::QuorumPolicy, String> {
+    ) -> Result<zkpi::QuorumPolicy, String> {
         let saved = self
             .rpc
             .settlement_verifier_snapshot(self.venue_id, self.epoch)?;
@@ -2784,7 +2784,7 @@ impl DefmiMarketEpoch {
         &mut self,
         registry_digest: [u8; 32],
         frost_public: &frost::keys::PublicKeyPackage,
-        pq_committee: &qomm_zkpi::QuorumPolicy,
+        pq_committee: &zkpi::QuorumPolicy,
         _now: u64,
         existing_only: bool,
     ) -> Result<[u8; 32], String> {
@@ -3422,12 +3422,12 @@ fn development_committee(
 ) -> Result<
     (
         QuorumAuthorizer,
-        BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
+        BTreeMap<String, defmi::governance::GovernanceSigner>,
     ),
     String,
 > {
     let keys =
-        qomm_defmi::governance::public_development_keys().map_err(|error| error.to_string())?;
+        defmi::governance::public_development_keys().map_err(|error| error.to_string())?;
     let nodes = keys
         .iter()
         .map(|(name, key)| (name.clone(), key.verifying_key()))
@@ -3437,7 +3437,7 @@ fn development_committee(
 
 fn approve(
     authorizer: &QuorumAuthorizer,
-    keys: &BTreeMap<String, qomm_defmi::governance::GovernanceSigner>,
+    keys: &BTreeMap<String, defmi::governance::GovernanceSigner>,
     statement: [u8; 32],
     before_root: [u8; 32],
 ) -> Result<QuorumApproval, String> {

@@ -96,18 +96,18 @@ flowchart LR
 ```mermaid
 flowchart TB
     subgraph Core[現行のRustワークスペース]
-      ZK[qomm-zk<br/>暗号の基本部品]
-      ZKPI[qomm-zkpi<br/>支払指図]
+      ZK[zkfmi-zk<br/>暗号の基本部品]
+      ZKPI[zkpi<br/>支払指図]
       DSL[qomm-dsl<br/>価格規則の言語]
       MPC[qomm-mpc<br/>秘密計算回路]
       PROOF[qomm-proofs<br/>価格・資格・状態の証明]
       TRAN[qomm-transport<br/>固定通信・常駐ノード]
       AUD[qomm-audit<br/>受領記録・DP公開]
-      DEFMI[qomm-defmi<br/>決済・台帳]
+      DEFMI[defmi<br/>決済・台帳]
       SIM[qomm-sim<br/>市場・攻撃実験]
       DEMO[qomm-demo<br/>ブラウザ実演]
       LAW[qomm-law<br/>法令条件の検査]
-      MEAS[qomm-measure<br/>測定の共通処理]
+      MEAS[zkfmi-measure<br/>測定の共通処理]
       HAR[qomm-harness<br/>実行・成果物生成]
     end
 
@@ -141,7 +141,7 @@ flowchart TB
 | `rust/qomm-transport/src/bin/seven_node_cluster.rs` | 7ノード、相互TLS、独立SQLite、再起動・再送を一括試験する |
 | `rust/qomm-transport/src/bin/serve_qomm.rs` | MP-SPDZ回路を形ごとに一度コンパイルし、見積もり要求を受け続ける |
 | `rust/qomm-demo/src/main.rs` | ブラウザ実演サーバーを起動する |
-| `rust/qomm-zkpi/src/bin/verify.rs` | 標準入力のzkPIを解析・検証する独立CLI |
+| `rust/zkpi/src/bin/verify.rs` | 標準入力のzkPIを解析・検証する独立CLI |
 | `rust/qomm-law/src/bin/law.rs` | 法域・商品・日付を指定し、配備条件を検査する |
 
 ### 5.2 研究・性能測定の入口
@@ -449,7 +449,7 @@ new_inventory + signed_fill - old_inventory = 0
 
 ### 6.14 zkPIを作る
 
-実装: `rust/qomm-zkpi/`
+実装: `rust/zkpi/`
 
 MPC、Maker/Takerの承認、zkPI、DeFMIの関係は、[MPCからzkPIを作り、DeFMIで決済するまで](MPC_ZKPI_DEFMI_FLOW.md)で詳述する。
 
@@ -489,7 +489,7 @@ FROST鍵片は`proof_party`の暗号化状態から外へ出ない。予約用zk
 
 ### 6.15 DeFMIで指図を検査する
 
-実装: `rust/qomm-defmi/src/settlement.rs`、`rust/qomm-defmi/src/note_chain.rs`、`rust/qomm-defmi/src/product.rs`
+実装: `rust/defmi/src/settlement.rs`、`rust/defmi/src/note_chain.rs`、`rust/defmi/src/product.rs`
 
 基礎となる口座型DvPでは、zkPIの数量と証券脚を「生成元が違っても同じ値」という証明で結ぶ。現金脚については、次の積関係を証明する。
 
@@ -516,7 +516,7 @@ cash_value = quantity × price
 
 ### 6.16 DeFMIの永続状態機械
 
-実装: `rust/qomm-defmi/src/facility.rs`、`rust/qomm-defmi/src/note_chain.rs`、`avalanche/defmivm/state/`
+実装: `rust/defmi/src/facility.rs`、`rust/defmi/src/note_chain.rs`、`avalanche/defmivm/state/`
 
 `facility.rs`のチェーン中立なSQLite投影は、口座型・保証枠の比較試験とL1橋渡しに次を保存する。
 
@@ -574,7 +574,7 @@ SQLite口座型は`BEGIN IMMEDIATE`、Avalancheノート型は`versiondb`上の�
 
 ### 6.17 専用Avalanche L1へ送る
 
-実装: `rust/qomm-defmi/src/avalanche.rs`、`avalanche/defmivm/`
+実装: `rust/defmi/src/avalanche.rs`、`avalanche/defmivm/`
 
 RustのRPCクライアントは、資産、口座互換経路、CSD発行者、ノート発行、保証主体、保証枠、受付バッチ、ノート予約・解除、通常/商品ノート決済、原子的商品バッチ、請求権のノート化をJSON-RPCへ変換する。HTTPSを原則とし、平文HTTPは明示したlocalhost試験だけ許す。応答ID、HTTP状態、JSON-RPCエラー、最大1 MiB、時間切れを検査する。
 
@@ -673,9 +673,9 @@ DPを使わない運用も成立する。その場合は市場向け公開を行
 
 ## 7. 暗号部品を下から読む
 
-### 7.1 `qomm-zk`
+### 7.1 `zkfmi-zk`
 
-`qomm-zk` は、上位プロトコルが共通して使うRistretto255上の部品を持つ。
+`zkfmi-zk` は、上位プロトコルが共通して使うRistretto255上の部品を持つ。
 
 - `pedersen.rs`: Bulletproofsと同じ生成元を使うPedersenコミットメント。資産ごとの値生成元も導出する。
 - `sigma.rs`: 開示証明、生成元またぎ同値証明、積証明、線形関係、0/1証明、バッチ検証。
@@ -894,7 +894,7 @@ Ed25519とX25519を用途名ごとに生成する。新鍵生成時は旧active�
 
 `research_run.rs` は、研究契約、実験manifest、成果物、追記専用台帳をSHA-256で結ぶ。契約にない目的変更、同じ棄却実験の名前だけを変えた再実行、確証条件を満たさない昇格を拒否する。
 
-### 14.2 `qomm-measure`
+### 14.2 `zkfmi-measure`
 
 時間測定は、標本数、平均、標本標準偏差、中央値、最小、最大を持つ。証明長やコンパイルラウンド数のような決定値は`Exact`として区別する。過去成果物から固定した浮動小数点和、乱数、丸めの契約を用意し、実装変更と数値処理変更を区別する。
 
@@ -1000,7 +1000,7 @@ P0〜P3の製品受入経路は接続済みである。次は、コード上で�
 make rust-test
 
 # Avalanche VMの単体試験
-cargo test --manifest-path rust/Cargo.toml --release -p qomm-avalanche-vm
+cargo test --manifest-path rust/Cargo.toml --release -p defmi-avalanche-vm
 
 # 成果物の改変検査
 cd ../..
@@ -1042,25 +1042,25 @@ cargo run --manifest-path rust/Cargo.toml \
 4. `rust/qomm-harness/src/bin/run_pretrade_reservations.rs`
 5. `rust/qomm-transport/src/proof_party.rs`
 6. `rust/qomm-transport/src/settlement_handoff.rs`
-7. `rust/qomm-zkpi/src/typed.rs`
-8. `rust/qomm-defmi/src/product.rs`
-9. `rust/qomm-defmi/src/facility.rs`
-10. `rust/qomm-defmi/src/avalanche.rs`
-11. `rust/qomm-avalanche-vm/src/execution.rs`
+7. `rust/zkpi/src/typed.rs`
+8. `rust/defmi/src/product.rs`
+9. `rust/defmi/src/facility.rs`
+10. `rust/defmi/src/avalanche.rs`
+11. `rust/defmi-avalanche-vm/src/execution.rs`
 12. `avalanche/defmivm/scripts/run-full-qomm-l1.sh`
 
 ### 20.2 暗号境界を監査したい
 
 1. `SECURITY.md`
-2. `rust/qomm-zk/src/`
+2. `rust/zkfmi-zk/src/`
 3. `rust/qomm-proofs/src/threshold_sigma.rs`
 4. `rust/qomm-proofs/src/threshold_gadgets.rs`
 5. `rust/qomm-proofs/src/threshold_quote.rs`
 6. `rust/qomm-transport/src/proof_party.rs`
 7. `rust/qomm-transport/src/frost_cluster.rs`
-8. `rust/qomm-zkpi/src/typed.rs`
-9. `rust/qomm-defmi/src/asset_link.rs`
-10. `rust/qomm-defmi/src/settlement.rs`
+8. `rust/zkpi/src/typed.rs`
+9. `rust/defmi/src/asset_link.rs`
+10. `rust/defmi/src/settlement.rs`
 
 ### 20.3 運用・障害復旧を見たい
 
@@ -1071,8 +1071,8 @@ cargo run --manifest-path rust/Cargo.toml \
 5. `rust/qomm-transport/src/kyb_lifecycle.rs`
 6. `rust/qomm-transport/src/bin/provision_frost_cluster.rs`
 7. `rust/qomm-transport/src/bin/wan_acceptance.rs`
-8. `rust/qomm-defmi/src/facility.rs`
-9. `rust/qomm-defmi/src/avalanche.rs`
+8. `rust/defmi/src/facility.rs`
+9. `rust/defmi/src/avalanche.rs`
 10. `avalanche/defmivm/chain/`
 11. `avalanche/defmivm/scripts/run-full-qomm-l1.sh`
 

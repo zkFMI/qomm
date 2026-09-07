@@ -10,9 +10,9 @@ use qomm_mpc::program::{
 };
 use qomm_proofs::policy_audit::PolicyBounds;
 use qomm_transport::binding::{check_all, BindingDealer, BoundInputs};
-use qomm_zk::bitrange::{prove_bounded, verify_bounded, BoundedProof};
-use qomm_zk::pedersen::Pedersen;
-use qomm_zk::shamir;
+use zkfmi_zk::bitrange::{prove_bounded, verify_bounded, BoundedProof};
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
 use rand_core::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
@@ -91,7 +91,7 @@ fn run_main() -> HarnessResult<()> {
     let lagrange = ed25519_lagrange_at_zero(options.n_parties)?;
 
     let mut output = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "n_mm": options.n_mm,
         "n_parties": options.n_parties,
         "threshold": options.threshold,
@@ -316,7 +316,7 @@ fn deal_market(options: &Options, ref_table: &[i128]) -> HarnessResult<DealtMark
 
 fn reconstruct_blinding(bound: &BoundInputs, position: usize) -> HarnessResult<Scalar> {
     let dealt = bound.values.get(position).ok_or("missing dealt value")?;
-    let points = qomm_zk::shamir::points(bound.n_parties);
+    let points = zkfmi_zk::shamir::points(bound.n_parties);
     let shares = (1..=bound.n_parties)
         .map(|party| {
             dealt
@@ -409,7 +409,7 @@ fn reconstruct(bound: &BoundInputs, position: usize) -> Result<Scalar, String> {
         .values
         .get(position)
         .ok_or_else(|| "missing dealt value".to_string())?;
-    let points = qomm_zk::shamir::points(bound.n_parties);
+    let points = zkfmi_zk::shamir::points(bound.n_parties);
     let shares = (1..=bound.n_parties)
         .map(|party| {
             dealt

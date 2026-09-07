@@ -85,7 +85,7 @@ fn run() -> HarnessResult<()> {
         fsum(phi_values.iter().copied()) / phi_values.len() as f64
     };
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "question": "what the best possible disclosure of the informed fraction is worth to a market maker",
         "arm": "the true phi, exact and free, which no mechanism beats",
         "seeds": options.seeds,

@@ -350,7 +350,7 @@ produced.
 
 ## 4.5 The commitment scheme as a choice, and what a different one costs
 
-`rust/qomm-zk/src/lib.rs` made the *group* pluggable, which covers every discrete-logarithm
+`rust/zkfmi-zk/src/lib.rs` made the *group* pluggable, which covers every discrete-logarithm
 scheme and no others. The Rust commitment traits move the seam up to the commitment, because
 the interesting alternative is not another group:
 

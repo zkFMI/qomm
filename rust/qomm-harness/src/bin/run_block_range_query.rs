@@ -74,7 +74,7 @@ fn run() -> HarnessResult<()> {
         None
     };
     let payload = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "question": "whether a block-range question about distinct requesting entities carries anything, and at what range width",
         "prediction": "artifacts/block_range_query_prediction.json",
         "saturation_definition": "width at which the true distinct count reaches 95% of the entities seen",

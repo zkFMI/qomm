@@ -6,7 +6,7 @@ use qomm_mpc::inputs::{build_inputs, InputConfig};
 use qomm_mpc::program::{
     build_program, pow2_ceil, CheckMode, Mode, ProgramConfig, Reference, ED25519_ORDER, FIELDS,
 };
-use qomm_zk::pedersen::Pedersen;
+use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use serde_json::{json, Map, Value};
 use std::collections::BTreeMap;
@@ -198,7 +198,7 @@ fn run_main() -> HarnessResult<()> {
     let honest_openings = openings_json(&honest.openings)?;
     let right_node = tampered_verdict.2 == vec![tamper_party];
     let result = json!({
-        "host": qomm_measure::hosts::this_host(),
+        "host": zkfmi_measure::hosts::this_host(),
         "question": "Is the request the circuit priced the request the taker sent, and is the policy the one the maker published?",
         "setting": {
             "n_makers": options.n_mm,
