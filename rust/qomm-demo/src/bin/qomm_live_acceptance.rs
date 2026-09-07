@@ -25,7 +25,7 @@ use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-#[path = "qomm_live_acceptance_report.rs"]
+#[path = "qomm_live_acceptance/report.rs"]
 mod report;
 
 const USAGE: &str = "usage: qomm-live-acceptance <command> [--key value ...]
