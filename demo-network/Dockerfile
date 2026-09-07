@@ -224,12 +224,21 @@ COPY --chown=10001:10001 --from=mp-spdz-builder /opt/MP-SPDZ /opt/MP-SPDZ
 ENV MP_SPDZ_ROOT=/opt/MP-SPDZ
 ENV LD_LIBRARY_PATH=/opt/pqc-openssl/lib64:/opt/MP-SPDZ
 ENV PYTHONDONTWRITEBYTECODE=1
-RUN cd /opt/MP-SPDZ && sha256sum -c .pqc-tls.sha256 \
+# The MP-SPDZ Makefile writes its own RUNPATH (/opt/MP-SPDZ/local/lib:/opt/MP-SPDZ)
+# and drops the -rpath from CONFIG.mine, and the MPC node launches the party
+# with LD_LIBRARY_PATH set to the checkout only. Putting the 3.5 libraries on
+# that RUNPATH makes the party fail closed onto the hybrid build regardless
+# of the environment it is started with.
+RUN ln -s /opt/pqc-openssl/lib64/libssl.so.3 /opt/MP-SPDZ/libssl.so.3 \
+    && ln -s /opt/pqc-openssl/lib64/libcrypto.so.3 /opt/MP-SPDZ/libcrypto.so.3 \
+    && cd /opt/MP-SPDZ && sha256sum -c .pqc-tls.sha256 \
     && ! ldd /opt/MP-SPDZ/malicious-shamir-party.x | grep -F 'not found' \
     && ! ldd /opt/MP-SPDZ/libSPDZ.so | grep -F 'not found' \
     && ! ldd /usr/local/bin/qomm-mpc-node | grep -F 'not found' \
-    && env LD_LIBRARY_PATH=/opt/MP-SPDZ ldd /opt/MP-SPDZ/malicious-shamir-party.x \
-       | grep -F 'libssl.so.3 => /opt/pqc-openssl/lib64/' \
+    && env -u LD_LIBRARY_PATH ldd /opt/MP-SPDZ/malicious-shamir-party.x \
+       | grep -F 'libssl.so.3 => /opt/MP-SPDZ/libssl.so.3' \
+    && test "$(readlink -f /opt/MP-SPDZ/libssl.so.3)" = /opt/pqc-openssl/lib64/libssl.so.3 \
+    && /opt/pqc-openssl/bin/openssl version | grep -F 'OpenSSL 3.5' \
     && test -f /opt/MP-SPDZ/Player-Data/P6.pem
 USER qomm
 
