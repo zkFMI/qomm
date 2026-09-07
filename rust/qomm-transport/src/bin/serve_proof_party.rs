@@ -31,6 +31,7 @@ extern "C" fn request_stop(_: libc::c_int) {
 
 #[derive(Deserialize)]
 struct Config {
+    recipient_opening_keys: Vec<qomm_transport::proof_party::RecipientOpeningKey>,
     deployment_id: String,
     node: u16,
     host: String,
@@ -256,6 +257,7 @@ fn run(config_path: &Path) -> Result<(), String> {
     });
     let allowed_root = resolve(base, &config.allowed_root);
     let party = ProofParty::new(ProofPartyConfig {
+        recipient_opening_keys: config.recipient_opening_keys.clone(),
         node: config.node,
         allowed_root,
         state_file: resolve(base, &config.state_file),
@@ -373,7 +375,7 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
+    use qomm_transport::application_crypto::SigningKey;
     use qomm_transport::key_management::{
         create_ca, issue_mutual_tls_certificate, write_tls_bundle,
     };
@@ -448,6 +450,7 @@ mod tests {
         .unwrap();
         let receipt_key = SigningKey::generate(&mut OsRng).verifying_key().to_bytes();
         let config = Config {
+            recipient_opening_keys: Vec::new(),
             deployment_id: "proof-tls-test".into(),
             node: 0,
             host: "127.0.0.1".into(),
@@ -473,6 +476,7 @@ mod tests {
             idle_timeout_seconds: Some(2),
         };
         let party = ProofParty::new(ProofPartyConfig {
+            recipient_opening_keys: Vec::new(),
             node: 0,
             allowed_root: root.path().to_path_buf(),
             state_file: root.path().join("proof-state.qps"),

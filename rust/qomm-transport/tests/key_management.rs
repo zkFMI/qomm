@@ -16,10 +16,66 @@ fn store(directory: &tempfile::TempDir) -> EncryptedKeyStore {
 }
 
 #[test]
+fn ml_dsa_authority_restores_rotates_and_rejects_live_retired_keys() {
+    use zkfmi_crypto::{
+        key::KeyPurpose,
+        traits::{Signer, Verifier},
+    };
+    let directory = tempfile::tempdir().unwrap();
+    let vault = store(&directory);
+    let first = vault
+        .generate("admin_pq", KeyKind::MlDsa65, 100, 1000, BTreeMap::new())
+        .unwrap();
+    let key = vault.private_key(&first, 101, false).unwrap();
+    let public = key.ml_dsa65().unwrap().public_key();
+    let signature = key
+        .ml_dsa65()
+        .unwrap()
+        .sign(KeyPurpose::Attestation, b"approval")
+        .unwrap();
+    drop(key);
+    drop(vault);
+    let restored = EncryptedKeyStore::new(
+        directory.path().join("keys.qks"),
+        b"correct horse battery staple",
+    )
+    .unwrap();
+    assert_eq!(
+        restored
+            .private_key(&first, 102, false)
+            .unwrap()
+            .ml_dsa65()
+            .unwrap()
+            .public_key(),
+        public
+    );
+    zkfmi_crypto::backend::MlDsa65Verifier
+        .verify(KeyPurpose::Attestation, &public, b"approval", &signature)
+        .unwrap();
+    let second = restored
+        .rotate("admin_pq", KeyKind::MlDsa65, 200, 1000, BTreeMap::new())
+        .unwrap();
+    assert_ne!(second, first);
+    assert!(restored.private_key(&first, 201, false).is_err());
+    assert!(restored.private_key(&first, 201, true).is_ok());
+    assert!(restored
+        .rotate("admin_pq", KeyKind::Ed25519, 202, 1000, BTreeMap::new())
+        .is_err());
+    restored.revoke(&first, 203, "retired authority").unwrap();
+    assert!(restored.private_key(&first, 204, true).is_err());
+}
+
+#[test]
 fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
     use ed25519_dalek::SigningKey;
-    use qomm_transport::selective_disclosure::{open_if_winner, seal_for_winner};
+    use qomm_transport::selective_disclosure::{open_if_winner, seal_for_winner, WinnerSenderAuth};
     use rand_core::OsRng;
+    use zkfmi_crypto::{
+        backend::MlDsa65Signer,
+        key::{KeyId, KeyPurpose, KeyRecord, ParticipantId},
+        suite::{Suite, SuiteId},
+        traits::Signer,
+    };
     let directory = tempfile::tempdir().unwrap();
     let vault = store(&directory);
     let purpose = "maker:m1:hybrid-delivery";
@@ -27,6 +83,20 @@ fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
         .generate(purpose, KeyKind::HybridKem, 100, 1000, BTreeMap::new())
         .unwrap();
     let taker = SigningKey::generate(&mut OsRng);
+    let pq = MlDsa65Signer::generate().unwrap();
+    let pq_key = KeyRecord {
+        participant_id: ParticipantId::new("key-management-test-taker").unwrap(),
+        key_id: KeyId::new("key-management-test-settlement-v1").unwrap(),
+        suite: Suite::new(SuiteId::MlDsa65),
+        key_version: 1,
+        purpose: KeyPurpose::SettlementInstruction,
+        public_key: pq.public_key(),
+        not_before: 100,
+        not_after: 1_000,
+        revoked_at: None,
+        rotation_proof: None,
+        dekyx_binding: None,
+    };
     let old_public = vault
         .private_key(&old, 101, false)
         .unwrap()
@@ -34,8 +104,16 @@ fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
         .unwrap()
         .public_key()
         .unwrap();
-    let envelope =
-        seal_for_winner("m1", &old_public, b"settle", b"market", [5; 32], &taker).unwrap();
+    let envelope = seal_for_winner(
+        "m1",
+        &old_public,
+        b"settle",
+        b"market",
+        [5; 32],
+        &taker,
+        &pq,
+    )
+    .unwrap();
     assert!(vault.private_key(&old, 99, false).is_err());
     let new = vault
         .rotate(purpose, KeyKind::HybridKem, 200, 1000, BTreeMap::new())
@@ -52,7 +130,19 @@ fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
         .map(|key| key.hybrid_kem().unwrap().clone())
         .collect::<Vec<_>>();
     assert_eq!(
-        open_if_winner(&envelope, "m1", &keys, b"market", [5; 32], None).unwrap(),
+        open_if_winner(
+            &envelope,
+            "m1",
+            &keys,
+            b"market",
+            [5; 32],
+            WinnerSenderAuth {
+                ed25519: &taker.verifying_key(),
+                pq_key: &pq_key,
+                valid_at: 201,
+            },
+        )
+        .unwrap(),
         Some(b"settle".to_vec())
     );
     assert!(restored.private_key(&old, 201, false).is_err());
@@ -69,7 +159,19 @@ fn hybrid_key_restore_rotation_revocation_and_downgrade_are_enforced() {
         .map(|key| key.hybrid_kem().unwrap().clone())
         .collect::<Vec<_>>();
     assert_eq!(
-        open_if_winner(&envelope, "m1", &keys, b"market", [5; 32], None).unwrap(),
+        open_if_winner(
+            &envelope,
+            "m1",
+            &keys,
+            b"market",
+            [5; 32],
+            WinnerSenderAuth {
+                ed25519: &taker.verifying_key(),
+                pq_key: &pq_key,
+                valid_at: 203,
+            },
+        )
+        .unwrap(),
         None
     );
 }
@@ -200,7 +302,7 @@ fn public_registry_is_signed_and_contains_no_private_field() {
     let signer = vault
         .generate(
             "registry-signing",
-            KeyKind::Ed25519,
+            KeyKind::HybridSignature,
             100,
             1000,
             BTreeMap::new(),
@@ -217,12 +319,12 @@ fn public_registry_is_signed_and_contains_no_private_field() {
         .unwrap();
     let manifest = vault.public_manifest(&signer, 102).unwrap();
     let signing = vault.private_key(&signer, 102, false).unwrap();
-    assert!(manifest.verify(&signing.ed25519().unwrap().verifying_key()));
+    assert!(manifest.verify(&signing.hybrid_signature().unwrap().verifying_key()));
     let encoded = serde_json::to_string(&manifest.records).unwrap();
     assert!(!encoded.contains("private"));
     let mut moved = manifest.clone();
     moved.generation += 1;
-    assert!(!moved.verify(&signing.ed25519().unwrap().verifying_key()));
+    assert!(!moved.verify(&signing.hybrid_signature().unwrap().verifying_key()));
 }
 
 #[test]
@@ -346,4 +448,87 @@ fn node_local_csr_rejects_classical_keys_and_mismatched_authorities() {
         1,
     )
     .is_err());
+}
+
+#[test]
+fn application_signature_custody_survives_restore_and_closes_retirement() {
+    let directory = tempfile::tempdir().unwrap();
+    let vault = store(&directory);
+    let first = vault
+        .generate(
+            "application",
+            KeyKind::HybridSignature,
+            100,
+            1000,
+            BTreeMap::new(),
+        )
+        .unwrap();
+    let stored = vault.private_key(&first, 101, false).unwrap();
+    let key = stored.hybrid_signature().unwrap();
+    let public = key.verifying_key();
+    let signature = key.try_sign(b"binding").unwrap();
+    assert!(stored.raw_private_key().is_err());
+    drop(stored);
+    drop(vault);
+    let restored = EncryptedKeyStore::new(
+        directory.path().join("keys.qks"),
+        b"correct horse battery staple",
+    )
+    .unwrap();
+    let stored = restored.private_key(&first, 102, false).unwrap();
+    assert_eq!(stored.hybrid_signature().unwrap().verifying_key(), public);
+    public.verify(b"binding", &signature).unwrap();
+    let second = restored
+        .rotate(
+            "application",
+            KeyKind::HybridSignature,
+            200,
+            1000,
+            BTreeMap::new(),
+        )
+        .unwrap();
+    assert_ne!(first, second);
+    assert!(restored.private_key(&first, 201, false).is_err());
+    assert!(restored.private_key(&first, 201, true).is_ok());
+    assert!(restored
+        .rotate("application", KeyKind::Ed25519, 202, 1000, BTreeMap::new())
+        .is_err());
+    restored.revoke(&first, 203, "retired").unwrap();
+    assert!(restored.private_key(&first, 204, true).is_err());
+}
+
+#[test]
+fn application_key_cli_generates_into_existing_encrypted_custody() {
+    let directory = tempfile::tempdir().unwrap();
+    let passphrase = directory.path().join("passphrase");
+    fs::write(&passphrase, b"fixture-only custody phrase").unwrap();
+    fs::set_permissions(&passphrase, fs::Permissions::from_mode(0o600)).unwrap();
+    let path = directory.path().join("keys.qks");
+    let invoke = |arguments: &[&str]| {
+        std::process::Command::new(env!("CARGO_BIN_EXE_qomm_key_tool"))
+            .arg(&path)
+            .arg(&passphrase)
+            .args(arguments)
+            .output()
+            .unwrap()
+    };
+    assert!(invoke(&["init"]).status.success());
+    assert!(!invoke(&["init"]).status.success());
+    let result = invoke(&["generate", "application", "100", "1000"]);
+    assert!(result.status.success());
+    let value: serde_json::Value = serde_json::from_slice(&result.stdout).unwrap();
+    let store = EncryptedKeyStore::new(&path, b"fixture-only custody phrase").unwrap();
+    let key = store
+        .private_key(value["key_id"].as_str().unwrap(), 101, false)
+        .unwrap();
+    let signer = key.hybrid_signature().unwrap();
+    signer
+        .verifying_key()
+        .verify(
+            b"restored CLI key",
+            &signer.try_sign(b"restored CLI key").unwrap(),
+        )
+        .unwrap();
+    fs::set_permissions(&passphrase, fs::Permissions::from_mode(0o644)).unwrap();
+    assert!(!invoke(&["public"]).status.success());
 }

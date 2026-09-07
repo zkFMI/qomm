@@ -9,7 +9,7 @@ use crate::participant_client::{KybPresentationRequest, ParticipantClient, Parti
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
+use ed25519_dalek::{Signature, SigningKey};
 use qomm_defmi::asset_link::prove as prove_asset_link;
 use qomm_defmi::avalanche::{
     AvalancheClient, AvalancheNoteBridge, AvalancheRpcClient, CanonicalCreditFacility,
@@ -82,8 +82,12 @@ const AUTOMATIC_EXPIRY_RELEASE_VALID_UNTIL: u64 = i64::MAX as u64;
 /// Public-demo receipt authority shared by the local DeFMI container and the
 /// seven proof nodes.  This deterministic key is intentionally non-secret and
 /// must never be used outside the checked-in demonstration network.
-pub fn development_receipt_signing_key() -> SigningKey {
-    SigningKey::from_bytes(&digest("QOMM:DEMO:DEFMI-RESERVATION-RECEIPT:v1"))
+pub fn development_receipt_signing_key() -> qomm_transport::application_crypto::SigningKey {
+    // Public demo-only fixture: two explicitly distinct seed domains.
+    let mut seeds = [0; 64];
+    seeds[..32].copy_from_slice(&digest("QOMM:DEMO:DEFMI-RESERVATION-RECEIPT:ED:v2"));
+    seeds[32..].copy_from_slice(&digest("QOMM:DEMO:DEFMI-RESERVATION-RECEIPT:PQ:v2"));
+    qomm_transport::application_crypto::SigningKey::from_bytes(&seeds)
 }
 
 pub fn development_receipt_public() -> [u8; 32] {
@@ -128,7 +132,7 @@ pub struct DefmiBootstrapReport {
 #[derive(Clone, Debug)]
 pub struct DefmiKybBundle {
     pub registry: SignedCohortRegistry,
-    pub trusted_issuer: VerifyingKey,
+    pub trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
     pub scope: Vec<u8>,
     pub context: Vec<u8>,
     pub required_cohort: String,
@@ -362,6 +366,9 @@ impl DefmiMarketEpoch {
             jurisdiction: "JP".into(),
             operator_entity_commitment: hash_parts(&[b"QOMM:DEMO:CSD-OPERATOR:v1", &self.defmi_id]),
             public_key: csd_key.verifying_key().to_bytes(),
+            pq_public_key: zkfmi_crypto::traits::Signer::public_key(
+                &zkfmi_crypto::test_support::entity_pq_signer(&csd_key.to_bytes()),
+            ),
             permitted_asset_ids: vec![asset_id],
             policy_digest: hash_parts(&[b"QOMM:DEMO:CSD-POLICY:v1", &self.defmi_id, &asset_id]),
             valid_from: 1,
@@ -643,6 +650,9 @@ impl DefmiMarketEpoch {
             kind: GuarantorKind::SelfGuaranteed,
             name: format!("Taker reserve {}", &hex::encode(entity_commitment)[..12]),
             public_key: guarantor_key.verifying_key().to_bytes(),
+            pq_public_key: zkfmi_crypto::traits::Signer::public_key(
+                &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
+            ),
             risk_policy_digest: hash_parts(&[
                 b"QOMM:DEMO:TAKER-RISK-POLICY:v1",
                 &self.defmi_id,
@@ -718,9 +728,13 @@ impl DefmiMarketEpoch {
                     valid_from: 1,
                     valid_until: DEMO_INFRASTRUCTURE_VALID_UNTIL,
                     nonce: hash_parts(&[b"QOMM:DEMO:TAKER-FACILITY-NONCE:v1", &facility_id]),
-                    guarantor_signature: Signature::from_bytes(&[0; 64]),
+                    guarantor_signature: Vec::new(),
                 };
-                grant.guarantor_signature = guarantor_key.sign(&grant.guarantor_message()?);
+                grant.guarantor_signature = qomm_defmi::facility::sign_guarantor_message(
+                    &guarantor_key,
+                    &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
+                    &grant.guarantor_message()?,
+                )?;
                 let before = self.rpc.state_root()?;
                 let approval = approve(
                     &self.authorizer,
@@ -753,7 +767,7 @@ impl DefmiMarketEpoch {
         admission_receipt: &DefmiAdmissionReceipt,
         presentation: &KybPresentation,
         registry: &SignedCohortRegistry,
-        trusted_issuer: &VerifyingKey,
+        trusted_issuer: &qomm_proofs::kyb::KybIssuerKey,
         identity_scope: &[u8],
         identity_context: &[u8],
         required_cohort: &str,
@@ -1014,14 +1028,16 @@ impl DefmiMarketEpoch {
         if partial.digest().as_slice() != payment_digest.as_slice() {
             return Err("reserve issuer returned a mismatched payment digest".into());
         }
+        let pq_committee = self.registered_pq_committee(frost_public)?;
         let payment_signature = sign_reserve_payment(
             proof_parties,
             &[1, 4, 7],
             frost_public,
+            &pq_committee,
             &partial,
             ReserveMandateRef::Taker(mandate),
         )?;
-        let payment = partial.sealed(payment_signature);
+        let payment = partial.sealed_hybrid(payment_signature.classical, payment_signature.pq);
         let context = ExecutionContext {
             operation: OperationKind::Reserve,
             scope: AuthorizationScope::Taker,
@@ -1051,16 +1067,18 @@ impl DefmiMarketEpoch {
             market_statement_digest: ZERO,
             before_state_root: before,
         };
+        let authorization = sign_reserve_context(
+            proof_parties,
+            &[1, 4, 7],
+            frost_public,
+            &pq_committee,
+            &payment,
+            &context,
+            ReserveMandateRef::Taker(mandate),
+        )?;
         let typed = TypedInstruction {
-            pq_authorization: None,
-            authorization: sign_reserve_context(
-                proof_parties,
-                &[1, 4, 7],
-                frost_public,
-                &payment,
-                &context,
-                ReserveMandateRef::Taker(mandate),
-            )?,
+            pq_authorization: Some(authorization.pq),
+            authorization: authorization.classical,
             payment,
             context,
         };
@@ -1111,7 +1129,9 @@ impl DefmiMarketEpoch {
             &identity,
             now,
         )?;
-        let venue = Venue::new(issuer.key.clone(), &issuer.bounds, frost_public.clone());
+        let venue = Venue::new(issuer.key.clone(), &issuer.bounds, frost_public.clone())
+            .require_pq_committee(pq_committee)
+            .map_err(|error| error.to_string())?;
         verify_note_reservation(
             &transition,
             &relation_proof,
@@ -1262,7 +1282,6 @@ impl DefmiMarketEpoch {
             }
             value
         };
-        let covenant = Wallet::from_parts(covenant_scalar(b"view"), covenant_scalar(b"spend"));
         let (note_root, ledger, canonical_notes) =
             bridge.note_ledger(mandate.reserve_asset_id, key.clone(), 64, 16_384)?;
         if note_root != proof_root {
@@ -1272,11 +1291,26 @@ impl DefmiMarketEpoch {
             .iter()
             .position(|output| output.note_id == canonical_reservation.escrow_note_id)
             .ok_or_else(|| "Taker escrow note is absent from canonical DeFMI state".to_string())?;
-        let opening = ledger
-            .scan(&covenant, &key)
-            .into_iter()
-            .find_map(|(index, opening)| (index == escrow_index).then_some(opening))
-            .ok_or_else(|| "automatic covenant cannot open the Taker escrow note".to_string())?;
+        let escrow = &ledger.notes[escrow_index];
+        let expected_one_time = G * qomm_defmi::notes::note_serial(
+            &covenant_scalar(b"view"),
+            &covenant_scalar(b"spend"),
+            &escrow.ephemeral,
+        );
+        if escrow.one_time != expected_one_time
+            || escrow.value_commitment != key.commit_u64(maximum_amount, &amount_blinding)
+        {
+            return Err("canonical covenant differs from the authorized reserve opening".into());
+        }
+        let opening = qomm_defmi::notes::Opening {
+            value: maximum_amount,
+            blinding: amount_blinding,
+            serial: qomm_defmi::notes::note_serial(
+                &covenant_scalar(b"view"),
+                &covenant_scalar(b"spend"),
+                &escrow.ephemeral,
+            ),
+        };
         if opening.value != maximum_amount || opening.blinding != amount_blinding {
             return Err("Taker escrow note differs from the pre-RFQ reserve opening".into());
         }
@@ -1303,6 +1337,7 @@ impl DefmiMarketEpoch {
             .map(|lock| *lock == mandate.reserve_id)
             .collect::<Vec<_>>();
         let recipient = Address {
+            opening_public: snapshot.note_opening_public,
             view: CompressedRistretto(snapshot.note_view_public)
                 .decompress()
                 .ok_or_else(|| "Taker refund view key is not canonical".to_string())?,
@@ -1577,7 +1612,6 @@ impl DefmiMarketEpoch {
             }
             value
         };
-        let covenant = Wallet::from_parts(covenant_scalar(b"view"), covenant_scalar(b"spend"));
         let (note_root, ledger, canonical_notes) =
             bridge.note_ledger(mandate.reserve_asset_id, key.clone(), 64, 16_384)?;
         if note_root != proof_root {
@@ -1587,11 +1621,26 @@ impl DefmiMarketEpoch {
             .iter()
             .position(|output| output.note_id == canonical_reservation.escrow_note_id)
             .ok_or_else(|| "Taker escrow note is absent from canonical DeFMI state".to_string())?;
-        let opening = ledger
-            .scan(&covenant, &key)
-            .into_iter()
-            .find_map(|(index, opening)| (index == escrow_index).then_some(opening))
-            .ok_or_else(|| "automatic covenant cannot open the expired Taker escrow".to_string())?;
+        let escrow = &ledger.notes[escrow_index];
+        let expected_one_time = G * qomm_defmi::notes::note_serial(
+            &covenant_scalar(b"view"),
+            &covenant_scalar(b"spend"),
+            &escrow.ephemeral,
+        );
+        if escrow.one_time != expected_one_time
+            || escrow.value_commitment != key.commit_u64(maximum_amount, &amount_blinding)
+        {
+            return Err("canonical covenant differs from the authorized reserve opening".into());
+        }
+        let opening = qomm_defmi::notes::Opening {
+            value: maximum_amount,
+            blinding: amount_blinding,
+            serial: qomm_defmi::notes::note_serial(
+                &covenant_scalar(b"view"),
+                &covenant_scalar(b"spend"),
+                &escrow.ephemeral,
+            ),
+        };
         if opening.value != maximum_amount || opening.blinding != amount_blinding {
             return Err("expired escrow differs from the pre-RFQ reserve opening".into());
         }
@@ -1618,6 +1667,7 @@ impl DefmiMarketEpoch {
             .map(|lock| *lock == mandate.reserve_id)
             .collect::<Vec<_>>();
         let recipient = Address {
+            opening_public: snapshot.note_opening_public,
             view: CompressedRistretto(snapshot.note_view_public)
                 .decompress()
                 .ok_or_else(|| "Taker refund view key is not canonical".to_string())?,
@@ -1943,6 +1993,9 @@ impl DefmiMarketEpoch {
             jurisdiction: "JP".into(),
             operator_entity_commitment: hash_parts(&[b"QOMM:DEMO:CSD-OPERATOR:v1", &self.defmi_id]),
             public_key: csd_key.verifying_key().to_bytes(),
+            pq_public_key: zkfmi_crypto::traits::Signer::public_key(
+                &zkfmi_crypto::test_support::entity_pq_signer(&csd_key.to_bytes()),
+            ),
             permitted_asset_ids: vec![mandate.asset_id],
             policy_digest: hash_parts(&[
                 b"QOMM:DEMO:CSD-POLICY:v1",
@@ -2159,6 +2212,9 @@ impl DefmiMarketEpoch {
                 &hex::encode(mandate.entity_commitment)[..12]
             ),
             public_key: guarantor_key.verifying_key().to_bytes(),
+            pq_public_key: zkfmi_crypto::traits::Signer::public_key(
+                &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
+            ),
             risk_policy_digest: hash_parts(&[
                 b"QOMM:DEMO:MAKER-RISK-POLICY:v1",
                 &self.defmi_id,
@@ -2240,9 +2296,13 @@ impl DefmiMarketEpoch {
                     valid_from: 1,
                     valid_until: DEMO_INFRASTRUCTURE_VALID_UNTIL,
                     nonce: hash_parts(&[b"QOMM:DEMO:MAKER-FACILITY-NONCE:v1", &facility_id]),
-                    guarantor_signature: Signature::from_bytes(&[0; 64]),
+                    guarantor_signature: Vec::new(),
                 };
-                grant.guarantor_signature = guarantor_key.sign(&grant.guarantor_message()?);
+                grant.guarantor_signature = qomm_defmi::facility::sign_guarantor_message(
+                    &guarantor_key,
+                    &zkfmi_crypto::test_support::entity_pq_signer(&guarantor_key.to_bytes()),
+                    &grant.guarantor_message()?,
+                )?;
                 let before = self.rpc.state_root()?;
                 let approval = approve(
                     &self.authorizer,
@@ -2272,18 +2332,22 @@ impl DefmiMarketEpoch {
     ) -> Result<NoteOutput, String> {
         let key = Pedersen::new(b"qomm:defmi:v1");
         let address = if decoy {
+            // The demonstration decoy retains its stable public identity.
+            // Its unused recipient key is independent of those public labels.
             Address {
                 view: G * deterministic_scalar(&[b"QOMM:DEMO:MAKER-DECOY-VIEW:v1", &pool_id]),
                 spend: G * deterministic_scalar(&[b"QOMM:DEMO:MAKER-DECOY-SPEND:v1", &pool_id]),
+                opening_public: Wallet::new(&mut rand::rngs::OsRng).address.opening_public,
             }
         } else {
             Address {
+                opening_public: snapshot.note_opening_public,
                 view: CompressedRistretto(snapshot.note_view_public)
                     .decompress()
-                    .ok_or_else(|| "Maker note view key is not canonical".to_string())?,
+                    .ok_or("Maker note view key is not canonical")?,
                 spend: CompressedRistretto(snapshot.note_spend_public)
                     .decompress()
-                    .ok_or_else(|| "Maker note spend key is not canonical".to_string())?,
+                    .ok_or("Maker note spend key is not canonical")?,
             }
         };
         let discriminator = if decoy {
@@ -2300,17 +2364,46 @@ impl DefmiMarketEpoch {
             key.commit_u64(amount, &blinding),
             &blinding,
             &mut rng,
-        );
+        )?;
         let output = NoteOutput::from_note(&note, asset_id, ZERO)?;
-        match self.rpc.note_snapshot(output.note_id) {
-            Ok(existing) => {
-                if existing.output != output {
-                    return Err("canonical source note differs from deterministic issuance".into());
-                }
-                return Ok(output);
+        let mut after = None;
+        let mut observed_root = None;
+        let mut found = None;
+        let mut count = 0_usize;
+        loop {
+            let page = self.rpc.note_page(asset_id, after, 256)?;
+            if observed_root.is_some_and(|root| root != page.state_root) {
+                return Err("note issuance recovery observed changing state".into());
             }
-            Err(error) if not_found(&error) => {}
-            Err(error) => return Err(error),
+            observed_root = Some(page.state_root);
+            for existing in page.notes {
+                count += 1;
+                if count > 16_384 {
+                    return Err("note issuance recovery exceeds its bound".into());
+                }
+                // The issuer's deterministic one-time key identifies this
+                // issuance. Preserve its original authenticated ciphertext.
+                if existing.one_time == output.one_time
+                    && existing.ephemeral == output.ephemeral
+                    && (existing.asset_id != output.asset_id
+                        || existing.value_commitment != output.value_commitment
+                        || existing.lock_id != output.lock_id
+                        || found.replace(existing).is_some())
+                {
+                    return Err("note issuance recovery found conflicting contents".into());
+                }
+            }
+            match page.next {
+                Some(next) if after != Some(next) => after = Some(next),
+                Some(_) => return Err("note issuance recovery cursor did not advance".into()),
+                None => break,
+            }
+        }
+        if let Some(existing) = found {
+            if observed_root != Some(self.rpc.state_root()?) {
+                return Err("note issuance recovery state changed".into());
+            }
+            return Ok(existing);
         }
         let mut issuance = NoteIssuance {
             operation_id: hash_parts(&[b"QOMM:DEMO:MAKER-NOTE-OP:v1", &pool_id, discriminator]),
@@ -2328,8 +2421,12 @@ impl DefmiMarketEpoch {
                 discriminator,
             ]),
             issuer_signature: Signature::from_bytes(&[0; 64]),
+            issuer_pq_signature: vec![0; 3309],
         };
-        issuance.issuer_signature = issuer_key.sign(&issuance.issuer_message()?);
+        issuance = issuance.sign_issuer(
+            issuer_key,
+            &zkfmi_crypto::test_support::entity_pq_signer(&issuer_key.to_bytes()),
+        )?;
         issuance.verify_issuer(issuer, now)?;
         let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
         let before = self.rpc.state_root()?;
@@ -2661,6 +2758,28 @@ impl DefmiMarketEpoch {
         })
     }
 
+    /// Read the committee enrolled in canonical governance state, independently
+    /// of any settlement or signature response.
+    pub fn registered_pq_committee(
+        &self,
+        public: &frost::keys::PublicKeyPackage,
+    ) -> Result<qomm_zkpi::QuorumPolicy, String> {
+        let saved = self
+            .rpc
+            .settlement_verifier_snapshot(self.venue_id, self.epoch)?;
+        saved.config.validate()?;
+        if saved.statement != saved.config.statement()?
+            || saved.config.venue_id != self.venue_id
+            || saved.config.defmi_id != self.defmi_id
+            || saved.config.epoch != self.epoch
+            || Some(saved.config.quote_registry_digest) != self.registry_digest
+            || saved.config.frost_public_package != public.serialize().map_err(|e| e.to_string())?
+        {
+            return Err("canonical settlement committee differs from this market".into());
+        }
+        Ok(saved.config.pq_committee)
+    }
+
     pub fn register_verifier(
         &mut self,
         registry_digest: [u8; 32],
@@ -2752,7 +2871,7 @@ impl DefmiMarketEpoch {
     pub fn register_admission(
         &mut self,
         attestations: &[NodeAdmissionAttestation],
-        node_keys: &[VerifyingKey],
+        node_keys: &[qomm_transport::application_crypto::VerifyingKey],
         expires_at: u64,
     ) -> Result<DefmiAdmissionReceipt, String> {
         if self.registry_digest.is_none() {
@@ -2761,7 +2880,7 @@ impl DefmiMarketEpoch {
         let certified = verify_admission_lane(attestations, node_keys)?;
         let raw_keys = node_keys
             .iter()
-            .map(VerifyingKey::to_bytes)
+            .map(qomm_transport::application_crypto::VerifyingKey::to_bytes)
             .collect::<Vec<_>>();
         let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
         if self.committee_keys.as_deref() != Some(raw_keys.as_slice()) {
@@ -2879,9 +2998,13 @@ pub fn bootstrap(config: DefmiBootstrapConfig) -> Result<DefmiBootstrapReport, S
         .chain_update(config.program_digest)
         .finalize()
         .into();
-    let kyb_signing =
-        SigningKey::from_bytes(&digest(&format!("QOMM:DEMO:KYB-ISSUER:{chain_id}:v1")));
-    let trusted_issuer = kyb_signing.verifying_key();
+    // Public deterministic lab fixture; production KYB keys come from encrypted custody.
+    let kyb_signing = zkfmi_crypto::test_support::hybrid_signer(&digest(&format!(
+        "QOMM:DEMO:KYB-ISSUER:{chain_id}:v2"
+    )));
+    let trusted_issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        &zkfmi_crypto::traits::Signer::public_key(kyb_signing.as_ref()),
+    )?;
     let required_cohort = cohort_id("JP", "regulated-dealer", 2);
     let registry = SignedCohortRegistry::issue(
         &required_cohort,
@@ -3147,6 +3270,12 @@ fn registration(
 ) -> Result<RegisterParticipant, String> {
     let key = |purpose: &str| -> Result<PurposeKey, String> {
         Ok(PurposeKey {
+            pq_public_key: entity
+                .snapshot
+                .pq_public_keys
+                .get(purpose)
+                .ok_or_else(|| format!("participant has no enrolled {purpose} PQ key"))?
+                .clone(),
             public_key: *entity
                 .snapshot
                 .public_keys
@@ -3243,6 +3372,14 @@ fn verify_participant(existing: &Value, entity: &Entity) -> Result<(), String> {
             .pointer(&format!("/keys/{json_name}"))
             .ok_or_else(|| format!("existing participant has no {json_name} key"))?;
         require_hex(key, "publicKey", expected)?;
+        let pq = entity
+            .snapshot
+            .pq_public_keys
+            .get(purpose)
+            .ok_or("participant has no independently enrolled PQ purpose key")?;
+        if key.get("pqPublicKey").and_then(Value::as_str) != Some(hex::encode(pq).as_str()) {
+            return Err("registered participant PQ purpose key differs from enrolled key".into());
+        }
     }
     Ok(())
 }

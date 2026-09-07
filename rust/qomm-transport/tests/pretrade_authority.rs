@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey};
 use qomm_proofs::kyb::{cohort_id, present, BusinessAttributes, KybIssuer};
+use qomm_transport::application_crypto::{Signature, SigningKey};
 use qomm_transport::mandate::{Direction, MakerPolicyMandate, TakerExecutionMandate, ZERO};
 use qomm_transport::pretrade_authority::{
     read_ack_private, read_authority_private, write_ack_private, write_authority_private,

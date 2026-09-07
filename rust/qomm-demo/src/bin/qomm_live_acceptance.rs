@@ -964,8 +964,12 @@ fn reencode_note_with_commitment(dto: &Value, commitment: [u8; 32]) -> Result<Va
         one_time: hex32(dto, "oneTime")?,
         value_commitment: commitment,
         ephemeral: hex32(dto, "ephemeral")?,
-        masked_value: hex32(dto, "maskedValue")?,
-        masked_blinding: hex32(dto, "maskedBlinding")?,
+        encrypted_opening: serde_json::from_value(
+            dto.get("encryptedOpening")
+                .cloned()
+                .ok_or("missing encrypted opening")?,
+        )
+        .map_err(|e| e.to_string())?,
         lock_id: hex32(dto, "lockID")?,
     };
     note.note_id = note.derived_id()?;
@@ -975,8 +979,7 @@ fn reencode_note_with_commitment(dto: &Value, commitment: [u8; 32]) -> Result<Va
         "oneTime": hex::encode(note.one_time),
         "valueCommitment": hex::encode(note.value_commitment),
         "ephemeral": hex::encode(note.ephemeral),
-        "maskedValue": hex::encode(note.masked_value),
-        "maskedBlinding": hex::encode(note.masked_blinding),
+        "encryptedOpening": note.encrypted_opening,
         "lockID": hex::encode(note.lock_id),
     }))
 }
@@ -1309,8 +1312,12 @@ fn parse_note(dto: &Value) -> Result<qomm_defmi::note_chain::NoteOutput, String>
         one_time: h32(dto, "oneTime")?,
         value_commitment: h32(dto, "valueCommitment")?,
         ephemeral: h32(dto, "ephemeral")?,
-        masked_value: h32(dto, "maskedValue")?,
-        masked_blinding: h32(dto, "maskedBlinding")?,
+        encrypted_opening: serde_json::from_value(
+            dto.get("encryptedOpening")
+                .cloned()
+                .ok_or("missing encrypted opening")?,
+        )
+        .map_err(|e| e.to_string())?,
         lock_id: h32(dto, "lockID")?,
     })
 }
@@ -1322,8 +1329,7 @@ fn note_json(n: &qomm_defmi::note_chain::NoteOutput) -> Value {
         "oneTime": hex::encode(n.one_time),
         "valueCommitment": hex::encode(n.value_commitment),
         "ephemeral": hex::encode(n.ephemeral),
-        "maskedValue": hex::encode(n.masked_value),
-        "maskedBlinding": hex::encode(n.masked_blinding),
+        "encryptedOpening": n.encrypted_opening,
         "lockID": hex::encode(n.lock_id),
     })
 }

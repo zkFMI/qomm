@@ -1,11 +1,14 @@
-use ed25519_dalek::SigningKey;
 use qomm_proofs::kyb::{cohort_id, present, verify_presentation, BusinessAttributes, KybIssuer};
 use qomm_transport::kyb_wire::{KybPresentationWire, KybRegistryWire};
 use rand_core::OsRng;
 
 #[test]
 fn signed_registry_and_anonymous_presentation_round_trip_canonically() {
-    let mut issuer = KybIssuer::with_signing_key(4, SigningKey::generate(&mut OsRng)).unwrap();
+    let mut issuer = KybIssuer::with_signing_key(
+        4,
+        std::sync::Arc::new(zkfmi_crypto::hybrid::signature::HybridSigner::generate().unwrap()),
+    )
+    .unwrap();
     let credential = issuer
         .enroll(
             "legal-entity-a",

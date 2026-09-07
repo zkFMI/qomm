@@ -8,8 +8,8 @@
 //! credential.  Different wallets backed by the same provider subject thus
 //! share one economic limit without disclosing that subject to MPC nodes.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use qomm_proofs::kyb::BusinessAttributes;
+use qomm_proofs::kyb::KybIssuerKey;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -18,11 +18,16 @@ use std::fs::{self, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use zkfmi_crypto::{
+    hybrid::signature::{HybridSigner, HybridVerifier},
+    key::KeyPurpose,
+    traits::{Signer, Verifier},
+};
 
-const ASSERTION_DOMAIN: &[u8] = b"QOMM:EXTERNAL-KYB:ASSERTION:v2";
+const ASSERTION_DOMAIN: &[u8] = b"QOMM:EXTERNAL-KYB:ASSERTION:v3";
 const CONTROL_GROUP_DOMAIN: &[u8] = b"QOMM:EXTERNAL-KYB:CONTROL-GROUP:v2";
-const EVIDENCE_DOMAIN: &[u8] = b"QOMM:EXTERNAL-KYB:EVIDENCE:v2";
-const BUNDLE_VERSION: u8 = 2;
+const EVIDENCE_DOMAIN: &[u8] = b"QOMM:EXTERNAL-KYB:EVIDENCE:v3";
+const BUNDLE_VERSION: u8 = 3;
 const MAX_FILE: u64 = 1 << 20;
 const MAX_ASSERTIONS: usize = 4096;
 
@@ -54,7 +59,7 @@ pub struct ExternalKybTrustAnchor {
     pub provider: String,
     pub key_id: String,
     pub audience: String,
-    pub public_key: VerifyingKey,
+    pub public_key: KybIssuerKey,
     pub valid_from: u64,
     pub valid_until: u64,
     pub minimum_assurance_level: u8,
@@ -106,7 +111,7 @@ pub struct ExternalKybAssertion {
     pub issued_at: u64,
     pub expires_at: u64,
     pub nonce: [u8; 32],
-    pub signature: Signature,
+    pub signature: Vec<u8>,
 }
 
 impl ExternalKybAssertion {
@@ -152,8 +157,10 @@ impl ExternalKybAssertion {
         digest(ASSERTION_DOMAIN, &self.body()?)
     }
 
-    pub fn sign(mut self, key: &SigningKey) -> Result<Self, String> {
-        self.signature = key.sign(&self.statement()?);
+    pub fn sign(mut self, key: &HybridSigner) -> Result<Self, String> {
+        self.signature = key
+            .sign(KeyPurpose::Attestation, &self.statement()?)
+            .map_err(|error| error.to_string())?;
         Ok(self)
     }
 
@@ -161,7 +168,7 @@ impl ExternalKybAssertion {
         let mut hash = Sha256::new();
         hash.update(EVIDENCE_DOMAIN);
         hash.update(self.statement()?);
-        hash.update(self.signature.to_bytes());
+        hash.update(&self.signature);
         Ok(hash.finalize().into())
     }
 }
@@ -211,8 +218,13 @@ impl ExternalKybTrustAnchor {
         {
             return Err("external KYB credential is revoked".into());
         }
-        self.public_key
-            .verify(&statement, &assertion.signature)
+        HybridVerifier
+            .verify(
+                KeyPurpose::Attestation,
+                self.public_key.as_bytes(),
+                &statement,
+                &assertion.signature,
+            )
             .map_err(|_| "external KYB provider signature is invalid".to_string())?;
         let mut group = Sha256::new();
         group.update(CONTROL_GROUP_DOMAIN);
@@ -399,8 +411,11 @@ impl TryFrom<TrustAnchorWire> for ExternalKybTrustAnchor {
         if value.version != BUNDLE_VERSION {
             return Err("unsupported external KYB trust-anchor version".into());
         }
-        let public_key = VerifyingKey::from_bytes(&parse32(&value.public_key, "public key")?)
-            .map_err(|_| "external KYB public key is malformed".to_string())?;
+        let public_key = KybIssuerKey::from_bytes(
+            &hex::decode(&value.public_key)
+                .map_err(|_| "malformed external KYB hybrid key".to_string())?,
+        )
+        .map_err(|_| "external KYB public key is malformed".to_string())?;
         let revoked_credentials = value
             .revoked_credentials
             .iter()
@@ -439,7 +454,7 @@ impl From<&ExternalKybAssertion> for AssertionWire {
             issued_at: value.issued_at,
             expires_at: value.expires_at,
             nonce: hex::encode(value.nonce),
-            signature: hex::encode(value.signature.to_bytes()),
+            signature: hex::encode(&value.signature),
         }
     }
 }
@@ -448,10 +463,11 @@ impl TryFrom<AssertionWire> for ExternalKybAssertion {
     type Error = String;
 
     fn try_from(value: AssertionWire) -> Result<Self, Self::Error> {
-        let signature: [u8; 64] = hex::decode(value.signature)
-            .map_err(|_| "external KYB signature is not hexadecimal".to_string())?
-            .try_into()
-            .map_err(|_| "external KYB signature is not 64 bytes".to_string())?;
+        let signature = hex::decode(value.signature)
+            .map_err(|_| "external KYB signature is not hexadecimal".to_string())?;
+        if signature.len() != 3373 {
+            return Err("external KYB requires a hybrid signature".into());
+        }
         let assertion = Self {
             provider: value.provider,
             key_id: value.key_id,
@@ -468,7 +484,7 @@ impl TryFrom<AssertionWire> for ExternalKybAssertion {
             issued_at: value.issued_at,
             expires_at: value.expires_at,
             nonce: parse32(&value.nonce, "nonce")?,
-            signature: Signature::from_bytes(&signature),
+            signature,
         };
         assertion.body()?;
         Ok(assertion)

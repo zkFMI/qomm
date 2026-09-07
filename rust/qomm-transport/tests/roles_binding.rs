@@ -1,6 +1,6 @@
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::SigningKey;
+use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::binding::{check_all, check_share, BindingDealer, BoundInputs};
 use qomm_transport::roles::{
     audit_node, check_field_width, split, ComputingNode, EntityLimits, EntityRateLimiter,

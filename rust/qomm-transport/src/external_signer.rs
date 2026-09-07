@@ -20,7 +20,7 @@ use std::time::{Duration, Instant};
 const PROTOCOL_VERSION: u8 = 1;
 pub const MAX_EXTERNAL_SIGN_MESSAGE: usize = 64 << 10;
 pub const MAX_EXTERNAL_SIGN_REQUEST: u64 = 96 << 10;
-pub const MAX_EXTERNAL_SIGN_RESPONSE: u64 = 4 << 10;
+pub const MAX_EXTERNAL_SIGN_RESPONSE: u64 = 8 << 10;
 
 pub trait Ed25519MessageSigner {
     fn key_id(&self) -> &str;
@@ -171,78 +171,208 @@ impl Ed25519MessageSigner for CommandEd25519Signer {
     fn sign_message(&self, message: &[u8]) -> Result<Signature, String> {
         let request = serde_json::to_vec(&ExternalSignRequest::new(&self.key_id, message)?)
             .map_err(|error| error.to_string())?;
-        if request.len() as u64 > MAX_EXTERNAL_SIGN_REQUEST {
-            return Err("serialized external signing request exceeds its bound".into());
-        }
-        let mut child = Command::new(&self.executable)
-            .args(&self.fixed_arguments)
-            .arg("--sign")
-            .env_clear()
-            .current_dir("/")
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::null())
-            .spawn()
-            .map_err(|error| format!("external signer could not start: {error}"))?;
-        let mut request_stream = child
-            .stdin
-            .take()
-            .ok_or_else(|| "external signer has no request stream".to_string())?;
-        let response_stream = child
-            .stdout
-            .take()
-            .ok_or_else(|| "external signer has no response stream".to_string())?;
-
-        // Both pipe directions run outside the supervising thread. Otherwise a
-        // signer that never reads stdin, or writes until stdout fills, can block
-        // before the timeout loop is reached. Killing the child closes both
-        // pipes, so the workers terminate and can be joined without leaking a
-        // background task.
-        let writer = thread::spawn(move || {
-            request_stream
-                .write_all(&request)
-                .map_err(|error| format!("external signer request failed: {error}"))
-        });
-        let reader = thread::spawn(move || {
-            let mut output = Vec::new();
-            response_stream
-                .take(MAX_EXTERNAL_SIGN_RESPONSE + 1)
-                .read_to_end(&mut output)
-                .map_err(|error| error.to_string())?;
-            Ok::<Vec<u8>, String>(output)
-        });
-        let started = Instant::now();
-        let status = loop {
-            if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
-                break status;
-            }
-            if started.elapsed() >= self.timeout {
-                let _ = child.kill();
-                let _ = child.wait();
-                let _ = writer.join();
-                let _ = reader.join();
-                return Err("external signer timed out".into());
-            }
-            thread::sleep(Duration::from_millis(5));
-        };
-        writer
-            .join()
-            .map_err(|_| "external signer request worker panicked".to_string())??;
-        let output = reader
-            .join()
-            .map_err(|_| "external signer response worker panicked".to_string())??;
-        if !status.success() {
-            return Err("external signer rejected the request".into());
-        }
-        if output.is_empty() || output.len() as u64 > MAX_EXTERNAL_SIGN_RESPONSE {
-            return Err("external signer response exceeds its bound".into());
-        }
+        let output = invoke(
+            &self.executable,
+            &self.fixed_arguments,
+            self.timeout,
+            request,
+        )?;
         let response: ExternalSignResponse = serde_json::from_slice(&output)
             .map_err(|_| "external signer response is malformed".to_string())?;
         let signature = response.signature(&self.key_id)?;
         self.public_key
             .verify(message, &signature)
             .map_err(|_| "external signer returned an invalid signature".to_string())?;
+        Ok(signature)
+    }
+}
+
+fn invoke(
+    executable: &Path,
+    fixed_arguments: &[String],
+    timeout: Duration,
+    request: Vec<u8>,
+) -> Result<Vec<u8>, String> {
+    if request.len() as u64 > MAX_EXTERNAL_SIGN_REQUEST {
+        return Err("serialized external signing request exceeds its bound".into());
+    }
+    let mut child = Command::new(executable)
+        .args(fixed_arguments)
+        .arg("--sign")
+        .env_clear()
+        .current_dir("/")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .map_err(|error| format!("external signer could not start: {error}"))?;
+    let mut request_stream = child
+        .stdin
+        .take()
+        .ok_or_else(|| "external signer has no request stream".to_string())?;
+    let response_stream = child
+        .stdout
+        .take()
+        .ok_or_else(|| "external signer has no response stream".to_string())?;
+
+    // Both pipe directions run outside the supervising thread. Otherwise a
+    // signer that never reads stdin, or writes until stdout fills, can block
+    // before the timeout loop is reached. Killing the child closes both
+    // pipes, so the workers terminate and can be joined without leaking a
+    // background task.
+    let writer = thread::spawn(move || {
+        request_stream
+            .write_all(&request)
+            .map_err(|error| format!("external signer request failed: {error}"))
+    });
+    let reader = thread::spawn(move || {
+        let mut output = Vec::new();
+        response_stream
+            .take(MAX_EXTERNAL_SIGN_RESPONSE + 1)
+            .read_to_end(&mut output)
+            .map_err(|error| error.to_string())?;
+        Ok::<Vec<u8>, String>(output)
+    });
+    let started = Instant::now();
+    let status = loop {
+        if let Some(status) = child.try_wait().map_err(|error| error.to_string())? {
+            break status;
+        }
+        if started.elapsed() >= timeout {
+            let _ = child.kill();
+            let _ = child.wait();
+            let _ = writer.join();
+            let _ = reader.join();
+            return Err("external signer timed out".into());
+        }
+        thread::sleep(Duration::from_millis(5));
+    };
+    writer
+        .join()
+        .map_err(|_| "external signer request worker panicked".to_string())??;
+    let output = reader
+        .join()
+        .map_err(|_| "external signer response worker panicked".to_string())??;
+    if !status.success() {
+        return Err("external signer rejected the request".into());
+    }
+    if output.is_empty() || output.len() as u64 > MAX_EXTERNAL_SIGN_RESPONSE {
+        return Err("external signer response exceeds its bound".into());
+    }
+    Ok(output)
+}
+
+impl ExternalSignRequest {
+    /// Version 2 is exclusively ML-DSA-65 with the Attestation purpose.
+    pub fn new_pq(key_id: &str, message: &[u8]) -> Result<Self, String> {
+        let mut request = Self::new(key_id, message)?;
+        request.version = 2;
+        Ok(request)
+    }
+    pub fn decode_pq_message(&self) -> Result<Vec<u8>, String> {
+        if self.version != 2 {
+            return Err("unsupported PQ signing protocol".into());
+        }
+        let mut request = self.clone();
+        request.version = PROTOCOL_VERSION;
+        request.decode_message()
+    }
+}
+impl ExternalSignResponse {
+    pub fn new_pq(key_id: &str, signature: &[u8]) -> Result<Self, String> {
+        if signature.len() != 3309 {
+            return Err("external ML-DSA-65 signature has invalid length".into());
+        }
+        Ok(Self {
+            version: 2,
+            key_id: key_id.into(),
+            signature: hex::encode(signature),
+        })
+    }
+}
+/// An issuance authority must provide both independently pinned keys.
+pub trait CsdMessageSigner: Ed25519MessageSigner {
+    fn pq_public_key(&self) -> Vec<u8>;
+    fn sign_pq_message(&self, message: &[u8]) -> Result<Vec<u8>, String>;
+}
+/// Uses the same bounded process protocol for the two separately held keys.
+/// No private key material crosses the process boundary.
+#[derive(Clone, Debug)]
+pub struct CommandCsdSigner {
+    classical: CommandEd25519Signer,
+    pq_arguments: Vec<String>,
+    pq_key_id: String,
+    pq_public: Vec<u8>,
+}
+impl CommandCsdSigner {
+    pub fn new(
+        classical: CommandEd25519Signer,
+        pq_arguments: Vec<String>,
+        pq_key_id: String,
+        pq_public: Vec<u8>,
+    ) -> Result<Self, String> {
+        // Validate the shared executable and independently selected PQ command.
+        CommandEd25519Signer::new(
+            classical.executable.clone(),
+            pq_arguments.clone(),
+            pq_key_id.clone(),
+            classical.public_key,
+            classical.timeout,
+        )?;
+        if pq_key_id == classical.key_id
+            || pq_public.len() != 1952
+            || pq_public.iter().all(|byte| *byte == 0)
+        {
+            return Err("CSD requires a separate ML-DSA-65 key".into());
+        }
+        Ok(Self {
+            classical,
+            pq_arguments,
+            pq_key_id,
+            pq_public,
+        })
+    }
+}
+impl Ed25519MessageSigner for CommandCsdSigner {
+    fn key_id(&self) -> &str {
+        self.classical.key_id()
+    }
+    fn verifying_key(&self) -> VerifyingKey {
+        self.classical.verifying_key()
+    }
+    fn sign_message(&self, message: &[u8]) -> Result<Signature, String> {
+        self.classical.sign_message(message)
+    }
+}
+impl CsdMessageSigner for CommandCsdSigner {
+    fn pq_public_key(&self) -> Vec<u8> {
+        self.pq_public.clone()
+    }
+    fn sign_pq_message(&self, message: &[u8]) -> Result<Vec<u8>, String> {
+        use zkfmi_crypto::traits::Verifier as _;
+        let request = serde_json::to_vec(&ExternalSignRequest::new_pq(&self.pq_key_id, message)?)
+            .map_err(|error| error.to_string())?;
+        let output = invoke(
+            &self.classical.executable,
+            &self.pq_arguments,
+            self.classical.timeout,
+            request,
+        )?;
+        let response: ExternalSignResponse = serde_json::from_slice(&output)
+            .map_err(|_| "external PQ signer response is malformed".to_string())?;
+        if response.version != 2 || response.key_id != self.pq_key_id {
+            return Err("external PQ signer returned another protocol version or key".into());
+        }
+        let signature = hex::decode(response.signature)
+            .map_err(|_| "external PQ signature is not hexadecimal".to_string())?;
+        zkfmi_crypto::backend::MlDsa65Verifier
+            .verify(
+                zkfmi_crypto::key::KeyPurpose::Attestation,
+                &self.pq_public,
+                message,
+                &signature,
+            )
+            .map_err(|_| "external signer returned an invalid PQ signature".to_string())?;
         Ok(signature)
     }
 }

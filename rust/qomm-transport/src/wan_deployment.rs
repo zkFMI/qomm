@@ -14,6 +14,7 @@
 //! party's MP-SPDZ private key. The approved node-local MPC registry is named
 //! explicitly and is never replaced by a permissive placeholder.
 
+use crate::application_crypto::VerifyingKey;
 use crate::executor::{
     circuit_shape_digest, write_source_bound_runtime_executable, ProgramRegistry, RuntimeBinding,
 };
@@ -25,7 +26,6 @@ use crate::node_service::certificate_fingerprint;
 use crate::resident_mpc::{EncryptedMpcStateStore, MpcSecretState, ResidentMpcConfig};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use openssl::asn1::Asn1Time;
 use openssl::pkey::{PKey, Private};
 use openssl::sign::{Signer, Verifier};
@@ -78,6 +78,7 @@ pub struct WanDeploymentSpec {
     pub client_common_name: String,
     pub client_control_group_id: String,
     pub trusted_defmi_receipt_public: String,
+    pub recipient_opening_keys: Vec<crate::proof_party::RecipientOpeningKey>,
     pub n_mm: usize,
     pub n_parties: usize,
     /// Shamir degree.  `2` means a 3-of-7 reconstruction/signing threshold.
@@ -670,7 +671,7 @@ fn encode_registry(registry: &SignedCohortRegistry) -> KybRegistryDocument {
             .collect(),
         issuer: hex::encode(registry.issuer.as_bytes()),
         registry_id: hex::encode(registry.registry_id),
-        signature: hex::encode(registry.signature.to_bytes()),
+        signature: hex::encode(&registry.signature),
     }
 }
 
@@ -716,12 +717,24 @@ fn decode_scalar(value: &str, name: &str) -> Result<Scalar, String> {
 
 fn decode_kyb(
     document: &KybDeploymentDocument,
-) -> Result<(SignedCohortRegistry, KybPresentation, VerifyingKey), String> {
-    let issuer = VerifyingKey::from_bytes(&fixed_hex(&document.trusted_issuer, "KYB issuer")?)
-        .map_err(|_| "KYB issuer is not a canonical Ed25519 key".to_string())?;
-    let registry_issuer =
-        VerifyingKey::from_bytes(&fixed_hex(&document.registry.issuer, "registry issuer")?)
-            .map_err(|_| "registry issuer is not a canonical Ed25519 key".to_string())?;
+) -> Result<
+    (
+        SignedCohortRegistry,
+        KybPresentation,
+        qomm_proofs::kyb::KybIssuerKey,
+    ),
+    String,
+> {
+    let issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        &hex::decode(&document.trusted_issuer)
+            .map_err(|_| "malformed hybrid issuer key".to_string())?,
+    )
+    .map_err(|_| "KYB issuer is not a canonical Ed25519 key".to_string())?;
+    let registry_issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        &hex::decode(&document.registry.issuer)
+            .map_err(|_| "malformed hybrid issuer key".to_string())?,
+    )
+    .map_err(|_| "registry issuer is not a canonical Ed25519 key".to_string())?;
     let registry = SignedCohortRegistry {
         cohort: document.registry.cohort.clone(),
         registry_epoch: document.registry.registry_epoch,
@@ -735,11 +748,8 @@ fn decode_kyb(
             .collect::<Result<Vec<_>, _>>()?,
         issuer: registry_issuer,
         registry_id: fixed_hex(&document.registry.registry_id, "registry id")?,
-        signature: Signature::from_slice(
-            &hex::decode(&document.registry.signature)
-                .map_err(|_| "registry signature must be hexadecimal".to_string())?,
-        )
-        .map_err(|_| "registry signature must be 64 bytes".to_string())?,
+        signature: hex::decode(&document.registry.signature)
+            .map_err(|_| "registry signature must be hexadecimal".to_string())?,
     };
     let presentation = KybPresentation {
         cohort: document.presentation.cohort.clone(),
@@ -892,9 +902,29 @@ pub fn initialize_authority(spec: &WanDeploymentSpec, output: &Path) -> Result<(
     let issuer_signing = issuer_private
         .ed25519()
         .ok_or_else(|| "KYB issuer store returned a non-signing key".to_string())?;
+    let pq_id = authority_store.generate(
+        "kyb-registry-signing-pq",
+        KeyKind::MlDsa65,
+        at,
+        spec.registry_expires_at.saturating_sub(at),
+        BTreeMap::new(),
+    )?;
+    let pq_private = authority_store.private_key(&pq_id, at, false)?;
+    let pq_signing = pq_private
+        .ml_dsa65()
+        .ok_or_else(|| "KYB PQ authority key missing".to_string())?;
     let mut issuer = KybIssuer::with_signing_key(
         spec.maximum_collateral_tier,
-        SigningKey::from_bytes(&issuer_signing.to_bytes()),
+        std::sync::Arc::new(zkfmi_crypto::hybrid::signature::HybridSigner::new(
+            zkfmi_crypto::backend::Ed25519Signer::from_seed(&issuer_signing.to_bytes()),
+            zkfmi_crypto::backend::MlDsa65Signer::from_seed(
+                pq_signing
+                    .custody_seed()
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| "invalid stored PQ issuer seed".to_string())?,
+            ),
+        )),
     )
     .map_err(str::to_string)?;
     let credential = issuer
@@ -1042,20 +1072,25 @@ pub fn initialize_node(
     ]);
     let admission_authority_key_id = store.generate(
         "admission-authority",
-        KeyKind::Ed25519,
+        KeyKind::HybridSignature,
         at,
         lifetime,
         metadata.clone(),
     )?;
     let ordering_beacon_key_id = store.generate(
         "ordering-beacon",
-        KeyKind::Ed25519,
+        KeyKind::HybridSignature,
         at,
         lifetime,
         metadata.clone(),
     )?;
-    let node_receipt_key_id =
-        store.generate("node-receipt", KeyKind::Ed25519, at, lifetime, metadata)?;
+    let node_receipt_key_id = store.generate(
+        "node-receipt",
+        KeyKind::HybridSignature,
+        at,
+        lifetime,
+        metadata,
+    )?;
     write_file(
         &private.join("proof-state.passphrase"),
         &random_secret(),
@@ -1578,6 +1613,7 @@ pub fn apply_node_response(
         "quote_eligibility_bits": spec.quote_eligibility_bits,
         "quote_span_bits": spec.quote_span_bits,
         "trusted_defmi_receipt_public": spec.trusted_defmi_receipt_public,
+        "recipient_opening_keys": spec.recipient_opening_keys,
         "allow_health_signing": false,
         "idle_timeout_seconds": 30
     });
@@ -2017,6 +2053,7 @@ pub fn write_example_spec(path: &Path, receipt_public: &VerifyingKey) -> Result<
         client_common_name: "qomm-operator-client".into(),
         client_control_group_id: "replace-with-governance-pseudonym".into(),
         trusted_defmi_receipt_public: hex::encode(receipt_public.as_bytes()),
+        recipient_opening_keys: Vec::new(),
         n_mm: 4,
         n_parties: NODE_COUNT,
         threshold: 2,

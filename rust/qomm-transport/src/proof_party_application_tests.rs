@@ -5,6 +5,7 @@ use tempfile::TempDir;
 
 fn config(root: &Path) -> ProofPartyConfig {
     ProofPartyConfig {
+        recipient_opening_keys: Vec::new(),
         node: 0,
         allowed_root: root.into(),
         state_file: root.join("party.qps"),
@@ -317,7 +318,7 @@ fn control_history_is_required_by_the_new_durable_schema() {
         .unwrap()
         .remove("application_controls");
     assert!(serde_json::from_value::<DurableProofState>(value).is_err());
-    assert_eq!(state.version, 5);
+    assert_eq!(state.version, 6);
 }
 
 #[test]

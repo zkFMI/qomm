@@ -1,14 +1,13 @@
-use ed25519_dalek::SigningKey;
 use qomm_audit::receipts::{
     digest, sign_receipt, AuditLedger, BondLedger, Evidence, Fault, SlotSpec, GENESIS,
 };
 use qomm_harness::{parse_value, write_pretty_json, HarnessResult};
-use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
 
 #[derive(Clone)]
 struct Options {
@@ -235,11 +234,11 @@ fn range(values: &[f64]) -> f64 {
 
 fn audit_drill(n_nodes: u32, n_slots: u64, quorum: usize) -> HarnessResult<Value> {
     let keys = (0..n_nodes)
-        .map(|node| (node, SigningKey::generate(&mut OsRng)))
-        .collect::<BTreeMap<_, _>>();
+        .map(|node| HybridSigner::generate().map(|key| (node, key)))
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
     let mut ledger = AuditLedger::new(
         keys.iter()
-            .map(|(node, key)| (*node, key.verifying_key()))
+            .map(|(node, key)| (*node, key.public_key()))
             .collect(),
     );
     let mut bonds = BondLedger::new((0..n_nodes).map(|node| (node, 2_000_000)).collect());
@@ -297,7 +296,7 @@ fn audit_drill(n_nodes: u32, n_slots: u64, quorum: usize) -> HarnessResult<Value
                     result,
                     100 * slot + 10,
                     maker_set,
-                ),
+                )?,
                 None,
             );
             if fault == Some(Fault::Equivocation) {
@@ -313,7 +312,7 @@ fn audit_drill(n_nodes: u32, n_slots: u64, quorum: usize) -> HarnessResult<Value
                         other_result,
                         100 * slot + 11,
                         None,
-                    ),
+                    )?,
                     None,
                 );
             }

@@ -20,7 +20,8 @@ use qomm_proofs::threshold_gadgets::{
 };
 use qomm_proofs::threshold_sigma::{combine_commitments, share_commitment, PartyId};
 use qomm_transport::selective_disclosure::{
-    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey, KEM_SUITE,
+    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey,
+    WinnerSenderAuth, AUTH_SUITE, KEM_SUITE, VERSION,
 };
 use qomm_zk::pedersen::Pedersen;
 use qomm_zk::shamir;
@@ -36,6 +37,11 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
+use zkfmi_crypto::{
+    backend::MlDsa65Signer,
+    key::{KeyId, KeyPurpose, KeyRecord, ParticipantId},
+    traits::Signer as _,
+};
 
 const PRIVATE_SLOTS: usize = 5;
 
@@ -620,7 +626,6 @@ fn write_encrypted_deliveries(
     deliveries: &BTreeMap<PartyId, Vec<(Scalar, Scalar)>>,
     recipient_keys: &BTreeMap<PartyId, WinnerPublicKey>,
 ) -> HarnessResult<()> {
-    let signer = SigningKey::generate(&mut OsRng);
     for (recipient, delivered) in deliveries {
         let plaintext = delivered
             .iter()
@@ -631,13 +636,7 @@ fn write_encrypted_deliveries(
         let recipient_key = recipient_keys
             .get(recipient)
             .ok_or_else(|| format!("recipient {recipient} supplied no encryption key"))?;
-        let encrypted = encrypt_private(
-            dealer,
-            *recipient,
-            recipient_key,
-            plaintext.as_bytes(),
-            &signer,
-        )?;
+        let encrypted = encrypt_private(dealer, *recipient, recipient_key, plaintext.as_bytes())?;
         atomic_write(
             &private_path(mailbox, dealer, *recipient),
             encrypted.as_bytes(),
@@ -762,24 +761,64 @@ fn private_quote_digest() -> [u8; 32] {
     Sha256::digest(b"qomm:private-delivery:v1").into()
 }
 
+// This standalone harness has no operator enrollment service. Every process
+// derives the same bounded roster fixture for a dealer; production proof
+// parties instead use the persisted, confirmed peer manifest.
+fn private_identity(dealer: PartyId) -> SigningKey {
+    let seed: [u8; 32] = Sha256::new()
+        .chain_update(b"QOMM:HARNESS:PRIVATE-IDENTITY:v1")
+        .chain_update(dealer.to_be_bytes())
+        .finalize()
+        .into();
+    SigningKey::from_bytes(&seed)
+}
+
+fn private_pq_signer(dealer: PartyId) -> MlDsa65Signer {
+    let seed: [u8; 32] = Sha256::new()
+        .chain_update(b"QOMM:HARNESS:PRIVATE-PQ:v1")
+        .chain_update(dealer.to_be_bytes())
+        .finalize()
+        .into();
+    MlDsa65Signer::from_seed(&seed)
+}
+
+fn private_pq_key(dealer: PartyId) -> KeyRecord {
+    let signer = private_pq_signer(dealer);
+    KeyRecord {
+        participant_id: ParticipantId::new(format!("harness-dealer-{dealer}")).unwrap(),
+        key_id: KeyId::new(format!("harness-dealer-{dealer}-settlement-v1")).unwrap(),
+        suite: AUTH_SUITE,
+        key_version: 1,
+        purpose: KeyPurpose::SettlementInstruction,
+        public_key: signer.public_key(),
+        not_before: 1,
+        not_after: u64::MAX,
+        revoked_at: None,
+        rotation_proof: None,
+        dekyx_binding: None,
+    }
+}
+
 fn encrypt_private(
     dealer: PartyId,
     recipient: PartyId,
     recipient_public: &WinnerPublicKey,
     plaintext: &[u8],
-    signer: &SigningKey,
 ) -> HarnessResult<String> {
     let context = private_context(dealer, recipient);
+    let signer = private_identity(dealer);
+    let pq_signer = private_pq_signer(dealer);
     let envelope = seal_for_winner(
         &recipient.to_string(),
         recipient_public,
         plaintext,
         &context,
         private_quote_digest(),
-        signer,
+        &signer,
+        &pq_signer,
     )?;
     Ok(format!(
-        "v{} {} {} {} {} {} {} {} {}\n",
+        "v{} {} {} {} {} {} {} {} {} {}\n",
         envelope.version,
         hex::encode(envelope.suite.encode()),
         hex::encode(envelope.kem_ciphertext),
@@ -789,6 +828,7 @@ fn encrypt_private(
         hex::encode(envelope.ciphertext),
         hex::encode(envelope.taker_public),
         hex::encode(envelope.signature.to_bytes()),
+        hex::encode(envelope.pq_signature),
     ))
 }
 
@@ -799,7 +839,10 @@ fn decrypt_private(
     encoded: &str,
 ) -> HarnessResult<Vec<u8>> {
     let fields = encoded.split_whitespace().collect::<Vec<_>>();
-    if fields.len() != 9 || fields[0] != "v2" || fields[1] != hex::encode(KEM_SUITE.encode()) {
+    if fields.len() != 10
+        || fields[0] != format!("v{VERSION}")
+        || fields[1] != hex::encode(KEM_SUITE.encode())
+    {
         return Err("an encrypted private delivery is malformed".into());
     }
     let envelope = WinnerEnvelope {
@@ -812,14 +855,21 @@ fn decrypt_private(
         ciphertext: hex::decode(fields[6])?,
         taker_public: decode_fixed(fields[7], "taker public key")?,
         signature: Signature::from_bytes(&decode_fixed(fields[8], "signature")?),
+        pq_signature: hex::decode(fields[9])?,
     };
+    let expected = private_identity(dealer).verifying_key();
+    let pq_key = private_pq_key(dealer);
     open_if_winner(
         &envelope,
         &recipient.to_string(),
         std::slice::from_ref(recipient_secret),
         &private_context(dealer, recipient),
         private_quote_digest(),
-        None,
+        WinnerSenderAuth {
+            ed25519: &expected,
+            pq_key: &pq_key,
+            valid_at: 1,
+        },
     )?
     .ok_or_else(|| "private delivery authentication failed for this recipient".into())
 }
@@ -961,14 +1011,12 @@ mod tests {
         let first_secret = WinnerPrivateKey::generate().unwrap();
         let second_secret = WinnerPrivateKey::generate().unwrap();
         let second_public = second_secret.public_key().unwrap();
-        let signer = SigningKey::generate(&mut OsRng);
         let plaintext = format!(
             "{} {}\n",
             encode_scalar(&Scalar::from(1_234u64)),
             encode_scalar(&Scalar::from(5_678u64))
         );
-        let encrypted =
-            encrypt_private(1, 2, &second_public, plaintext.as_bytes(), &signer).unwrap();
+        let encrypted = encrypt_private(1, 2, &second_public, plaintext.as_bytes()).unwrap();
         let mailbox = Mailbox::new().unwrap();
         let path = private_path(&mailbox.0, 1, 2);
         atomic_write(&path, encrypted.as_bytes()).unwrap();

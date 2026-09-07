@@ -169,7 +169,8 @@ impl Session {
         for policy in policies {
             values.extend(policy.fields().map(i128::from));
         }
-        let signing_key = ed25519_dalek::SigningKey::generate(&mut rand_core::OsRng);
+        let signing_key =
+            qomm_transport::application_crypto::SigningKey::generate(&mut rand_core::OsRng);
         let party = InputParty {
             name: "demo".into(),
             n_nodes: self.n,

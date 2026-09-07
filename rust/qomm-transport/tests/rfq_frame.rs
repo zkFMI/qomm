@@ -1,6 +1,6 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey};
+use qomm_transport::application_crypto::{Signature, SigningKey};
 use qomm_transport::mandate::{Direction, TakerExecutionMandate};
 use qomm_transport::mpc_result::fill_mask_scalar_commitment;
 use qomm_transport::rfq_frame::{
@@ -43,7 +43,7 @@ fn fixture(
         25
     };
     let reserve_blinding = high_scalar(7);
-    let signing = SigningKey::from_bytes(&digest("rfq-frame-taker-key"));
+    let signing = SigningKey::generate(&mut rand_core::OsRng);
     let traded_asset_id = digest("rfq-frame-security");
     let cash_asset_id = digest("rfq-frame-cash");
     let fill_mask = high_scalar(13);

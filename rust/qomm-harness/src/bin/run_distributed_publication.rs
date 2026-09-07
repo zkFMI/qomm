@@ -6,7 +6,6 @@
 //! allocates the legal-entity privacy budget. The persistent ledger commits
 //! the 3-of-7 certificate, budget debit and replay marker atomically.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use qomm_audit::distributed_dp::DpMechanism;
 use qomm_audit::publication::{NodePublicationEvidence, NodeSignature};
 use qomm_audit::publication_ledger::{BudgetAllocation, PublicationLedger, PublicationRequest};
@@ -23,6 +22,7 @@ use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::Instant;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, key::KeyPurpose, traits::Signer};
 
 const PARTIES: usize = 7;
 const THRESHOLD: usize = 3;
@@ -292,32 +292,24 @@ fn run() -> HarnessResult<()> {
             "frost_identity",
             json!({"session": hex::encode(identity_session)}),
         )?;
-        let public: [u8; 32] = hex::decode(
+        let public = hex::decode(
             identity
-                .get("identity_public")
+                .get("publication_public")
                 .and_then(Value::as_str)
                 .ok_or("proof party omitted its publication identity")?,
-        )?
-        .try_into()
-        .map_err(|_| "proof-party publication identity has the wrong width")?;
-        publication_registry.insert(
-            format!("node-{node}"),
-            VerifyingKey::from_bytes(&public)
-                .map_err(|_| "proof-party publication identity is malformed")?,
-        );
+        )?;
+        if public.len() != 1984 {
+            return Err("proof-party publication identity has the wrong width".into());
+        }
+        publication_registry.insert(format!("node-{node}"), public);
     }
 
     let governance_keys = (0..PARTIES)
-        .map(|node| {
-            (
-                format!("governance-{node}"),
-                SigningKey::generate(&mut OsRng),
-            )
-        })
-        .collect::<BTreeMap<_, _>>();
+        .map(|node| HybridSigner::generate().map(|key| (format!("governance-{node}"), key)))
+        .collect::<Result<BTreeMap<_, _>, _>>()?;
     let governance_registry = governance_keys
         .iter()
-        .map(|(node, key)| (node.clone(), key.verifying_key()))
+        .map(|(node, key)| (node.clone(), key.public_key()))
         .collect();
     let ledger = PublicationLedger::open_with_registries(
         &options.ledger,
@@ -337,11 +329,13 @@ fn run() -> HarnessResult<()> {
     let allocation_signatures = governance_keys
         .iter()
         .take(THRESHOLD)
-        .map(|(node_id, key)| NodeSignature {
-            node_id: node_id.clone(),
-            signature: key.sign(&allocation_body),
+        .map(|(node_id, key)| {
+            Ok::<_, zkfmi_crypto::error::CryptoError>(NodeSignature {
+                node_id: node_id.clone(),
+                signature: key.sign(KeyPurpose::AuditCheckpoint, &allocation_body)?,
+            })
         })
-        .collect::<Vec<_>>();
+        .collect::<Result<Vec<_>, _>>()?;
     ledger.configure_budget(allocation, &allocation_signatures)?;
 
     let certificate = ledger.publish_with(request, &mechanism, |statement| {
@@ -363,18 +357,19 @@ fn run() -> HarnessResult<()> {
                     .and_then(Value::as_str)
                     .ok_or_else(|| "publication signer omitted node_id".to_string())?
                     .to_string();
-                let raw: [u8; 64] = hex::decode(
+                let raw = hex::decode(
                     result
                         .get("signature")
                         .and_then(Value::as_str)
                         .ok_or_else(|| "publication signer omitted signature".to_string())?,
                 )
-                .map_err(|_| "publication signature is malformed")?
-                .try_into()
-                .map_err(|_| "publication signature has the wrong width")?;
+                .map_err(|_| "publication signature is malformed")?;
+                if raw.len() != 3373 {
+                    return Err("publication signature has the wrong width".into());
+                }
                 Ok(NodeSignature {
                     node_id,
-                    signature: Signature::from_bytes(&raw),
+                    signature: raw,
                 })
             })
             .collect::<Result<Vec<_>, String>>()

@@ -5,6 +5,7 @@
 //! a FROST signing-key share.  Stateful proof operations live in seven
 //! independent [`ProofPartyRpc`] implementations.
 
+use crate::application_crypto::{Signature, VerifyingKey};
 use crate::dvp_issuer::{
     assemble_proofs as assemble_dvp_proofs, make_challenge as make_dvp_challenge,
     relation_statements_from_evaluations as dvp_relation_statements,
@@ -52,7 +53,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, VerifyingKey};
 use merlin::Transcript;
 use qomm_mpc::program::{PRODUCT_ZKPI_AMOUNT_BITS, PRODUCT_ZKPI_PRICE_BITS};
 use qomm_proofs::opening_envelope::{opening_context, EncryptedOpeningShare, OpeningEnvelope};
@@ -845,35 +845,31 @@ fn authorize_zkpi<T: ProofPartyRpc>(
 }
 
 fn opening_share(value: &Value) -> Result<EncryptedOpeningShare, String> {
-    let decode32 = |name: &str| -> Result<[u8; 32], String> {
-        hex::decode(
+    let party = value
+        .get("party")
+        .and_then(Value::as_u64)
+        .and_then(|p| usize::try_from(p).ok())
+        .ok_or("opening party is invalid")?;
+    let share = EncryptedOpeningShare {
+        party,
+        recipient_public: serde_json::from_value(
             value
-                .get(name)
-                .and_then(Value::as_str)
-                .ok_or_else(|| format!("proof party omitted {name}"))?,
+                .get("recipient_public")
+                .cloned()
+                .ok_or("opening recipient public key is absent")?,
         )
-        .map_err(|_| format!("proof party {name} is not hexadecimal"))?
-        .try_into()
-        .map_err(|_| format!("proof party {name} is not 32 bytes"))
+        .map_err(|e| e.to_string())?,
+        sealed: serde_json::from_value(
+            value
+                .get("sealed")
+                .cloned()
+                .ok_or("authenticated opening payload is absent")?,
+        )
+        .map_err(|e| e.to_string())?,
+        blinding_adjustment: Scalar::ZERO,
     };
-    Ok(EncryptedOpeningShare {
-        party: value
-            .get("party")
-            .and_then(Value::as_u64)
-            .and_then(|party| usize::try_from(party).ok())
-            .ok_or_else(|| "proof party opening identifier is invalid".to_string())?,
-        ephemeral: CompressedRistretto(decode32("ephemeral")?)
-            .decompress()
-            .ok_or_else(|| "proof party opening ephemeral is not canonical".to_string())?,
-        masked_value: Option::<Scalar>::from(Scalar::from_canonical_bytes(decode32(
-            "masked_value",
-        )?))
-        .ok_or_else(|| "proof party opening value mask is not canonical".to_string())?,
-        masked_blinding: Option::<Scalar>::from(Scalar::from_canonical_bytes(decode32(
-            "masked_blinding",
-        )?))
-        .ok_or_else(|| "proof party opening blinding mask is not canonical".to_string())?,
-    })
+    share.validate()?;
+    Ok(share)
 }
 
 fn collect_opening<T: ProofPartyRpc>(
@@ -1786,7 +1782,7 @@ pub fn prove_product_settlement<T: ProofPartyRpc>(
 #[cfg(test)]
 mod completion_tests {
     use super::*;
-    use ed25519_dalek::SigningKey;
+    use crate::application_crypto::SigningKey;
 
     #[derive(Default)]
     struct RecordingParty {
@@ -1841,7 +1837,7 @@ mod completion_tests {
         };
         let planned = execution.job_id().unwrap();
         let signing = (0..COMMITTEE_SIZE)
-            .map(|node| SigningKey::from_bytes(&[u8::try_from(node + 1).unwrap(); 32]))
+            .map(|node| SigningKey::from_bytes(&[u8::try_from(node + 1).unwrap(); 64]))
             .collect::<Vec<_>>();
         let signed = execution
             .receipt_statements()

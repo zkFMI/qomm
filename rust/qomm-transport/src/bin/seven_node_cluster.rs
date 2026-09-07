@@ -4,7 +4,6 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey, VerifyingKey};
 use merlin::Transcript;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
@@ -34,6 +33,7 @@ use qomm_proofs::threshold_quote::{
     quote_statement_from_evaluations, QuoteChallengeTranscript,
 };
 use qomm_proofs::threshold_range::verify_threshold_range;
+use qomm_transport::application_crypto::{Signature, SigningKey, VerifyingKey};
 use qomm_transport::dvp_issuer::{
     assemble_proofs as assemble_dvp_proofs, make_challenge as make_dvp_challenge,
     relation_statements_from_evaluations as dvp_relation_statements,
@@ -138,7 +138,10 @@ const TAKER_SECURITIES: (u64, u64) = (100, 7);
 const TAKER_CASH: (u64, u64) = (2_000_000, 11);
 
 fn acceptance_defmi_receipt_public() -> [u8; 32] {
-    let seed: [u8; 32] = Sha256::digest(b"QOMM:ACCEPTANCE:DEFMI-RECEIPT-KEY:v1").into();
+    // Public acceptance-only independent seed domains, matching the harness.
+    let mut seed = [0; 64];
+    seed[..32].copy_from_slice(&Sha256::digest(b"QOMM:ACCEPTANCE:DEFMI-RECEIPT-KEY:ED:v2"));
+    seed[32..].copy_from_slice(&Sha256::digest(b"QOMM:ACCEPTANCE:DEFMI-RECEIPT-KEY:PQ:v2"));
     SigningKey::from_bytes(&seed).verifying_key().to_bytes()
 }
 
@@ -193,21 +196,21 @@ impl NodeKeyStore {
         let lifetime = 3650 * 24 * 60 * 60;
         let authority_key_id = store.generate(
             "admission-authority",
-            KeyKind::Ed25519,
+            KeyKind::HybridSignature,
             now,
             lifetime,
             BTreeMap::new(),
         )?;
         let beacon_key_id = store.generate(
             "ordering-beacon",
-            KeyKind::Ed25519,
+            KeyKind::HybridSignature,
             now,
             lifetime,
             BTreeMap::new(),
         )?;
         let receipt_key_id = store.generate(
             "node-receipt",
-            KeyKind::Ed25519,
+            KeyKind::HybridSignature,
             now,
             lifetime,
             BTreeMap::new(),
@@ -1337,6 +1340,20 @@ fn run_proof_party(arguments: &[String]) -> Result<(), String> {
     let passphrase_file = PathBuf::from(value("--proof-passphrase-file")?);
     let state_passphrase = node_local_passphrase(&proof_root, &passphrase_file)?;
     let mut party = ProofParty::new(ProofPartyConfig {
+        recipient_opening_keys: (1..=128u64)
+            .map(|i| {
+                let view = (curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT
+                    * Scalar::from(i))
+                .compress()
+                .to_bytes();
+                qomm_transport::proof_party::RecipientOpeningKey {
+                    view,
+                    public: zkfmi_crypto::traits::KemDecapsulator::public_key(
+                        &zkfmi_crypto::test_support::public_fixture_recipient_key(&view),
+                    ),
+                }
+            })
+            .collect(),
         node,
         allowed_root: proof_root,
         state_file,
@@ -1493,46 +1510,41 @@ impl LiveProofEvidence {
 }
 
 fn proof_opening_share(value: &Value) -> Result<EncryptedOpeningShare, String> {
-    let decode32 = |name: &str| -> Result<[u8; 32], String> {
-        hex::decode(
+    let party = value
+        .get("party")
+        .and_then(Value::as_u64)
+        .and_then(|p| usize::try_from(p).ok())
+        .ok_or("opening party is invalid")?;
+    let share = EncryptedOpeningShare {
+        party,
+        recipient_public: serde_json::from_value(
             value
-                .get(name)
-                .and_then(Value::as_str)
-                .ok_or_else(|| format!("proof party omitted {name}"))?,
+                .get("recipient_public")
+                .cloned()
+                .ok_or("opening recipient public key is absent")?,
         )
-        .map_err(|_| format!("proof party {name} is not hexadecimal"))?
-        .try_into()
-        .map_err(|_| format!("proof party {name} is not 32 bytes"))
+        .map_err(|e| e.to_string())?,
+        sealed: serde_json::from_value(
+            value
+                .get("sealed")
+                .cloned()
+                .ok_or("authenticated opening payload is absent")?,
+        )
+        .map_err(|e| e.to_string())?,
+        blinding_adjustment: Scalar::ZERO,
     };
-    Ok(EncryptedOpeningShare {
-        party: value
-            .get("party")
-            .and_then(Value::as_u64)
-            .and_then(|party| usize::try_from(party).ok())
-            .ok_or_else(|| "proof party opening identifier is invalid".to_string())?,
-        ephemeral: CompressedRistretto(decode32("ephemeral")?)
-            .decompress()
-            .ok_or_else(|| "proof party opening ephemeral is not canonical".to_string())?,
-        masked_value: Option::<Scalar>::from(Scalar::from_canonical_bytes(decode32(
-            "masked_value",
-        )?))
-        .ok_or_else(|| "proof party opening value mask is not canonical".to_string())?,
-        masked_blinding: Option::<Scalar>::from(Scalar::from_canonical_bytes(decode32(
-            "masked_blinding",
-        )?))
-        .ok_or_else(|| "proof party opening blinding mask is not canonical".to_string())?,
-    })
+    share.validate()?;
+    Ok(share)
 }
 
-#[allow(clippy::too_many_arguments)]
-fn prove_persistence_lane(
-    root: &Path,
-    prepared: &PreparedMpc,
-    proof_parties: &mut [ProofPartyChild],
-    frost_public: &frost::keys::PublicKeyPackage,
+struct PersistenceLaneInput<'a> {
+    root: &'a Path,
+    prepared: &'a PreparedMpc,
+    proof_parties: &'a mut [ProofPartyChild],
+    frost_public: &'a frost::keys::PublicKeyPackage,
     slot: u32,
     lane: usize,
-    node_batches: &[(u16, [u8; 32])],
+    node_batches: &'a [(u16, [u8; 32])],
     admission_sequence: u64,
     admission_ticket_id: [u8; 32],
     quote_job_seed: [u8; 32],
@@ -1544,7 +1556,29 @@ fn prove_persistence_lane(
     limit_context: [u8; 32],
     taker_handle: RistrettoPoint,
     now: u64,
-) -> Result<LiveProofEvidence, String> {
+}
+
+fn prove_persistence_lane(input: PersistenceLaneInput<'_>) -> Result<LiveProofEvidence, String> {
+    let PersistenceLaneInput {
+        root,
+        prepared,
+        proof_parties,
+        frost_public,
+        slot,
+        lane,
+        node_batches,
+        admission_sequence,
+        admission_ticket_id,
+        quote_job_seed,
+        quote_quantity,
+        quote_quantity_blinding,
+        quote_direction,
+        limit_direction,
+        limit_commitment,
+        limit_context,
+        taker_handle,
+        now,
+    } = input;
     const THRESHOLD: usize = 2;
     const AMOUNT_BITS: usize = 16;
     const PRICE_BITS: usize = 32;
@@ -2418,8 +2452,9 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
         .collect::<Result<BTreeMap<String, VerifiedExternalKyb>, String>>()?;
     let external_kyb_evidence_digest = external_bundle.evidence_digest()?;
     let kyb_seed: [u8; 32] = Sha256::digest(b"QOMM:ACCEPTANCE:KYB-ISSUER-KEY:v1").into();
-    let mut issuer = KybIssuer::with_signing_key(5, SigningKey::from_bytes(&kyb_seed))
-        .map_err(str::to_string)?;
+    let mut issuer =
+        KybIssuer::with_signing_key(5, zkfmi_crypto::test_support::hybrid_signer(&kyb_seed))
+            .map_err(str::to_string)?;
     let enroll_external = |issuer: &mut KybIssuer, label: &str| -> Result<KybCredential, String> {
         let verified = verified_external
             .get(label)
@@ -2519,8 +2554,8 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
     let mut maker_authorities = Vec::with_capacity(maker_credentials.len() * 2);
     for maker in 0..maker_credentials.len() {
         for direction in [Direction::TakerBuys, Direction::TakerSells] {
-            let seed: [u8; 32] = Sha256::new()
-                .chain_update(b"QOMM:LIVE:MAKER-SIGNING-KEY:v1")
+            let seed: [u8; 64] = Sha512::new()
+                .chain_update(b"QOMM:LIVE:MAKER-SIGNING-KEY:v2")
                 .chain_update((maker as u64).to_be_bytes())
                 .chain_update([direction as u8])
                 .finalize()
@@ -2589,8 +2624,8 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
     }
     let taker_mandates = (0..3)
         .map(|client| {
-            let seed: [u8; 32] = Sha256::new()
-                .chain_update(b"QOMM:LIVE:TAKER-SIGNING-KEY:v1")
+            let seed: [u8; 64] = Sha512::new()
+                .chain_update(b"QOMM:LIVE:TAKER-SIGNING-KEY:v2")
                 .chain_update((client as u64).to_be_bytes())
                 .finalize()
                 .into();
@@ -2822,7 +2857,7 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
                 let raw = frame.encode();
                 sizes.push((*real, raw.len()));
                 let request = json!({
-                    "version": 1,
+                    "version": qomm_transport::node_service::VERSION,
                     "request_id": format!("slot-{slot}-node-{node}-client-{client}"),
                     "operation": "submit",
                     "slot": slot,
@@ -2932,7 +2967,7 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
         .collect::<Result<Vec<_>, _>>()?;
     for (node, coordinator) in coordinators.iter_mut().enumerate() {
         let closed = coordinator.call(&json!({
-            "version": 1,
+            "version": qomm_transport::node_service::VERSION,
             "request_id": "close-final",
             "operation": "close_slot",
             "slot": slots - 1,
@@ -2950,7 +2985,7 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
         let mut batch_for_node = None;
         for (client, principal) in admitted_principals.iter().enumerate() {
             let position = coordinator.call(&json!({
-                "version": 1,
+                "version": qomm_transport::node_service::VERSION,
                 "request_id": format!("admission-final-client-{client}"),
                 "operation": "admission_position",
                 "slot": slots - 1,
@@ -3003,15 +3038,14 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
             .map_err(|_| format!("node {node} returned malformed admission claim"))?
             .try_into()
             .map_err(|_| format!("node {node} returned malformed admission claim"))?;
-            let signature: [u8; 64] = hex::decode(
+            let signature = hex::decode(
                 position
                     .get("node_attestation")
                     .and_then(Value::as_str)
                     .ok_or_else(|| format!("node {node} omitted admission attestation"))?,
             )
-            .map_err(|_| format!("node {node} returned malformed admission attestation"))?
-            .try_into()
             .map_err(|_| format!("node {node} returned malformed admission attestation"))?;
+            Signature::try_from(signature.as_slice()).map_err(|error| error.to_string())?;
             admission_attestations[client].push(NodeAdmissionAttestation {
                 node: node as u16,
                 slot: u64::from(slots - 1),
@@ -3224,7 +3258,7 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
             let shape_digest = shape_digest.clone();
             handles.push(std::thread::spawn(move || {
                 let response = coordinator.call(&json!({
-                    "version": 1,
+                    "version": qomm_transport::node_service::VERSION,
                     "request_id": format!("compute-final-lane-{lane}"),
                     "operation": "compute",
                     "slot": slots - 1,
@@ -3262,15 +3296,14 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
                 .try_into()
                 .map_err(|_| format!("node {node} returned malformed {name}"))
             };
-            let signature: [u8; 64] = hex::decode(
+            let signature = hex::decode(
                 response
                     .get("mpc_execution_attestation")
                     .and_then(Value::as_str)
                     .ok_or_else(|| format!("node {node} omitted its execution attestation"))?,
             )
-            .map_err(|_| format!("node {node} execution attestation is malformed"))?
-            .try_into()
             .map_err(|_| format!("node {node} execution attestation is malformed"))?;
+            Signature::try_from(signature.as_slice()).map_err(|error| error.to_string())?;
             let attestation = NodeExecutionAttestation {
                 node: u16::try_from(node)
                     .map_err(|_| "resident node index is outside u16".to_string())?,
@@ -3339,28 +3372,29 @@ fn run(config: AcceptanceConfig<'_>) -> Result<bool, String> {
         let limit_context = admission_claims[(slots - 1) as usize][client];
         live_proofs.push((
             client,
-            prove_persistence_lane(
-                &root,
-                &prepared,
-                &mut proof_parties,
-                &frost_public,
-                slots - 1,
+            prove_persistence_lane(PersistenceLaneInput {
+                root: &root,
+                prepared: &prepared,
+                proof_parties: &mut proof_parties,
+                frost_public: &frost_public,
+                slot: slots - 1,
                 lane,
-                &node_batches,
-                admission_sequences[client][0],
-                admission_tickets[client][0],
-                quote_digest,
-                i64::try_from(10 + 5 * client).map_err(|_| "quote quantity exceeds i64")?,
-                151 + client as u64,
-                if client == 0 { 1 } else { 0 },
+                node_batches: &node_batches,
+                admission_sequence: admission_sequences[client][0],
+                admission_ticket_id: admission_tickets[client][0],
+                quote_job_seed: quote_digest,
+                quote_quantity: i64::try_from(10 + 5 * client)
+                    .map_err(|_| "quote quantity exceeds i64")?,
+                quote_quantity_blinding: 151 + client as u64,
+                quote_direction: if client == 0 { 1 } else { 0 },
                 limit_direction,
                 limit_commitment,
                 limit_context,
-                CompressedRistretto(taker_mandates[client].taker_handle)
+                taker_handle: CompressedRistretto(taker_mandates[client].taker_handle)
                     .decompress()
                     .ok_or_else(|| "signed Taker mandate contains an invalid handle".to_string())?,
                 now,
-            )?,
+            })?,
         ));
     }
     for (client, proof) in &live_proofs {

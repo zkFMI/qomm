@@ -1,0 +1,15 @@
+# 受信opening鍵の登録と復元
+
+ノートの配送鍵と請求権openingの復元鍵には、独立に生成した X25519 + ML-KEM-768 鍵を使用する。曲線view鍵・spend鍵から本番用PQ鍵を再生成してはならない。法人資格の保管鍵もノート配送鍵と分離する。
+
+`serve_proof_party`、OCLOBノード、WAN配布仕様は必須の `recipient_opening_keys` 配列を受け取る。各項目は `view`（32バイトの既存受取handle）と `public`（1216バイトのハイブリッド公開鍵）を持つ。これはノード運営者が確認した設定であり、請求権RPCの要求内容から登録してはならない。空配列では請求権openingの発行が拒否される。OCLOBラボprovisionerは各法人の独立鍵を生成し、この対応を各ノード設定へ配置する。
+
+登録内容は暗号化済みproofノード状態の構成digestへ含まれる。再起動時に登録を変更して既存FROST状態を再利用することは拒否される。鍵更新には未決済請求権、旧鍵の保管、委員会epoch、ノード状態を含む明示的移行が必要であり、ファイル消去による初期化は移行手順ではない。
+
+請求権の各Shamir評価は `ThresholdOpeningShare` purpose、proof job/leg、party、受取view、受信公開鍵に結び付くAEADで保管する。復元には従来の受取秘密鍵に加えて元のハイブリッド受信鍵が必要である。暗号文、KEM成分、nonce、tag、文脈の置換は拒否する。復元後も元のPedersen commitmentとの照合が必要である。
+
+公開reblindingは暗号文を変更せず、外側の署名対象に含まれる調整値として扱う。通常のノード出力では調整値はゼロであり、VMだけが検証済み公開deltaに従って残高openingを変換する。
+
+公開の受入fixtureで使う `test_support::public_fixture_recipient_key` は第三者が再生成できる。これは復元の配線を検査するものであり、受信者の機密性や運営者による鍵保管の証拠ではない。実鍵の機密性テスト、単一ホストの7プロセス試験、WAN/運営者鍵登録の証拠を区別する。
+
+ハイブリッド配送はPedersen、Shamir共有のcommitment、FROST、匿名所属証明、nullifier関係を耐量子に変更しない。

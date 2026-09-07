@@ -2,7 +2,6 @@
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, VerifyingKey};
 use openssl::x509::X509;
 use qomm_proofs::kyb::{EntityLimits, KybPresentation, SignedCohortRegistry};
 use qomm_transport::executor::ProgramRegistry;
@@ -170,13 +169,12 @@ fn scalar(value: &str, name: &str) -> Result<Scalar, String> {
 
 impl KybRegistryRow {
     fn decode(&self) -> Result<SignedCohortRegistry, String> {
-        let issuer = VerifyingKey::from_bytes(&fixed_hex(&self.issuer, "KYB registry issuer")?)
-            .map_err(|_| "KYB registry issuer is not an Ed25519 key".to_string())?;
-        let signature = Signature::from_slice(
-            &hex::decode(&self.signature)
-                .map_err(|_| "KYB registry signature must be hexadecimal".to_string())?,
+        let issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+            &hex::decode(&self.issuer).map_err(|_| "malformed hybrid issuer key".to_string())?,
         )
-        .map_err(|_| "KYB registry signature must contain 64 bytes".to_string())?;
+        .map_err(|_| "KYB registry issuer is not a hybrid key".to_string())?;
+        let signature = hex::decode(&self.signature)
+            .map_err(|_| "KYB registry signature must be hexadecimal".to_string())?;
         Ok(SignedCohortRegistry {
             cohort: self.cohort.clone(),
             registry_epoch: self.registry_epoch,
@@ -246,11 +244,11 @@ fn run(config_path: &Path) -> Result<(), String> {
         &config.sealing_keys.node_receipt_key_id,
         now,
     )?;
-    let trusted_issuer = VerifyingKey::from_bytes(&fixed_hex(
-        &config.kyb.trusted_issuer,
-        "trusted KYB issuer",
-    )?)
-    .map_err(|_| "trusted KYB issuer is not an Ed25519 key".to_string())?;
+    let trusted_issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        &hex::decode(&config.kyb.trusted_issuer)
+            .map_err(|_| "malformed hybrid issuer key".to_string())?,
+    )
+    .map_err(|_| "trusted KYB issuer is not a hybrid key".to_string())?;
     let kyb_policy = Arc::new(KybPolicy::new(
         config.kyb.venue_scope.as_bytes().to_vec(),
         config.kyb.required_cohort.clone(),

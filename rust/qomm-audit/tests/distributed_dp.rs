@@ -1,9 +1,9 @@
-use ed25519_dalek::SigningKey;
 use qomm_audit::distributed_dp::{BudgetState, DpMechanism, U64_SPACE};
 use qomm_audit::publication::{certify, PublicationCertificate, PublicationStatement, ZERO};
-use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
 
 fn statement(
     mechanism: &DpMechanism,
@@ -88,11 +88,16 @@ fn privacy_budget_exhaustion_blocks_before_generation() {
 fn quorum_certificate_binds_output_budget_source_rule_and_chain() {
     let mechanism = DpMechanism::new(500_000, 3, 32).unwrap();
     let keys = (0..7)
-        .map(|index| (format!("node-{index}"), SigningKey::generate(&mut OsRng)))
+        .map(|index| {
+            (
+                format!("node-{index}"),
+                Arc::new(HybridSigner::generate().unwrap()),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     let registry = keys
         .iter()
-        .map(|(node, key)| (node.clone(), key.verifying_key()))
+        .map(|(node, key)| (node.clone(), key.public_key()))
         .collect::<BTreeMap<_, _>>();
     let first_signers = keys
         .iter()
@@ -127,11 +132,16 @@ fn quorum_certificate_binds_output_budget_source_rule_and_chain() {
 fn two_signers_do_not_meet_three_of_seven() {
     let mechanism = DpMechanism::new(500_000, 3, 32).unwrap();
     let keys = (0..7)
-        .map(|index| (format!("node-{index}"), SigningKey::generate(&mut OsRng)))
+        .map(|index| {
+            (
+                format!("node-{index}"),
+                Arc::new(HybridSigner::generate().unwrap()),
+            )
+        })
         .collect::<BTreeMap<_, _>>();
     let registry = keys
         .iter()
-        .map(|(node, key)| (node.clone(), key.verifying_key()))
+        .map(|(node, key)| (node.clone(), key.public_key()))
         .collect::<BTreeMap<_, _>>();
     let signers = keys
         .iter()

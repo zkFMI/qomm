@@ -1,5 +1,6 @@
 //! Resident mutually-authenticated node service with durable idempotency.
 
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey};
 use crate::executor::{ProgramRegistry, SealedExecution};
 use crate::key_management::EncryptedKeyStore;
 use crate::order::{
@@ -11,7 +12,6 @@ use crate::wire::{frame_is_authentic, Frame, FRAME_BYTES};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::ristretto::RistrettoPoint;
-use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use openssl::pkey::{PKey, Private};
 use openssl::ssl::{SslAcceptor, SslConnector, SslMethod, SslStream, SslVerifyMode};
 use qomm_proofs::kyb::{
@@ -37,8 +37,10 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-pub const VERSION: u64 = 1;
-pub const RECORD_BYTES: usize = 4096;
+pub const VERSION: u64 = 2;
+// A v2 application signature is 5,371 bytes (10,742 hex characters).
+// Admission and execution receipts, including their fixed metadata, fit in 16 KiB.
+pub const RECORD_BYTES: usize = 16 * 1024;
 pub const LENGTH_BYTES: usize = 4;
 pub const MAX_JSON_BYTES: usize = RECORD_BYTES - LENGTH_BYTES;
 const MAX_RESIDENT_CONNECTIONS: usize = 256;
@@ -206,7 +208,7 @@ pub struct KybPolicy {
     venue_scope: Vec<u8>,
     required_cohort: String,
     registry: Arc<RwLock<SignedCohortRegistry>>,
-    trusted_issuer: VerifyingKey,
+    trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
 }
 
 impl KybPolicy {
@@ -214,7 +216,7 @@ impl KybPolicy {
         venue_scope: Vec<u8>,
         required_cohort: impl Into<String>,
         registry: SignedCohortRegistry,
-        trusted_issuer: VerifyingKey,
+        trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
     ) -> Result<Self, String> {
         if venue_scope.is_empty() {
             return Err("KYB venue scope must not be empty".into());
@@ -364,9 +366,9 @@ impl NodeSealingKeys {
         ) -> Result<SigningKey, String> {
             store
                 .private_key(key_id, at, false)?
-                .ed25519()
+                .hybrid_signature()
                 .cloned()
-                .ok_or_else(|| format!("{purpose} key is not Ed25519"))
+                .ok_or_else(|| format!("{purpose} key is not a v2 hybrid application signing key"))
         }
         Ok(Self {
             authority: signing(store, authority_key_id, at, "admission authority")?,
@@ -1306,7 +1308,7 @@ fn ticket_for_principal(
         expires_at: u64::MAX,
         signature: Signature::from_bytes(&[0; 64]),
     };
-    ticket.signature = authority.sign(&ticket.unsigned()?);
+    ticket.signature = authority.try_sign(&ticket.unsigned()?)?;
     Ok(ticket)
 }
 
@@ -1355,7 +1357,7 @@ fn seal_stored_slot(
         .chain_update(population_digest(expected))
         .finalize()
         .into();
-    let beacon = RandomnessBeacon::sign(u64::from(slot) + 1, beacon_value, &keys.beacon);
+    let beacon = RandomnessBeacon::sign(u64::from(slot) + 1, beacon_value, &keys.beacon)?;
     let (frames, manifest) = sealer.close(&beacon, deadline_ns.saturating_add(1))?;
     let ordered = manifest
         .ordered_ticket_digests

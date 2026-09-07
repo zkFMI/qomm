@@ -1,7 +1,7 @@
 //! Prepare a split-knowledge seven-node WAN deployment without collecting
 //! node TLS, sealing, FROST or MP-SPDZ secrets at the coordinator.
 
-use ed25519_dalek::VerifyingKey;
+use qomm_transport::application_crypto::VerifyingKey;
 use qomm_transport::wan_deployment::{
     apply_node_response, initialize_authority, initialize_node, initialize_node_mpc_state,
     prepare_node_mpc_runtime, read_deployment_spec, sign_node_requests, sync_directory,

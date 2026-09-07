@@ -6,6 +6,7 @@ license.workspace = true
 autobins = false
 
 [dependencies]
+zkfmi-crypto.workspace = true
 qomm-demo = { path = "../qomm-demo" }
 qomm-audit.workspace = true
 qomm-dsl.workspace = true

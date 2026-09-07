@@ -7,7 +7,6 @@
 //! registry rejects every older presentation.
 
 use curve25519_dalek::ristretto::CompressedRistretto;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier};
 use qomm_proofs::kyb::{verify_registry, BusinessAttributes, KybCredential, SignedCohortRegistry};
 use rand_core::{CryptoRng, OsRng, RngCore};
 use serde::{Deserialize, Serialize};
@@ -17,14 +16,20 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use zkfmi_crypto::{
+    hybrid::signature::{HybridSigner, HybridVerifier},
+    key::KeyPurpose,
+    traits::{Signer, Verifier},
+};
 
 use crate::key_management::{
     decrypt_authenticated, derive_secret_key, encrypt_authenticated, FileLock,
 };
 
-const MAGIC: &[u8; 8] = b"QOMMKYB1";
-const AAD: &[u8] = b"QOMM:KYB:LIFECYCLE-STATE:v1";
-const EVENT_DOMAIN: &[u8] = b"QOMM:KYB:LIFECYCLE-EVENT:v1";
+const MAGIC: &[u8; 8] = b"QOMMKYB2";
+const AAD: &[u8] = b"QOMM:KYB:LIFECYCLE-STATE:v2";
+const EVENT_DOMAIN: &[u8] = b"QOMM:KYB:LIFECYCLE-EVENT:v2";
 const SALT_BYTES: usize = 16;
 const NONCE_BYTES: usize = 12;
 
@@ -100,23 +105,19 @@ impl StoredRegistry {
                 .collect(),
             issuer: hex::encode(registry.issuer.to_bytes()),
             registry_id: hex::encode(registry.registry_id),
-            signature: hex::encode(registry.signature.to_bytes()),
+            signature: hex::encode(&registry.signature),
         }
     }
 
     fn registry(&self) -> Result<SignedCohortRegistry, String> {
-        let issuer: [u8; 32] = hex::decode(&self.issuer)
-            .map_err(|_| "stored KYB issuer is malformed".to_string())?
-            .try_into()
-            .map_err(|_| "stored KYB issuer is malformed".to_string())?;
+        let issuer =
+            hex::decode(&self.issuer).map_err(|_| "stored KYB issuer is malformed".to_string())?;
         let registry_id: [u8; 32] = hex::decode(&self.registry_id)
             .map_err(|_| "stored KYB registry identifier is malformed".to_string())?
             .try_into()
             .map_err(|_| "stored KYB registry identifier is malformed".to_string())?;
-        let signature: [u8; 64] = hex::decode(&self.signature)
-            .map_err(|_| "stored KYB registry signature is malformed".to_string())?
-            .try_into()
-            .map_err(|_| "stored KYB registry signature is malformed".to_string())?;
+        let signature = hex::decode(&self.signature)
+            .map_err(|_| "stored KYB signature is malformed".to_string())?;
         Ok(SignedCohortRegistry {
             cohort: self.cohort.clone(),
             registry_epoch: self.registry_epoch,
@@ -134,10 +135,10 @@ impl StoredRegistry {
                         .ok_or_else(|| "stored KYB point is not canonical".to_string())
                 })
                 .collect::<Result<Vec<_>, _>>()?,
-            issuer: ed25519_dalek::VerifyingKey::from_bytes(&issuer)
+            issuer: qomm_proofs::kyb::KybIssuerKey::from_bytes(&issuer)
                 .map_err(|_| "stored KYB issuer is not canonical".to_string())?,
             registry_id,
-            signature: Signature::from_bytes(&signature),
+            signature,
         })
     }
 }
@@ -167,6 +168,9 @@ impl LifecycleStore {
         File::open(&self.path)
             .and_then(|mut file| file.read_to_end(&mut raw))
             .map_err(|error| error.to_string())?;
+        if raw.get(..8) == Some(b"QOMMKYB1") {
+            return Err("legacy classical KYB state requires an archived checkpoint and explicit PQ re-enrollment; existing state was preserved".into());
+        }
         let minimum = MAGIC.len() + SALT_BYTES + NONCE_BYTES + 16;
         if raw.len() < minimum || raw.get(..MAGIC.len()) != Some(MAGIC) {
             return Err("not an encrypted QOMM KYB lifecycle state".into());
@@ -186,7 +190,7 @@ impl LifecycleStore {
         )?;
         let state: LifecycleState = serde_json::from_slice(&clear)
             .map_err(|_| "KYB lifecycle authentication failed".to_string())?;
-        if state.version != 1 {
+        if state.version != 2 {
             return Err("unsupported KYB lifecycle state version".into());
         }
         Ok(state)
@@ -238,7 +242,7 @@ impl LifecycleStore {
 
 pub struct KybLifecycleService {
     store: LifecycleStore,
-    signing: SigningKey,
+    signing: Arc<HybridSigner>,
     max_tier: u32,
 }
 
@@ -246,7 +250,7 @@ impl KybLifecycleService {
     pub fn open(
         path: impl Into<PathBuf>,
         passphrase: &[u8],
-        signing: SigningKey,
+        signing: Arc<HybridSigner>,
         max_tier: u32,
     ) -> Result<Self, String> {
         if passphrase.len() < 16 || max_tier == 0 {
@@ -269,7 +273,7 @@ impl KybLifecycleService {
         let _lock = FileLock::acquire(&service.store.path)?;
         if !service.store.path.exists() {
             service.store.write_unlocked(&LifecycleState {
-                version: 1,
+                version: 2,
                 generation: 0,
                 entities: BTreeMap::new(),
                 appeals: BTreeMap::new(),
@@ -316,7 +320,10 @@ impl KybLifecycleService {
             .chain_update(payload_digest.as_bytes())
             .chain_update(previous.as_bytes())
             .finalize();
-        let signature = self.signing.sign(&digest);
+        let signature = self
+            .signing
+            .sign(KeyPurpose::AuditCheckpoint, &digest)
+            .map_err(|error| error.to_string())?;
         state.events.push(AuditEvent {
             sequence,
             at,
@@ -325,7 +332,7 @@ impl KybLifecycleService {
             payload_digest,
             previous,
             digest: hex::encode(digest),
-            signature: hex::encode(signature.to_bytes()),
+            signature: hex::encode(signature),
         });
         Ok(())
     }
@@ -348,13 +355,15 @@ impl KybLifecycleService {
             if hex::encode(digest) != event.digest {
                 return Err("KYB lifecycle audit digest is invalid".into());
             }
-            let raw: [u8; 64] = hex::decode(&event.signature)
-                .map_err(|_| "KYB lifecycle audit signature is malformed".to_string())?
-                .try_into()
-                .map_err(|_| "KYB lifecycle audit signature is malformed".to_string())?;
-            self.signing
-                .verifying_key()
-                .verify(&digest, &Signature::from_bytes(&raw))
+            let raw = hex::decode(&event.signature)
+                .map_err(|_| "KYB audit signature malformed".to_string())?;
+            HybridVerifier
+                .verify(
+                    KeyPurpose::AuditCheckpoint,
+                    &self.signing.public_key(),
+                    &digest,
+                    &raw,
+                )
                 .map_err(|_| "KYB lifecycle audit signature is invalid".to_string())?;
             previous = event.digest.clone();
         }
@@ -750,8 +759,13 @@ impl KybLifecycleService {
             .map(StoredRegistry::registry)
             .transpose()?
             .map(|registry| {
-                verify_registry(&registry, &self.signing.verifying_key(), now)
-                    .map_err(|error| format!("cached KYB registry is invalid: {error:?}"))?;
+                verify_registry(
+                    &registry,
+                    &qomm_proofs::kyb::KybIssuerKey::from_bytes(&self.signing.public_key())
+                        .map_err(str::to_string)?,
+                    now,
+                )
+                .map_err(|error| format!("cached KYB registry is invalid: {error:?}"))?;
                 Ok(registry)
             })
             .transpose()

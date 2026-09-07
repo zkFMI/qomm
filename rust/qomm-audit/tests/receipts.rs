@@ -1,23 +1,23 @@
-use ed25519_dalek::SigningKey;
 use qomm_audit::receipts::{
     digest, sign_receipt, AuditLedger, BondLedger, Evidence, Fault, NodeReceipt, SlotSpec, GENESIS,
 };
-use rand_core::OsRng;
 use std::collections::BTreeMap;
+use std::sync::Arc;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
 
 const NODES: u32 = 7;
 const QUORUM: usize = 5;
 
-fn keys() -> BTreeMap<u32, SigningKey> {
+fn keys() -> BTreeMap<u32, Arc<HybridSigner>> {
     (0..NODES)
-        .map(|node| (node, SigningKey::generate(&mut OsRng)))
+        .map(|node| (node, Arc::new(HybridSigner::generate().unwrap())))
         .collect()
 }
 
-fn ledger(keys: &BTreeMap<u32, SigningKey>) -> AuditLedger {
+fn ledger(keys: &BTreeMap<u32, Arc<HybridSigner>>) -> AuditLedger {
     AuditLedger::new(
         keys.iter()
-            .map(|(node, key)| (*node, key.verifying_key()))
+            .map(|(node, key)| (*node, key.public_key()))
             .collect(),
     )
 }
@@ -42,7 +42,7 @@ fn spec(slot: u64) -> SlotSpec {
 }
 
 fn honest_round(
-    keys: &BTreeMap<u32, SigningKey>,
+    keys: &BTreeMap<u32, Arc<HybridSigner>>,
     ledger: &mut AuditLedger,
     slot: u64,
     previous: [u8; 32],
@@ -64,7 +64,8 @@ fn honest_round(
                     result,
                     100 * slot + 10,
                     None,
-                ),
+                )
+                .unwrap(),
                 None,
             );
         }
@@ -95,7 +96,8 @@ fn honest_run_has_no_evidence_and_receipts_hide_real_vs_cover() {
         digest(&[b"result-real"]),
         10,
         None,
-    );
+    )
+    .unwrap();
     let cover = sign_receipt(
         &keys[&1],
         1,
@@ -105,12 +107,10 @@ fn honest_run_has_no_evidence_and_receipts_hide_real_vs_cover() {
         digest(&[b"result-cover"]),
         10,
         None,
-    );
+    )
+    .unwrap();
     assert_eq!(real.result_digest.len(), cover.result_digest.len());
-    assert_eq!(
-        real.signature.to_bytes().len(),
-        cover.signature.to_bytes().len()
-    );
+    assert_eq!(real.signature.clone().len(), cover.signature.clone().len());
 }
 
 #[test]
@@ -138,7 +138,8 @@ fn equivocation_omission_stale_state_and_fork_name_only_the_faulty_node() {
                 result,
                 10,
                 maker_set,
-            ),
+            )
+            .unwrap(),
             Some(10),
         );
     }
@@ -153,7 +154,8 @@ fn equivocation_omission_stale_state_and_fork_name_only_the_faulty_node() {
             other,
             11,
             None,
-        ),
+        )
+        .unwrap(),
         Some(11),
     );
     let equivocation = found
@@ -188,7 +190,8 @@ fn equivocation_omission_stale_state_and_fork_name_only_the_faulty_node() {
         digest(&[b"next-result"]),
         110,
         None,
-    );
+    )
+    .unwrap();
     let found = ledger.record(stale, Some(110));
     assert!(found
         .iter()
@@ -208,7 +211,7 @@ fn deadline_and_quorum_fail_closed_and_arrival_time_defeats_backdating() {
         .any(|item| item.fault == Fault::MissingReceipt && item.node == -1));
 
     let keys = (0..3)
-        .map(|node| (node, SigningKey::generate(&mut OsRng)))
+        .map(|node| (node, Arc::new(HybridSigner::generate().unwrap())))
         .collect::<BTreeMap<_, _>>();
     let mut backdating_ledger = crate::ledger(&keys);
     let spec = SlotSpec {
@@ -230,14 +233,16 @@ fn deadline_and_quorum_fail_closed_and_arrival_time_defeats_backdating() {
                 [b'r'; 32],
                 50,
                 None,
-            ),
+            )
+            .unwrap(),
             Some(50),
         );
     }
     backdating_ledger.record(
         sign_receipt(
             &keys[&2], 2, &spec, GENESIS, [b'n'; 32], [b'r'; 32], 99, None,
-        ),
+        )
+        .unwrap(),
         Some(150),
     );
     let (_, found) = backdating_ledger.settle(1, 150).unwrap();
@@ -264,7 +269,8 @@ fn signatures_bind_timestamp_market_and_deadline() {
         digest(&[b"r"]),
         spec.deadline + 100,
         None,
-    );
+    )
+    .unwrap();
     let mut moved = genuine.clone();
     moved.emitted_at = 1;
     assert!(ledger
@@ -285,6 +291,20 @@ fn signatures_bind_timestamp_market_and_deadline() {
             .any(|item| item.fault == Fault::BadSignature));
     }
 
+    for index in [0, 64] {
+        let mut moved = genuine.clone();
+        moved.signature[index] ^= 1;
+        assert!(ledger
+            .record(moved, Some(1))
+            .iter()
+            .any(|item| item.fault == Fault::BadSignature));
+    }
+    let mut stripped = genuine.clone();
+    stripped.signature.truncate(64);
+    assert!(ledger
+        .record(stripped, Some(1))
+        .iter()
+        .any(|item| item.fault == Fault::BadSignature));
     let mut forged: NodeReceipt = genuine;
     forged.node = 1;
     assert!(ledger
@@ -296,7 +316,7 @@ fn signatures_bind_timestamp_market_and_deadline() {
 #[test]
 fn wrong_market_is_not_counted_and_slashing_obeys_schedule() {
     let keys = (0..3)
-        .map(|node| (node, SigningKey::generate(&mut OsRng)))
+        .map(|node| (node, Arc::new(HybridSigner::generate().unwrap())))
         .collect::<BTreeMap<_, _>>();
     let mut ledger = ledger(&keys);
     let spec = SlotSpec {
@@ -312,7 +332,8 @@ fn wrong_market_is_not_counted_and_slashing_obeys_schedule() {
     let found = ledger.record(
         sign_receipt(
             &keys[&0], 0, &elsewhere, GENESIS, [b'n'; 32], [b'r'; 32], 50, None,
-        ),
+        )
+        .unwrap(),
         Some(50),
     );
     assert!(found

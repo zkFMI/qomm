@@ -13,9 +13,9 @@
 //! authorising the final typed zkPI. Neither file contains a quote or an MPC
 //! policy/inventory share.
 
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey, SIGNATURE_BYTES};
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use qomm_proofs::kyb::{KybPresentation, SignedCohortRegistry};
 use qomm_zk::or_dleq::Proof as MembershipProof;
 use qomm_zkpi::frost;
@@ -30,9 +30,9 @@ use std::path::{Path, PathBuf};
 use crate::mandate::{Direction, MakerPolicyMandate, TakerExecutionMandate, ZERO};
 use crate::order::{verify_admission_lane, NodeAdmissionAttestation, COMMITTEE_NODES};
 
-const AUTHORITY_VERSION: u8 = 5;
-const ACK_VERSION: u8 = 1;
-const ACK_DOMAIN: &[u8] = b"QOMM:DEFMI:PRETRADE-ACK:v1";
+const AUTHORITY_VERSION: u8 = 6;
+const ACK_VERSION: u8 = 2;
+const ACK_DOMAIN: &[u8] = b"QOMM:DEFMI:PRETRADE-ACK:v2";
 const MAX_AUTHORITIES: usize = 4096;
 const MAX_FILE: u64 = 32 << 20;
 
@@ -168,11 +168,13 @@ fn parse32(value: &str, name: &str) -> Result<[u8; 32], String> {
         .map_err(|_| format!("{name} is not 32 bytes"))
 }
 
-fn parse64(value: &str, name: &str) -> Result<[u8; 64], String> {
-    hex::decode(value)
-        .map_err(|_| format!("{name} is not hexadecimal"))?
-        .try_into()
-        .map_err(|_| format!("{name} is not 64 bytes"))
+fn parse_signature(value: &str, name: &str) -> Result<Vec<u8>, String> {
+    if value.len() != SIGNATURE_BYTES * 2 {
+        return Err(format!("{name} requires a v2 hybrid envelope"));
+    }
+    let bytes = hex::decode(value).map_err(|_| format!("{name} is not hexadecimal"))?;
+    Signature::try_from(bytes.as_slice()).map_err(|error| format!("{name}: {error}"))?;
+    Ok(bytes)
 }
 
 fn point(value: &str, name: &str) -> Result<RistrettoPoint, String> {
@@ -219,7 +221,7 @@ impl WireRegistry {
                 .collect(),
             issuer: hex::encode(value.issuer.to_bytes()),
             registry_id: hex::encode(value.registry_id),
-            signature: hex::encode(value.signature.to_bytes()),
+            signature: hex::encode(&value.signature),
         }
     }
 
@@ -234,10 +236,13 @@ impl WireRegistry {
                 .enumerate()
                 .map(|(index, value)| point(value, &format!("registry point {index}")))
                 .collect::<Result<Vec<_>, _>>()?,
-            issuer: VerifyingKey::from_bytes(&parse32(&self.issuer, "registry issuer")?)
-                .map_err(|_| "registry issuer is malformed".to_string())?,
+            issuer: qomm_proofs::kyb::KybIssuerKey::from_bytes(
+                &hex::decode(&self.issuer).map_err(|_| "malformed registry issuer".to_string())?,
+            )
+            .map_err(|_| "registry issuer is malformed".to_string())?,
             registry_id: parse32(&self.registry_id, "registry id")?,
-            signature: Signature::from_bytes(&parse64(&self.signature, "registry signature")?),
+            signature: hex::decode(&self.signature)
+                .map_err(|_| "malformed registry signature".to_string())?,
         })
     }
 }
@@ -374,7 +379,7 @@ impl WireMakerMandate {
             valid_until: self.valid_until,
             auto_execute: self.auto_execute,
             maker_public: parse32(&self.maker_public, "Maker public key")?,
-            signature: Signature::from_bytes(&parse64(&self.signature, "Maker signature")?),
+            signature: Signature::from_bytes(&parse_signature(&self.signature, "Maker signature")?),
         };
         value.unsigned()?;
         Ok(value)
@@ -468,7 +473,7 @@ impl WireTakerMandate {
             allow_partial: self.allow_partial,
             auto_settle: self.auto_settle,
             taker_public: parse32(&self.taker_public, "Taker public key")?,
-            signature: Signature::from_bytes(&parse64(&self.signature, "Taker signature")?),
+            signature: Signature::from_bytes(&parse_signature(&self.signature, "Taker signature")?),
         };
         value.unsigned()?;
         Ok(value)
@@ -715,7 +720,7 @@ fn admission_from_wire(value: WireAdmission) -> Result<PretradeAdmission, String
                             claim_digest: parse32(&entry.claim_digest, "admission claim")?,
                             batch_digest: parse32(&entry.batch_digest, "admission batch")?,
                             order_digest: parse32(&entry.order_digest, "admission order")?,
-                            signature: Signature::from_bytes(&parse64(
+                            signature: Signature::from_bytes(&parse_signature(
                                 &entry.signature,
                                 "admission signature",
                             )?),
@@ -988,7 +993,7 @@ impl PretradeAcknowledgement {
         if self.signer_public != key.verifying_key().to_bytes() {
             return Err("pre-trade acknowledgement signing key differs".into());
         }
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -1089,7 +1094,10 @@ fn ack_from_wire(value: WireAck) -> Result<PretradeAcknowledgement, String> {
             })
             .collect::<Result<Vec<_>, String>>()?,
         signer_public: parse32(&value.signer_public, "acknowledgement signer")?,
-        signature: Signature::from_bytes(&parse64(&value.signature, "acknowledgement signature")?),
+        signature: Signature::from_bytes(&parse_signature(
+            &value.signature,
+            "acknowledgement signature",
+        )?),
     };
     acknowledgement.unsigned()?;
     Ok(acknowledgement)

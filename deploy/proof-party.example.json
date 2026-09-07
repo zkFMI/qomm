@@ -21,5 +21,6 @@
   "quote_span_bits": 32,
   "trusted_defmi_receipt_public": "REPLACE_WITH_GOVERNANCE_PINNED_64_HEX_ED25519_KEY",
   "allow_health_signing": false,
-  "idle_timeout_seconds": 30
+  "idle_timeout_seconds": 30,
+  "recipient_opening_keys": []
 }

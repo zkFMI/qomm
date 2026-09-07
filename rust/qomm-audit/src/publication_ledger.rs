@@ -6,7 +6,6 @@
 //! accepts signatures, never signing keys: a coordinator cannot manufacture a
 //! publication merely because it can open this database.
 
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -15,6 +14,7 @@ use std::io::{Read, Write};
 use std::os::fd::AsRawFd;
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
+use zkfmi_crypto::{hybrid::signature::HybridVerifier, key::KeyPurpose, traits::Verifier};
 
 use crate::distributed_dp::DpMechanism;
 use crate::publication::{NodeSignature, PublicationCertificate, PublicationStatement, ZERO};
@@ -90,7 +90,7 @@ impl StoredCertificate {
                 .iter()
                 .map(|signed| StoredSignature {
                     node_id: signed.node_id.clone(),
-                    signature: hex::encode(signed.signature.to_bytes()),
+                    signature: hex::encode(&signed.signature),
                 })
                 .collect(),
         }
@@ -103,13 +103,11 @@ impl StoredCertificate {
                 .signatures
                 .iter()
                 .map(|signed| {
-                    let raw: [u8; 64] = hex::decode(&signed.signature)
-                        .map_err(|_| "stored publication signature is malformed".to_string())?
-                        .try_into()
-                        .map_err(|_| "stored publication signature is malformed".to_string())?;
+                    let raw = hex::decode(&signed.signature).map_err(|_| "stored publication signature is malformed".to_string())?;
+                    if raw.len() != 3373 { return Err("legacy publication requires an archived checkpoint and explicit PQ migration".into()); }
                     Ok(NodeSignature {
                         node_id: signed.node_id.clone(),
-                        signature: Signature::from_bytes(&raw),
+                        signature: raw,
                     })
                 })
                 .collect::<Result<Vec<_>, String>>()?,
@@ -166,16 +164,16 @@ impl Drop for LedgerLock {
 
 pub struct PublicationLedger {
     path: PathBuf,
-    publication_registry: BTreeMap<String, VerifyingKey>,
+    publication_registry: BTreeMap<String, Vec<u8>>,
     publication_threshold: usize,
-    governance_registry: BTreeMap<String, VerifyingKey>,
+    governance_registry: BTreeMap<String, Vec<u8>>,
     governance_threshold: usize,
 }
 
 impl PublicationLedger {
     pub fn open(
         path: impl Into<PathBuf>,
-        registry: BTreeMap<String, VerifyingKey>,
+        registry: BTreeMap<String, Vec<u8>>,
         threshold: usize,
     ) -> Result<Self, String> {
         Self::open_with_registries(path, registry.clone(), threshold, registry, threshold)
@@ -186,12 +184,14 @@ impl PublicationLedger {
     /// fresh privacy budget, while governance cannot fabricate an MPC output.
     pub fn open_with_registries(
         path: impl Into<PathBuf>,
-        publication_registry: BTreeMap<String, VerifyingKey>,
+        publication_registry: BTreeMap<String, Vec<u8>>,
         publication_threshold: usize,
-        governance_registry: BTreeMap<String, VerifyingKey>,
+        governance_registry: BTreeMap<String, Vec<u8>>,
         governance_threshold: usize,
     ) -> Result<Self, String> {
-        if publication_registry.len() != 7
+        if !crate::publication::independent_registry(&publication_registry)
+            || !crate::publication::independent_registry(&governance_registry)
+            || publication_registry.len() != 7
             || publication_threshold != 3
             || governance_registry.len() != 7
             || governance_threshold != 3
@@ -241,19 +241,24 @@ impl PublicationLedger {
     }
 
     fn verify_signatures(
-        registry: &BTreeMap<String, VerifyingKey>,
+        registry: &BTreeMap<String, Vec<u8>>,
         threshold: usize,
         body: &[u8],
         signatures: &[NodeSignature],
     ) -> bool {
+        if !crate::publication::independent_registry(registry) {
+            return false;
+        }
         let mut seen = BTreeSet::new();
         signatures
             .iter()
             .filter(|signed| {
                 seen.insert(signed.node_id.clone())
-                    && registry
-                        .get(&signed.node_id)
-                        .is_some_and(|key| key.verify(body, &signed.signature).is_ok())
+                    && registry.get(&signed.node_id).is_some_and(|key| {
+                        HybridVerifier
+                            .verify(KeyPurpose::AuditCheckpoint, key, body, &signed.signature)
+                            .is_ok()
+                    })
             })
             .count()
             >= threshold
@@ -264,7 +269,7 @@ impl PublicationLedger {
             .iter()
             .map(|signed| StoredSignature {
                 node_id: signed.node_id.clone(),
-                signature: hex::encode(signed.signature.to_bytes()),
+                signature: hex::encode(&signed.signature),
             })
             .collect()
     }

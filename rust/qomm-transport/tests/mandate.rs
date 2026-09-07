@@ -1,10 +1,10 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey};
 use qomm_proofs::kyb::{
     cohort_id, present, BusinessAttributes, KybCredential, KybIssuer, KybPresentation,
     SignedCohortRegistry,
 };
+use qomm_transport::application_crypto::{Signature, SigningKey};
 use qomm_transport::mandate::{
     decode_maker_mandate, decode_taker_mandate, encode_maker_mandate, encode_taker_mandate,
     Direction, MakerPolicyMandate, TakerExecutionMandate, ZERO,

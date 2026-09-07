@@ -1,13 +1,27 @@
 //! Quorum certificate for privacy-preserving public market statistics.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use std::sync::Arc;
+use zkfmi_crypto::{
+    hybrid::signature::{HybridSigner, HybridVerifier},
+    key::KeyPurpose,
+    traits::{Signer, Verifier},
+};
 
-const DOMAIN: &[u8] = b"QOMM:PUBLICATION-CERTIFICATE:v1";
+const DOMAIN: &[u8] = b"QOMM:PUBLICATION-CERTIFICATE:v2";
 pub const ZERO: [u8; 32] = [0; 32];
+
+pub(crate) fn independent_registry(registry: &BTreeMap<String, Vec<u8>>) -> bool {
+    if registry.values().any(|key| key.len() != 1984) {
+        return false;
+    }
+    let classical: BTreeSet<_> = registry.values().map(|key| &key[..32]).collect();
+    let post_quantum: BTreeSet<_> = registry.values().map(|key| &key[32..]).collect();
+    classical.len() == registry.len() && post_quantum.len() == registry.len()
+}
 
 /// Public evidence written by one MPC node's local supervisor after that node
 /// has observed the distributed release. It contains no contribution or exact
@@ -191,7 +205,7 @@ impl PublicationStatement {
 #[derive(Clone, Debug)]
 pub struct NodeSignature {
     pub node_id: String,
-    pub signature: Signature,
+    pub signature: Vec<u8>,
 }
 
 #[derive(Clone, Debug)]
@@ -208,18 +222,21 @@ impl PublicationCertificate {
         signatures.sort_by(|left, right| left.node_id.cmp(&right.node_id));
         for signed in signatures {
             hash.update(signed.node_id.as_bytes());
-            hash.update(signed.signature.to_bytes());
+            hash.update(&signed.signature);
         }
         Ok(hash.finalize().into())
     }
 
     pub fn verify(
         &self,
-        registry: &BTreeMap<String, VerifyingKey>,
+        registry: &BTreeMap<String, Vec<u8>>,
         threshold: usize,
         previous: Option<&PublicationCertificate>,
     ) -> bool {
-        if self.statement.validate().is_err() || !(1..=registry.len()).contains(&threshold) {
+        if !independent_registry(registry)
+            || self.statement.validate().is_err()
+            || !(1..=registry.len()).contains(&threshold)
+        {
             return false;
         }
         match previous {
@@ -248,9 +265,11 @@ impl PublicationCertificate {
             .iter()
             .filter(|signed| {
                 seen.insert(signed.node_id.clone())
-                    && registry
-                        .get(&signed.node_id)
-                        .is_some_and(|key| key.verify(&body, &signed.signature).is_ok())
+                    && registry.get(&signed.node_id).is_some_and(|key| {
+                        HybridVerifier
+                            .verify(KeyPurpose::AuditCheckpoint, key, &body, &signed.signature)
+                            .is_ok()
+                    })
             })
             .count()
             >= threshold
@@ -259,17 +278,21 @@ impl PublicationCertificate {
 
 pub fn certify(
     statement: PublicationStatement,
-    signers: &BTreeMap<String, SigningKey>,
+    signers: &BTreeMap<String, Arc<HybridSigner>>,
 ) -> Result<PublicationCertificate, String> {
     let body = statement.body()?;
     Ok(PublicationCertificate {
         statement,
         signatures: signers
             .iter()
-            .map(|(node_id, key)| NodeSignature {
-                node_id: node_id.clone(),
-                signature: key.sign(&body),
+            .map(|(node_id, key)| {
+                Ok(NodeSignature {
+                    node_id: node_id.clone(),
+                    signature: key
+                        .sign(KeyPurpose::AuditCheckpoint, &body)
+                        .map_err(|error| error.to_string())?,
+                })
             })
-            .collect(),
+            .collect::<Result<Vec<_>, String>>()?,
     })
 }

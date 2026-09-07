@@ -1,6 +1,6 @@
 //! Input roles, signed dealing receipts, and entity-scoped rate limiting.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey};
 use rand_core::{OsRng, RngCore};
 
 pub use qomm_proofs::kyb::{EntityLimits, EntityRateLimiter, Refused, Usage};
@@ -11,6 +11,8 @@ pub const SLACK_BITS: u32 = 40;
 pub enum RoleError {
     #[error("sharing needs at least two nodes")]
     NodeCount,
+    #[error("hybrid share receipt could not be signed: {0}")]
+    Signing(String),
     #[error("value needs {actual} bits, declared {declared}")]
     ValueWidth { actual: u32, declared: u32 },
     #[error("share range exceeds signed 128-bit arithmetic")]
@@ -199,7 +201,7 @@ fn signed_64(value: i128) -> [u8; 64] {
 
 pub fn dealt_body(dealer: &str, index: usize, position: usize, share: i128) -> Vec<u8> {
     let mut body = Vec::with_capacity(24 + dealer.len() + 64);
-    body.extend_from_slice(b"QOMM:TRANSPORT:SHARE:v1");
+    body.extend_from_slice(b"QOMM:TRANSPORT:SHARE:v2");
     body.extend_from_slice(&(dealer.len() as u32).to_be_bytes());
     body.extend_from_slice(dealer.as_bytes());
     body.extend_from_slice(&(index as u32).to_be_bytes());
@@ -245,17 +247,21 @@ impl InputParty {
         if nodes.len() != self.n_nodes {
             return Err(RoleError::NodeShape);
         }
+        let mut pending = nodes.to_vec();
         for value in values {
             let shares = split(*value, self.n_nodes, self.value_bits)?;
-            for (node, share) in nodes.iter_mut().zip(shares) {
+            for (node, share) in pending.iter_mut().zip(shares) {
                 let position = node.inputs.len();
                 let receipt = self
                     .signing_key
                     .as_ref()
-                    .map(|key| key.sign(&dealt_body(&self.name, node.index, position, share)));
+                    .map(|key| key.try_sign(&dealt_body(&self.name, node.index, position, share)))
+                    .transpose()
+                    .map_err(RoleError::Signing)?;
                 node.receive(share, receipt);
             }
         }
+        nodes.clone_from_slice(&pending);
         Ok(())
     }
 }

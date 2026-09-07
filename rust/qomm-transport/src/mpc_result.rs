@@ -5,16 +5,16 @@
 //! committee without learning the rejected quote, Taker limit, pricing policy,
 //! inventory, or any MPC share.
 
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey, SIGNATURE_BYTES};
 use crate::order::{cluster_batch_digest, COMMITTEE_NODES};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 
-const NODE_RESULT_DOMAIN: &[u8] = b"QOMM:MPC:PUBLIC-RESULT-NODE:v1";
+const NODE_RESULT_DOMAIN: &[u8] = b"QOMM:MPC:PUBLIC-RESULT-NODE:v2";
 const RESULT_LANE_DOMAIN: &[u8] = b"QOMM:MPC:PUBLIC-RESULT-LANE:v1";
 const MASK_COMMITMENT_DOMAIN: &[u8] = b"QOMM:MPC:FILL-MASK-COMMITMENT:v1";
-const WIRE_MAGIC: &[u8; 8] = b"QOMMRES1";
-const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 5 + 16 + 16 + 64;
+const WIRE_MAGIC: &[u8; 8] = b"QOMMRES2";
+const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 5 + 16 + 16 + SIGNATURE_BYTES;
 const ZERO: [u8; 32] = [0; 32];
 
 /// Commitment signed by the Taker before its RFQ reaches any MPC node.
@@ -60,7 +60,8 @@ impl NodePublicResultAttestation {
         {
             return Err("public MPC result attestation is incomplete".into());
         }
-        let mut body = Vec::with_capacity(NODE_RESULT_DOMAIN.len() + RECORD_BYTES - 64);
+        let mut body =
+            Vec::with_capacity(NODE_RESULT_DOMAIN.len() + RECORD_BYTES - SIGNATURE_BYTES);
         body.extend_from_slice(NODE_RESULT_DOMAIN);
         body.extend_from_slice(&self.node.to_be_bytes());
         body.extend_from_slice(&self.slot.to_be_bytes());
@@ -76,7 +77,7 @@ impl NodePublicResultAttestation {
     }
 
     pub fn sign(mut self, key: &SigningKey) -> Result<Self, String> {
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -241,7 +242,8 @@ fn decode_wire(
         let masked_fill = i128::from_be_bytes(take(16).try_into().expect("16-byte fill"));
         let stdout_digest = take(32).try_into().expect("32-byte stdout digest");
         let persistence_digest = take(32).try_into().expect("32-byte persistence digest");
-        let signature = Signature::from_bytes(take(64).try_into().expect("64-byte signature"));
+        let signature =
+            Signature::try_from(take(SIGNATURE_BYTES)).map_err(|error| error.to_string())?;
         let value = NodePublicResultAttestation {
             node,
             slot,
@@ -289,7 +291,7 @@ mod tests {
     #[test]
     fn seven_node_result_is_canonical_and_mask_commitment_opens_once() {
         let keys = (0..COMMITTEE_NODES)
-            .map(|node| SigningKey::from_bytes(&[node as u8 + 1; 32]))
+            .map(|node| SigningKey::from_bytes(&[node as u8 + 1; 64]))
             .collect::<Vec<_>>();
         let attestations = keys
             .iter()
@@ -328,7 +330,7 @@ mod tests {
     #[test]
     fn every_resident_node_can_round_trip_its_single_attestation() {
         for node in 0..COMMITTEE_NODES {
-            let key = SigningKey::from_bytes(&[node as u8 + 1; 32]);
+            let key = SigningKey::from_bytes(&[node as u8 + 1; 64]);
             let attestation = NodePublicResultAttestation {
                 node: node as u16,
                 slot: 3,

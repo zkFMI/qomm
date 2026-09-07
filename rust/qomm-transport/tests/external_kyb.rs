@@ -1,4 +1,3 @@
-use ed25519_dalek::{Signature, SigningKey};
 use qomm_proofs::kyb::BusinessAttributes;
 use qomm_transport::external_kyb::{
     read_external_kyb_bundle, read_external_kyb_trust_anchor, write_external_kyb_inputs,
@@ -7,12 +6,13 @@ use qomm_transport::external_kyb::{
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::os::unix::fs::PermissionsExt;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
 
 fn id(label: &str) -> [u8; 32] {
     Sha256::digest(label.as_bytes()).into()
 }
 
-fn assertion(signing: &SigningKey) -> ExternalKybAssertion {
+fn assertion(signing: &HybridSigner) -> ExternalKybAssertion {
     ExternalKybAssertion {
         provider: "regulated-provider".into(),
         key_id: "key-2026".into(),
@@ -30,18 +30,18 @@ fn assertion(signing: &SigningKey) -> ExternalKybAssertion {
         issued_at: 100,
         expires_at: 200,
         nonce: id("nonce"),
-        signature: Signature::from_bytes(&[0_u8; 64]),
+        signature: vec![],
     }
     .sign(signing)
     .unwrap()
 }
 
-fn anchor(signing: &SigningKey) -> ExternalKybTrustAnchor {
+fn anchor(signing: &HybridSigner) -> ExternalKybTrustAnchor {
     ExternalKybTrustAnchor {
         provider: "regulated-provider".into(),
         key_id: "key-2026".into(),
         audience: "qomm-venue".into(),
-        public_key: signing.verifying_key(),
+        public_key: qomm_proofs::kyb::KybIssuerKey::from_bytes(&signing.public_key()).unwrap(),
         valid_from: 1,
         valid_until: 1_000,
         minimum_assurance_level: 3,
@@ -54,7 +54,7 @@ fn anchor(signing: &SigningKey) -> ExternalKybTrustAnchor {
 
 #[test]
 fn external_provider_assertion_maps_wallets_to_one_private_control_group() {
-    let signing = SigningKey::from_bytes(&id("external-provider-key"));
+    let signing = zkfmi_crypto::test_support::hybrid_signer(&id("external-provider-key"));
     let anchor = anchor(&signing);
     let first = assertion(&signing);
     let mut second = first.clone();
@@ -76,7 +76,7 @@ fn external_provider_assertion_maps_wallets_to_one_private_control_group() {
 
 #[test]
 fn provider_can_aggregate_distinct_legal_entities_into_one_control_group() {
-    let signing = SigningKey::from_bytes(&id("external-provider-key"));
+    let signing = zkfmi_crypto::test_support::hybrid_signer(&id("external-provider-key"));
     let anchor = anchor(&signing);
     let parent = assertion(&signing);
     let mut subsidiary = parent.clone();
@@ -96,7 +96,7 @@ fn provider_can_aggregate_distinct_legal_entities_into_one_control_group() {
 
 #[test]
 fn external_provider_checks_signature_audience_expiry_status_and_revocation() {
-    let signing = SigningKey::from_bytes(&id("external-provider-key"));
+    let signing = zkfmi_crypto::test_support::hybrid_signer(&id("external-provider-key"));
     let anchor = anchor(&signing);
     let valid = assertion(&signing);
 
@@ -133,7 +133,7 @@ fn external_provider_checks_signature_audience_expiry_status_and_revocation() {
 
 #[test]
 fn external_provider_files_round_trip_without_a_private_key() {
-    let signing = SigningKey::from_bytes(&id("external-provider-key"));
+    let signing = zkfmi_crypto::test_support::hybrid_signer(&id("external-provider-key"));
     let anchor = anchor(&signing);
     let bundle = ExternalKybBundle {
         provider: anchor.provider.clone(),
@@ -163,4 +163,27 @@ fn external_provider_files_round_trip_without_a_private_key() {
     assert!(read_external_kyb_trust_anchor(&anchor_path)
         .unwrap_err()
         .contains("writable"));
+}
+
+#[test]
+fn external_authority_requires_both_components_and_rejects_classical_only() {
+    let signer = zkfmi_crypto::test_support::hybrid_signer(&id("external-pq-negative"));
+    let trust = anchor(&signer);
+    let original = assertion(&signer);
+    for index in [0, 64, 3372] {
+        let mut altered = original.clone();
+        altered.signature[index] ^= 1;
+        assert!(trust.verify(&altered, 150).is_err());
+    }
+    let mut stripped = original.clone();
+    stripped.signature.truncate(64);
+    assert!(trust.verify(&stripped, 150).is_err());
+    let mut wrong_purpose = original;
+    wrong_purpose.signature = signer
+        .sign(
+            zkfmi_crypto::key::KeyPurpose::Order,
+            &wrong_purpose.statement().unwrap(),
+        )
+        .unwrap();
+    assert!(trust.verify(&wrong_purpose, 150).is_err());
 }

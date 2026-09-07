@@ -1,11 +1,12 @@
 //! Encrypted key lifecycle and short-lived mutual-TLS certificates.
 
+use crate::application_crypto::{Signature, VerifyingKey};
 use crate::selective_disclosure::{WinnerPrivateKey, X25519PrivateKey};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::SigningKey;
 use openssl::asn1::Asn1Time;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::hash::MessageDigest;
@@ -32,7 +33,7 @@ use zeroize::Zeroizing;
 
 pub const MAGIC: &[u8; 8] = b"QOMMKEY1";
 const AAD: &[u8] = b"QOMM:KEYSTORE:v1";
-const MANIFEST_DOMAIN: &[u8] = b"QOMM:KEY-MANIFEST:v1";
+const MANIFEST_DOMAIN: &[u8] = b"QOMM:KEY-MANIFEST:v2";
 const SALT_BYTES: usize = 16;
 const NONCE_BYTES: usize = 12;
 
@@ -40,6 +41,9 @@ const NONCE_BYTES: usize = 12;
 #[serde(rename_all = "lowercase")]
 pub enum KeyKind {
     Ed25519,
+    MlDsa65,
+    #[serde(rename = "ed25519_mldsa65")]
+    HybridSignature,
     X25519,
     #[serde(rename = "x25519_mlkem768")]
     HybridKem,
@@ -117,6 +121,8 @@ pub struct PublicSnapshot {
 #[derive(Clone)]
 pub enum StoredPrivateKey {
     Ed25519(Box<SigningKey>),
+    HybridSignature(Box<crate::application_crypto::SigningKey>),
+    MlDsa65(std::sync::Arc<zkfmi_crypto::backend::MlDsa65Signer>),
     X25519(X25519PrivateKey),
     HybridKem(WinnerPrivateKey),
     Ristretto(Scalar),
@@ -125,7 +131,9 @@ pub enum StoredPrivateKey {
 impl fmt::Debug for StoredPrivateKey {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
+            Self::HybridSignature(_) => "StoredPrivateKey::HybridSignature([redacted])",
             Self::Ed25519(_) => "StoredPrivateKey::Ed25519([redacted])",
+            Self::MlDsa65(_) => "StoredPrivateKey::MlDsa65([redacted])",
             Self::X25519(_) => "StoredPrivateKey::X25519([redacted])",
             Self::HybridKem(_) => "StoredPrivateKey::HybridKem([redacted])",
             Self::Ristretto(_) => "StoredPrivateKey::Ristretto([redacted])",
@@ -141,6 +149,10 @@ impl StoredPrivateKey {
             Self::HybridKem(_) => {
                 Err("hybrid KEM seeds cannot be exported as a 32-byte key".into())
             }
+            Self::HybridSignature(_) => {
+                Err("hybrid signature seeds cannot be exported as a 32-byte key".into())
+            }
+            Self::MlDsa65(_) => Err("ML-DSA custody seeds are not generic exported keys".into()),
             Self::Ristretto(secret) => Ok(secret.to_bytes()),
         }
     }
@@ -148,20 +160,42 @@ impl StoredPrivateKey {
     pub fn ed25519(&self) -> Option<&SigningKey> {
         match self {
             Self::Ed25519(key) => Some(key),
-            Self::X25519(_) | Self::HybridKem(_) | Self::Ristretto(_) => None,
+            Self::X25519(_)
+            | Self::HybridKem(_)
+            | Self::Ristretto(_)
+            | Self::MlDsa65(_)
+            | Self::HybridSignature(_) => None,
         }
     }
 
     pub fn ristretto_scalar(&self) -> Option<&Scalar> {
         match self {
             Self::Ristretto(secret) => Some(secret),
-            Self::Ed25519(_) | Self::X25519(_) | Self::HybridKem(_) => None,
+            Self::Ed25519(_)
+            | Self::X25519(_)
+            | Self::HybridKem(_)
+            | Self::MlDsa65(_)
+            | Self::HybridSignature(_) => None,
         }
     }
 
     pub fn hybrid_kem(&self) -> Option<&WinnerPrivateKey> {
         match self {
             Self::HybridKem(key) => Some(key),
+            _ => None,
+        }
+    }
+
+    pub fn hybrid_signature(&self) -> Option<&crate::application_crypto::SigningKey> {
+        match self {
+            Self::HybridSignature(key) => Some(key.as_ref()),
+            _ => None,
+        }
+    }
+
+    pub fn ml_dsa65(&self) -> Option<&zkfmi_crypto::backend::MlDsa65Signer> {
+        match self {
+            Self::MlDsa65(key) => Some(key),
             _ => None,
         }
     }
@@ -454,6 +488,23 @@ impl EncryptedKeyStore {
             return Err("purpose and positive lifetime are required".into());
         }
         let (public, private) = match kind {
+            KeyKind::HybridSignature => {
+                let mut seed = Zeroizing::new([0; 64]);
+                OsRng
+                    .try_fill_bytes(seed.as_mut())
+                    .map_err(|error| error.to_string())?;
+                let key = crate::application_crypto::SigningKey::from_bytes(&seed);
+                (
+                    key.verifying_key().to_bytes().to_vec(),
+                    Zeroizing::new(seed.to_vec()),
+                )
+            }
+            KeyKind::MlDsa65 => {
+                use zkfmi_crypto::traits::Signer;
+                let key = zkfmi_crypto::backend::MlDsa65Signer::generate()
+                    .map_err(|error| error.to_string())?;
+                (key.public_key(), key.custody_seed())
+            }
             KeyKind::Ed25519 => {
                 let key = SigningKey::generate(&mut OsRng);
                 (
@@ -491,6 +542,21 @@ impl EncryptedKeyStore {
             }
         };
         self.mutate(|data| {
+            if kind != KeyKind::HybridSignature
+                && data.keys.iter().any(|record| {
+                    record.purpose == purpose && record.kind == KeyKind::HybridSignature
+                })
+            {
+                return Err("a hybrid signing purpose cannot rotate to a weaker suite".into());
+            }
+            if kind != KeyKind::MlDsa65
+                && data
+                    .keys
+                    .iter()
+                    .any(|record| record.purpose == purpose && record.kind == KeyKind::MlDsa65)
+            {
+                return Err("an ML-DSA purpose cannot rotate to a classical key".into());
+            }
             if kind != KeyKind::HybridKem
                 && data
                     .keys
@@ -599,6 +665,20 @@ impl EncryptedKeyStore {
                 .decode(&record.private)
                 .map_err(|error| error.to_string())?,
         );
+        if record.kind == KeyKind::HybridSignature {
+            let seed: &[u8; 64] = bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| "stored hybrid signature seed is not 64 bytes".to_string())?;
+            let key = crate::application_crypto::SigningKey::from_bytes(seed);
+            if BASE64.encode(key.verifying_key().to_bytes()) != record.public {
+                return Err(
+                    "stored hybrid signature fingerprint does not match its independent seeds"
+                        .into(),
+                );
+            }
+            return Ok(StoredPrivateKey::HybridSignature(Box::new(key)));
+        }
         if record.kind == KeyKind::HybridKem {
             let seed: &[u8; 96] = bytes
                 .as_slice()
@@ -615,11 +695,19 @@ impl EncryptedKeyStore {
             .try_into()
             .map_err(|_| "stored private key is not 32 bytes".to_string())?;
         match record.kind {
+            KeyKind::MlDsa65 => {
+                use zkfmi_crypto::traits::Signer;
+                let key = zkfmi_crypto::backend::MlDsa65Signer::from_seed(&raw);
+                if BASE64.encode(key.public_key()) != record.public {
+                    return Err("stored ML-DSA public key does not match its seed".into());
+                }
+                Ok(StoredPrivateKey::MlDsa65(std::sync::Arc::new(key)))
+            }
             KeyKind::Ed25519 => Ok(StoredPrivateKey::Ed25519(Box::new(SigningKey::from_bytes(
                 &raw,
             )))),
             KeyKind::X25519 => Ok(StoredPrivateKey::X25519(X25519PrivateKey::from_raw(&raw)?)),
-            KeyKind::HybridKem => unreachable!("handled above"),
+            KeyKind::HybridKem | KeyKind::HybridSignature => unreachable!("handled above"),
             KeyKind::Ristretto => {
                 let secret = Option::<Scalar>::from(Scalar::from_canonical_bytes(raw))
                     .filter(|secret| *secret != Scalar::ZERO)
@@ -660,8 +748,8 @@ impl EncryptedKeyStore {
     ) -> Result<PublicManifest, String> {
         let signing = self.private_key(signer_id, issued_at, false)?;
         let signing = signing
-            .ed25519()
-            .ok_or_else(|| "public manifests require an Ed25519 signing key".to_string())?;
+            .hybrid_signature()
+            .ok_or_else(|| "public manifests require a hybrid signing key".to_string())?;
         let snapshot = self.snapshot()?;
         let mut records = snapshot.keys;
         records.sort_by(|left, right| left.key_id.cmp(&right.key_id));
@@ -670,9 +758,9 @@ impl EncryptedKeyStore {
             issued_at,
             records,
             signer_id: signer_id.into(),
-            signature: Signature::from_bytes(&[0; 64]),
+            signature: Signature::from_bytes(&[]),
         };
-        manifest.signature = signing.sign(&manifest.unsigned()?);
+        manifest.signature = signing.try_sign(&manifest.unsigned()?)?;
         Ok(manifest)
     }
 
@@ -684,6 +772,14 @@ impl EncryptedKeyStore {
     ) -> Result<PathBuf, String> {
         let key = self.private_key(key_id, at, false)?;
         let (id, raw) = match key {
+            StoredPrivateKey::HybridSignature(_) => {
+                return Err(
+                    "hybrid signature seeds cannot be materialized as classical PKCS#8".into(),
+                )
+            }
+            StoredPrivateKey::MlDsa65(_) => {
+                return Err("ML-DSA seeds cannot be materialized as classical PKCS#8".into())
+            }
             StoredPrivateKey::Ed25519(key) => (Id::ED25519, key.to_bytes()),
             StoredPrivateKey::X25519(key) => (Id::X25519, key.raw_private_key()?),
             StoredPrivateKey::HybridKem(_) => {

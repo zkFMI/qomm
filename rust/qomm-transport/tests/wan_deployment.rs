@@ -1,6 +1,6 @@
-use ed25519_dalek::SigningKey;
 use qomm_mpc::inputs::DvpInputs;
 use qomm_mpc::program::{build_program, ProgramConfig, Reference, StopAfter};
+use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::key_management::EncryptedKeyStore;
 use qomm_transport::wan_deployment::{
     apply_node_response, initialize_authority, initialize_node, initialize_node_mpc_state,
@@ -23,7 +23,7 @@ fn now() -> u64 {
 }
 
 fn spec(root: &Path) -> WanDeploymentSpec {
-    let receipt = SigningKey::from_bytes(&[91_u8; 32]).verifying_key();
+    let receipt = SigningKey::from_bytes(&[91_u8; 64]).verifying_key();
     WanDeploymentSpec {
         version: 1,
         deployment_id: "qomm-wan-test".into(),
@@ -40,6 +40,7 @@ fn spec(root: &Path) -> WanDeploymentSpec {
         client_common_name: "qomm-test-client".into(),
         client_control_group_id: "test-governance-pseudonym".into(),
         trusted_defmi_receipt_public: hex::encode(receipt.as_bytes()),
+        recipient_opening_keys: Vec::new(),
         n_mm: 4,
         n_parties: 7,
         threshold: 2,

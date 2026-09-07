@@ -1,15 +1,14 @@
-use ed25519_dalek::SigningKey;
 use qomm_audit::receipts::{digest, sign_receipt, AuditLedger, SlotSpec, GENESIS};
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
 use qomm_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
 use qomm_sim::deterministic_random::DeterministicRng;
-use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
 use std::time::Instant;
+use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
 
 const SENTINEL: i64 = 1 << 20;
 
@@ -163,12 +162,16 @@ fn one_slot(
             .unwrap_or_else(|| "verification failed".to_string())
     };
 
-    let keys = (0..options.nodes)
-        .map(|node| (node, SigningKey::generate(&mut *rng)))
-        .collect::<BTreeMap<_, _>>();
+    let keys = match (0..options.nodes)
+        .map(|node| HybridSigner::generate().map(|key| (node, key)))
+        .collect::<Result<BTreeMap<_, _>, _>>()
+    {
+        Ok(keys) => keys,
+        Err(error) => return json!({"error": error.to_string()}),
+    };
     let mut ledger = AuditLedger::new(
         keys.iter()
-            .map(|(node, key)| (*node, key.verifying_key()))
+            .map(|(node, key)| (*node, key.public_key()))
             .collect(),
     );
     let maker_names = (0..options.n_mm)
@@ -193,7 +196,7 @@ fn one_slot(
     let new_state = digest(&[b"state", &result_digest]);
     for node in 0..options.nodes {
         ledger.record(
-            sign_receipt(
+            match sign_receipt(
                 &keys[&node],
                 node,
                 &spec,
@@ -202,7 +205,10 @@ fn one_slot(
                 result_digest,
                 1,
                 None,
-            ),
+            ) {
+                Ok(receipt) => receipt,
+                Err(error) => return json!({"error": error}),
+            },
             None,
         );
     }
@@ -365,3 +371,4 @@ fn py_bool(value: bool) -> &'static str {
         "False"
     }
 }
+use rand::rngs::OsRng;

@@ -89,7 +89,8 @@ use crate::quote_wire::{
     Message as QuoteMessage,
 };
 use crate::selective_disclosure::{
-    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey, KEM_SUITE,
+    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey,
+    WinnerSenderAuth, KEM_SUITE,
 };
 use crate::standing_pool::{
     standing_note_pool_delegation_digest, standing_note_pool_id, threshold_dvp_package_digest,
@@ -128,15 +129,15 @@ enum ReserveMandate {
 impl ReserveMandate {
     fn from_params(params: &Value) -> Result<Self, String> {
         let unsigned = ProofParty::one_wire(params, "mandate_unsigned")?;
-        let signature: [u8; 64] = hex::decode(
+        let signature = hex::decode(
             params
                 .get("mandate_signature")
                 .and_then(Value::as_str)
-                .ok_or_else(|| "mandate_signature must be 64-byte hexadecimal".to_string())?,
+                .ok_or_else(|| "mandate_signature must be a hybrid envelope".to_string())?,
         )
-        .map_err(|_| "mandate_signature must be 64-byte hexadecimal".to_string())?
-        .try_into()
-        .map_err(|_| "mandate_signature must be 64-byte hexadecimal".to_string())?;
+        .map_err(|_| "mandate_signature is not hexadecimal".to_string())?;
+        crate::application_crypto::Signature::try_from(signature.as_slice())
+            .map_err(|error| error.to_string())?;
         match params.get("role").and_then(Value::as_str) {
             Some("maker") => Ok(Self::Maker(MakerPolicyMandate::from_signed_bytes(
                 &unsigned, signature,
@@ -223,8 +224,17 @@ impl ReserveMandate {
     }
 }
 
+/// Operator-enrolled recipient key. It never comes from the claim request.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecipientOpeningKey {
+    pub view: [u8; 32],
+    pub public: Vec<u8>,
+}
+
 #[derive(Clone, Debug)]
 pub struct ProofPartyConfig {
+    pub recipient_opening_keys: Vec<RecipientOpeningKey>,
     pub node: u16,
     pub allowed_root: PathBuf,
     /// Encrypted node-local state. Production deployments put this on the
@@ -255,6 +265,17 @@ pub struct ProofPartyConfig {
 
 impl ProofPartyConfig {
     fn validate(&self) -> Result<(), String> {
+        let mut recipients = std::collections::BTreeSet::new();
+        for recipient in &self.recipient_opening_keys {
+            if recipient.public.len() != zkfmi_crypto::sealed::RECIPIENT_PUBLIC_BYTES
+                || recipient.view == [0; 32]
+                || !recipients.insert(recipient.view)
+            {
+                return Err(
+                    "recipient opening directory is malformed or repeats an identity".into(),
+                );
+            }
+        }
         if self.node >= 64
             || self.n_mm == 0
             || self.n_mm > 4096
@@ -288,7 +309,7 @@ impl ProofPartyConfig {
 
     fn security_digest(&self) -> [u8; 32] {
         let mut digest = Sha256::new()
-            .chain_update(b"QOMM:PROOF-PARTY:SECURITY-CONFIG:v1")
+            .chain_update(b"QOMM:PROOF-PARTY:SECURITY-CONFIG:v2")
             .chain_update(self.node.to_be_bytes())
             .chain_update((self.n_mm as u64).to_be_bytes())
             .chain_update((self.n_parties as u64).to_be_bytes())
@@ -307,6 +328,11 @@ impl ProofPartyConfig {
             None => {
                 digest = digest.chain_update([0]);
             }
+        }
+        digest.update((self.recipient_opening_keys.len() as u64).to_be_bytes());
+        for recipient in &self.recipient_opening_keys {
+            digest.update(recipient.view);
+            digest.update(&recipient.public);
         }
         digest.finalize().into()
     }
@@ -329,6 +355,7 @@ struct DurableProofState {
     #[serde(default)]
     trusted_defmi_receipt_public: Option<String>,
     identity_private: String,
+    application_private: String,
     exchange_private: String,
     pq_private: String,
     pq_key: KeyRecord,
@@ -601,7 +628,7 @@ impl ProofStateStore {
         )?;
         let value: Value = serde_json::from_slice(&clear)
             .map_err(|_| "proof-party state authentication failed".to_string())?;
-        if value.get("version").and_then(Value::as_u64) != Some(5) {
+        if value.get("version").and_then(Value::as_u64) != Some(6) {
             return Err(
                 "proof state requires explicit hybrid-key migration; legacy state was preserved"
                     .into(),
@@ -609,7 +636,7 @@ impl ProofStateStore {
         }
         let state: DurableProofState = serde_json::from_value(value)
             .map_err(|_| "proof-party state schema is invalid".to_string())?;
-        if state.version != 5 {
+        if state.version != 6 {
             return Err(
                 "unsupported proof-party state version; securely reprovision this non-production node"
                     .into(),
@@ -786,6 +813,7 @@ pub struct ProofParty {
     completed_evidence: BTreeMap<[u8; 32], CompletedProof>,
     application_controls: BTreeMap<[u8; 32], [u8; 32]>,
     identity: SigningKey,
+    application_identity: crate::application_crypto::SigningKey,
     exchange: WinnerPrivateKey,
     exchange_seed: Zeroizing<[u8; 96]>,
     pq_seed: Zeroizing<[u8; 32]>,
@@ -826,6 +854,7 @@ impl ProofParty {
             state_store.read()?
         } else {
             let identity = SigningKey::generate(&mut OsRng);
+            let application_identity = crate::application_crypto::SigningKey::generate(&mut OsRng);
             let mut exchange_seed = Zeroizing::new([0_u8; 96]);
             OsRng
                 .try_fill_bytes(exchange_seed.as_mut())
@@ -837,7 +866,7 @@ impl ProofParty {
             let pq_key =
                 pqc::initial_record(&identity, MlDsa65Signer::from_seed(&pq_seed).public_key())?;
             let state = DurableProofState {
-                version: 5,
+                version: 6,
                 generation: 0,
                 proof_configuration_digest: hex::encode(config.security_digest()),
                 node: config.node,
@@ -846,6 +875,7 @@ impl ProofParty {
                 threshold: config.threshold,
                 trusted_defmi_receipt_public: config.trusted_defmi_receipt_public.map(hex::encode),
                 identity_private: BASE64.encode(identity.to_bytes()),
+                application_private: BASE64.encode(application_identity.to_bytes()),
                 exchange_private: BASE64.encode(exchange_seed.as_slice()),
                 pq_private: BASE64.encode(pq_seed.as_slice()),
                 pq_key,
@@ -1001,6 +1031,19 @@ impl ProofParty {
                     .map_err(|_| "stored FROST broadcasts digest is malformed".to_string())?;
                 if pending.encrypted.len() + 1 != config.n_parties {
                     return Err("stored FROST encrypted package set is incomplete".to_string());
+                }
+                for entry in &pending.encrypted {
+                    let encoded = BASE64
+                        .decode(
+                            entry
+                                .get("envelope")
+                                .and_then(Value::as_str)
+                                .ok_or("stored FROST winner envelope is absent")?,
+                        )
+                        .map_err(|_| "stored FROST winner envelope is malformed")?;
+                    WinnerEnvelope::decode(&encoded).map_err(|_| {
+                        "stored FROST round two requires winner-envelope v3".to_string()
+                    })?;
                 }
                 Ok((
                     session,
@@ -1191,6 +1234,16 @@ impl ProofParty {
                 .map_err(|_| "stored hybrid exchange seed must be 96 bytes".to_string())?,
         );
         let pq_seed = Zeroizing::new(decode32(&state.pq_private, "stored PQ signing seed")?);
+        let application_bytes = Zeroizing::new(
+            BASE64
+                .decode(&state.application_private)
+                .map_err(|_| "stored application seeds are malformed".to_string())?,
+        );
+        let application_seeds = Zeroizing::new(
+            <[u8; 64]>::try_from(application_bytes.as_slice()).map_err(|_| {
+                "stored application identity requires independent 64-byte seeds".to_string()
+            })?,
+        );
         let mut party = Self {
             config,
             allowed_root,
@@ -1204,6 +1257,9 @@ impl ProofParty {
                 &state.identity_private,
                 "stored FROST identity",
             )?),
+            application_identity: crate::application_crypto::SigningKey::from_bytes(
+                &application_seeds,
+            ),
             exchange: WinnerPrivateKey::from_seed(&exchange_seed),
             exchange_seed,
             pq_signer: MlDsa65Signer::from_seed(&pq_seed),
@@ -1263,11 +1319,17 @@ impl ProofParty {
     /// restart preserves it.
     pub fn instance_id(&self) -> [u8; 32] {
         Sha256::new()
-            .chain_update(b"QOMM:PROOF-PARTY:INSTANCE:v2")
+            .chain_update(b"QOMM:PROOF-PARTY:INSTANCE:v3")
+            .chain_update(self.application_identity.verifying_key().to_bytes())
             .chain_update(self.config.security_digest())
             .chain_update(self.identity.verifying_key().to_bytes())
             .finalize()
             .into()
+    }
+
+    /// Public fingerprint of the independently persisted application identity.
+    pub fn application_verifying_key(&self) -> crate::application_crypto::VerifyingKey {
+        self.application_identity.verifying_key()
     }
 
     /// Sign the exact legal-entity claim and node-local share batch admitted at
@@ -1309,10 +1371,13 @@ impl ProofParty {
             claim_digest,
             batch_digest,
             order_digest,
-            signature: Signature::from_bytes(&[0_u8; 64]),
+            signature: crate::application_crypto::Signature::from_bytes(&[0_u8; 64]),
         }
-        .sign(&self.identity)?;
-        Ok((attestation, self.identity.verifying_key().to_bytes()))
+        .sign(&self.application_identity)?;
+        Ok((
+            attestation,
+            self.application_identity.verifying_key().to_bytes(),
+        ))
     }
 
     /// Sign the Taker-masked public result emitted by this node's completed
@@ -1328,15 +1393,15 @@ impl ProofParty {
         if attestation.node != self.config.node {
             return Err("public MPC result was routed to another resident node".into());
         }
-        let signed = attestation.sign(&self.identity)?;
-        Ok((signed, self.identity.verifying_key().to_bytes()))
+        let signed = attestation.sign(&self.application_identity)?;
+        Ok((signed, self.application_identity.verifying_key().to_bytes()))
     }
 
     fn durable_state(&self, generation: u64) -> Result<DurableProofState, String> {
         let encode_set =
             |values: &BTreeSet<[u8; 32]>| values.iter().map(hex::encode).collect::<Vec<_>>();
         Ok(DurableProofState {
-            version: 5,
+            version: 6,
             generation,
             proof_configuration_digest: hex::encode(self.config.security_digest()),
             node: self.config.node,
@@ -1345,6 +1410,7 @@ impl ProofParty {
             threshold: self.config.threshold,
             trusted_defmi_receipt_public: self.config.trusted_defmi_receipt_public.map(hex::encode),
             identity_private: BASE64.encode(self.identity.to_bytes()),
+            application_private: BASE64.encode(self.application_identity.to_bytes()),
             exchange_private: BASE64.encode(self.exchange_seed.as_slice()),
             pq_private: BASE64.encode(self.pq_seed.as_slice()),
             pq_key: self.pq_key.clone(),
@@ -2176,6 +2242,7 @@ impl ProofParty {
                 Ok(json!({
                     "party": party,
                     "identity_public": hex::encode(identity_public),
+                    "publication_public": hex::encode(self.application_identity.hybrid_public_key()),
                     "exchange_suite": KEM_SUITE,
                     "exchange_public": hex::encode(exchange_public),
                     "self_signature": hex::encode(signature.to_bytes()),
@@ -2353,6 +2420,7 @@ impl ProofParty {
                         &Self::exchange_aad(&session, sender, recipient),
                         peers.digest,
                         &self.identity,
+                        &self.pq_signer,
                     )?;
                     encrypted.push(json!({
                         "sender": sender,
@@ -2459,7 +2527,8 @@ impl ProofParty {
                         .get(&sender)
                         .ok_or_else(|| "FROST directed sender is unknown".to_string())?;
                     // KEM encryption alone does not authenticate a sender.
-                    // Require the roster-pinned identity signature as well.
+                    // Require both roster-pinned sender signatures over the
+                    // exact same envelope before opening the directed share.
                     let clear = Zeroizing::new(
                         open_if_winner(
                             &envelope,
@@ -2467,7 +2536,11 @@ impl ProofParty {
                             std::slice::from_ref(&self.exchange),
                             &Self::exchange_aad(&session, sender, recipient),
                             peers.digest,
-                            Some(&peer.identity),
+                            WinnerSenderAuth {
+                                ed25519: &peer.identity,
+                                pq_key: &peer.pq_key,
+                                valid_at: pqc::now()?,
+                            },
                         )?
                         .ok_or_else(|| {
                             "FROST directed package authentication failed".to_string()
@@ -3013,7 +3086,7 @@ impl ProofParty {
                         "typed settlement does not use the MPC-selected Maker/Taker roles".into(),
                     );
                 }
-                let trusted_defmi = VerifyingKey::from_bytes(
+                let trusted_defmi = crate::application_crypto::VerifyingKey::from_bytes(
                     &self.config.trusted_defmi_receipt_public.ok_or_else(|| {
                         "proof node has no pinned DeFMI reservation receipt key".to_string()
                     })?,
@@ -3148,13 +3221,19 @@ impl ProofParty {
                 self.publication_evidence(evidence_path)?
                     .validate_for(&node_id, &statement, &mechanism)?;
                 let body = statement.body()?;
+                let signer = self.application_identity.raw_hybrid_signer();
+                let signature = zkfmi_crypto::traits::Signer::sign(
+                    &signer,
+                    zkfmi_crypto::key::KeyPurpose::AuditCheckpoint,
+                    &body,
+                )
+                .map_err(|error| error.to_string())?;
                 self.publication_consumed.insert(statement.operation_id);
                 self.persist()?;
-                let signature = self.identity.sign(&body);
                 Ok(json!({
                     "node_id": node_id,
-                    "identity_public": hex::encode(self.identity.verifying_key().to_bytes()),
-                    "signature": hex::encode(signature.to_bytes()),
+                    "publication_public": hex::encode(self.application_identity.hybrid_public_key()),
+                    "signature": hex::encode(signature),
                     "operation_id": hex::encode(statement.operation_id),
                 }))
             }
@@ -4239,21 +4318,28 @@ impl ProofParty {
                         .cash_remainder_opening_share(),
                     _ => unreachable!("claim opening leg was validated above"),
                 };
+                let recipient_public = &self
+                    .config
+                    .recipient_opening_keys
+                    .iter()
+                    .find(|entry| entry.view == recipient_view.compress().to_bytes())
+                    .ok_or("claim recipient has no independently enrolled hybrid opening key")?
+                    .public;
                 let encrypted = encrypt_opening_share(
                     opening_context(&job_id, leg)?,
                     self.config.node as usize + 1,
                     value_share,
                     blinding_share,
                     &recipient_view,
+                    recipient_public,
                     &mut OsRng,
                 )?;
                 let response = json!({
                     "party": encrypted.party,
                     "context": hex::encode(opening_context(&job_id, leg)?),
                     "recipient_view": hex::encode(recipient_view.compress().to_bytes()),
-                    "ephemeral": hex::encode(encrypted.ephemeral.compress().to_bytes()),
-                    "masked_value": hex::encode(encrypted.masked_value.to_bytes()),
-                    "masked_blinding": hex::encode(encrypted.masked_blinding.to_bytes()),
+                    "recipient_public": encrypted.recipient_public,
+                    "sealed": encrypted.sealed,
                 });
                 self.jobs
                     .get_mut(&job_id)
@@ -4346,12 +4432,12 @@ impl ProofParty {
                     stderr_digest,
                     persistence_digest,
                     receipt_digest: [0_u8; 32],
-                    signature: Signature::from_bytes(&[0_u8; 64]),
+                    signature: crate::application_crypto::Signature::from_bytes(&[0_u8; 64]),
                 };
                 attestation.receipt_digest = attestation.recompute_receipt_digest()?;
-                let attestation = attestation.sign(&self.identity)?;
+                let attestation = attestation.sign(&self.application_identity)?;
                 Ok(json!({
-                    "identity_public": hex::encode(self.identity.verifying_key().to_bytes()),
+                    "identity_public": hex::encode(self.application_identity.verifying_key().to_bytes()),
                     "wire": BASE64.encode(encode_node_execution_attestation(&attestation)?),
                 }))
             }

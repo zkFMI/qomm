@@ -1,4 +1,4 @@
-use ed25519_dalek::{Signer, SigningKey};
+use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::order::{
     admission_principal_digest, cluster_batch_digest, decode_admission_attestations,
     decode_execution_attestations, decode_node_execution_attestation,
@@ -78,7 +78,7 @@ fn priority_depends_on_preissued_ticket_and_future_beacon_not_payload() {
             .admit(ticket, frame(100, 2, 200 - index as u8), 15_000_000_000)
             .unwrap();
     }
-    let beacon = RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key);
+    let beacon = RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key).unwrap();
     let (_, manifest_a) = sealer_a.close(&beacon, 21_000_000_000).unwrap();
     let (_, manifest_b) = sealer_b.close(&beacon, 21_000_000_000).unwrap();
     assert_eq!(
@@ -115,7 +115,7 @@ fn close_refuses_a_missing_cover_frame_and_late_replacement() {
     assert!(error.contains("replace"), "{error}");
     let error = sealer
         .close(
-            &RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key),
+            &RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key).unwrap(),
             21_000_000_000,
         )
         .unwrap_err();
@@ -136,7 +136,7 @@ fn receipt_proves_omission_without_revealing_the_payload() {
     ];
     let (_, manifest) = sealer
         .close(
-            &RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key),
+            &RandomnessBeacon::sign(101, [b'b'; 32], &beacon_key).unwrap(),
             21_000_000_000,
         )
         .unwrap();
@@ -158,9 +158,12 @@ fn receipt_proves_omission_without_revealing_the_payload() {
         ordered_ticket_digests: kept_tickets,
         ordered_frame_digests: kept_frames,
         previous_digest: manifest.previous_digest,
-        signature: ed25519_dalek::Signature::from_bytes(&[0; 64]),
+        signature: qomm_transport::application_crypto::Signature::from_bytes(&[0; 64]),
     };
-    forged.signature = sealer.signing_key.sign(&forged.unsigned().unwrap());
+    forged.signature = sealer
+        .signing_key
+        .try_sign(&forged.unsigned().unwrap())
+        .unwrap();
     assert!(prove_omission(omitted, &forged, &verifying));
 }
 
@@ -178,7 +181,7 @@ fn ticket_tampering_and_old_beacon_are_rejected() {
         .unwrap();
     let error = sealer
         .close(
-            &RandomnessBeacon::sign(100, [b'b'; 32], &beacon_key),
+            &RandomnessBeacon::sign(100, [b'b'; 32], &beacon_key).unwrap(),
             21_000_000_000,
         )
         .unwrap_err();
@@ -222,7 +225,7 @@ fn signed_execution_lane_binds_every_persistence_file_to_the_admitted_batch() {
                 stderr_digest: [30 + node as u8; 32],
                 persistence_digest: [40 + node as u8; 32],
                 receipt_digest: ZERO,
-                signature: ed25519_dalek::Signature::from_bytes(&[0; 64]),
+                signature: qomm_transport::application_crypto::Signature::from_bytes(&[0; 64]),
             };
             value.receipt_digest = value.recompute_receipt_digest().unwrap();
             value.sign(key).unwrap()
@@ -276,7 +279,7 @@ fn signed_admission_lane_round_trips_without_exposing_the_principal() {
                 claim_digest: [3; 32],
                 batch_digest: [node as u8 + 10; 32],
                 order_digest: [5; 32],
-                signature: ed25519_dalek::Signature::from_bytes(&[0; 64]),
+                signature: qomm_transport::application_crypto::Signature::from_bytes(&[0; 64]),
             }
             .sign(key)
             .unwrap()

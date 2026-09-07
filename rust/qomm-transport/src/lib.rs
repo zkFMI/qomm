@@ -1,5 +1,6 @@
 //! Resident mutually authenticated transport and durable slot execution service.
 
+pub mod application_crypto;
 pub mod binding;
 pub mod client;
 pub mod corporate_outbox;

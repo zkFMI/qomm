@@ -1,24 +1,24 @@
 //! Content-independent admission and ordering for one fixed market slot.
 
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey, SIGNATURE_BYTES};
 use crate::wire::Frame;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-const TICKET_DOMAIN: &[u8] = b"QOMM:ORDER:TICKET:v1";
-const RECEIPT_DOMAIN: &[u8] = b"QOMM:ORDER:RECEIPT:v1";
-const BEACON_DOMAIN: &[u8] = b"QOMM:ORDER:BEACON:v1";
-const MANIFEST_DOMAIN: &[u8] = b"QOMM:ORDER:MANIFEST:v1";
+const TICKET_DOMAIN: &[u8] = b"QOMM:ORDER:TICKET:v2";
+const RECEIPT_DOMAIN: &[u8] = b"QOMM:ORDER:RECEIPT:v2";
+const BEACON_DOMAIN: &[u8] = b"QOMM:ORDER:BEACON:v2";
+const MANIFEST_DOMAIN: &[u8] = b"QOMM:ORDER:MANIFEST:v2";
 const ORDER_DOMAIN: &[u8] = b"QOMM:ORDER:KEY:v1";
 const ORDERED_ADMISSION_DOMAIN: &[u8] = b"QOMM:ORDER:ADMISSION:v1";
 const CERTIFIED_ADMISSION_DOMAIN: &[u8] = b"QOMM:ORDER:CERTIFIED-ADMISSION:v1";
-const NODE_ADMISSION_DOMAIN: &[u8] = b"QOMM:ORDER:NODE-ADMISSION:v1";
-const NODE_EXECUTION_DOMAIN: &[u8] = b"QOMM:ORDER:NODE-EXECUTION:v1";
+const NODE_ADMISSION_DOMAIN: &[u8] = b"QOMM:ORDER:NODE-ADMISSION:v2";
+const NODE_EXECUTION_DOMAIN: &[u8] = b"QOMM:ORDER:NODE-EXECUTION:v2";
 const EXECUTION_RECEIPT_DOMAIN: &[u8] = b"QOMM:MPC:EXECUTION-RECEIPT:v1";
 const EXECUTION_LANE_DOMAIN: &[u8] = b"QOMM:ORDER:EXECUTION-LANE:v1";
-const EXECUTION_WIRE_MAGIC: &[u8] = b"QOMM:EXECUTION-ATTESTATIONS:v1";
-const ADMISSION_WIRE_MAGIC: &[u8] = b"QOMM:ADMISSION-ATTESTATIONS:v1";
+const EXECUTION_WIRE_MAGIC: &[u8] = b"QOMM:EXECUTION-ATTESTATIONS:v2";
+const ADMISSION_WIRE_MAGIC: &[u8] = b"QOMM:ADMISSION-ATTESTATIONS:v2";
 const CLUSTER_BATCH_DOMAIN: &[u8] = b"QOMM:ORDER:CLUSTER-BATCH:v1";
 const PRINCIPAL_TICKET_DOMAIN: &[u8] = b"QOMM:NODE:PRINCIPAL-TICKET:v1";
 const PRINCIPAL_DIGEST_DOMAIN: &[u8] = b"QOMM:ORDER:PRINCIPAL:v1";
@@ -122,7 +122,7 @@ impl NodeAdmissionAttestation {
     }
 
     pub fn sign(mut self, key: &SigningKey) -> Result<Self, String> {
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -166,7 +166,7 @@ pub fn encode_admission_attestations(
 }
 
 pub fn decode_admission_attestations(raw: &[u8]) -> Result<Vec<NodeAdmissionAttestation>, String> {
-    const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 5 + 64;
+    const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 5 + SIGNATURE_BYTES;
     let header = ADMISSION_WIRE_MAGIC.len() + 2;
     if raw.len() < header || &raw[..ADMISSION_WIRE_MAGIC.len()] != ADMISSION_WIRE_MAGIC {
         return Err("admission attestation wire has an invalid header".into());
@@ -200,7 +200,8 @@ pub fn decode_admission_attestations(raw: &[u8]) -> Result<Vec<NodeAdmissionAtte
             claim_digest: digest(),
             batch_digest: digest(),
             order_digest: digest(),
-            signature: Signature::from_bytes(take(64).try_into().expect("64-byte signature")),
+            signature: Signature::try_from(take(SIGNATURE_BYTES))
+                .map_err(|error| error.to_string())?,
         };
         value.unsigned()?;
         values.push(value);
@@ -293,7 +294,7 @@ impl NodeExecutionAttestation {
     }
 
     pub fn sign(mut self, key: &SigningKey) -> Result<Self, String> {
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -443,7 +444,7 @@ fn decode_execution_attestation_wire(
     raw: &[u8],
     expected_count: usize,
 ) -> Result<Vec<NodeExecutionAttestation>, String> {
-    const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 6 + 8 * 3 + 64;
+    const RECORD_BYTES: usize = 2 + 8 + 8 + 32 * 6 + 8 * 3 + SIGNATURE_BYTES;
     let header = EXECUTION_WIRE_MAGIC.len() + 2;
     if raw.len() < header || &raw[..EXECUTION_WIRE_MAGIC.len()] != EXECUTION_WIRE_MAGIC {
         return Err("execution attestation wire has an invalid header".into());
@@ -478,7 +479,8 @@ fn decode_execution_attestation_wire(
             u64::from_be_bytes(take(8).try_into().expect("eight-byte generation"));
         let frame_count = u64::from_be_bytes(take(8).try_into().expect("eight-byte frame count"));
         let input_count = u64::from_be_bytes(take(8).try_into().expect("eight-byte input count"));
-        let signature = Signature::from_bytes(take(64).try_into().expect("64-byte signature"));
+        let signature =
+            Signature::try_from(take(SIGNATURE_BYTES)).map_err(|error| error.to_string())?;
         let value = NodeExecutionAttestation {
             node,
             slot,
@@ -886,7 +888,7 @@ impl AdmissionAuthority {
             ticket_id,
             issued_at,
             expires_at,
-            signature: self.signing_key.sign(&body),
+            signature: self.signing_key.try_sign(&body)?,
         };
         self.issued.insert((slot, nullifier), ticket.digest()?);
         Ok(ticket)
@@ -905,12 +907,12 @@ impl RandomnessBeacon {
         [BEACON_DOMAIN, &round.to_be_bytes(), value].concat()
     }
 
-    pub fn sign(round: u64, value: [u8; 32], key: &SigningKey) -> Self {
-        Self {
+    pub fn sign(round: u64, value: [u8; 32], key: &SigningKey) -> Result<Self, String> {
+        Ok(Self {
             round,
             value,
-            signature: key.sign(&Self::unsigned(round, &value)),
-        }
+            signature: key.try_sign(&Self::unsigned(round, &value))?,
+        })
     }
 
     pub fn verify(&self, key: &VerifyingKey) -> bool {
@@ -1100,7 +1102,7 @@ impl FixedSlotSealer {
             received_at_ns: now_ns,
             signature: Signature::from_bytes(&[0; 64]),
         };
-        receipt.signature = self.signing_key.sign(&receipt.unsigned());
+        receipt.signature = self.signing_key.try_sign(&receipt.unsigned())?;
         self.frames.insert(ticket_digest, frame);
         self.receipts.insert(ticket_digest, receipt.clone());
         Ok(receipt)
@@ -1170,7 +1172,7 @@ impl FixedSlotSealer {
             previous_digest: self.previous_digest,
             signature: Signature::from_bytes(&[0; 64]),
         };
-        manifest.signature = self.signing_key.sign(&manifest.unsigned()?);
+        manifest.signature = self.signing_key.try_sign(&manifest.unsigned()?)?;
         self.closed = true;
         Ok((frames, manifest))
     }

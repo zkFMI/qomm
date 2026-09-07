@@ -24,16 +24,16 @@ use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
+use qomm_defmi::claim_redemption::NoteClaimAuthorization;
 use qomm_defmi::facility::{
     build_threshold_dvp_consumption_from_snapshot, reserve_handle_for, CreditFacilityTransition,
     CreditHoldSnapshot, CreditTransitionKind, ReservationAuthorization, ReservationConsumption,
     ReservationRole, ZERO,
 };
 use qomm_defmi::note_chain::{
-    standing_pool_product_settlement_statement, DelegatedClaimOpenings, DelegatedNoteLegProjection,
-    NoteOutput, ProductNoteBindings, StandingNotePoolAllocation,
-    VerifiedDelegatedNoteSettlementProjection,
+    note_claim_recipient_commitment, standing_pool_product_settlement_statement,
+    DelegatedClaimOpenings, DelegatedNoteLegProjection, NoteClaimKind, NoteOutput,
+    ProductNoteBindings, StandingNotePoolAllocation, VerifiedDelegatedNoteSettlementProjection,
 };
 use qomm_defmi::participant::{EntityApproval, KeyPurpose};
 use qomm_defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
@@ -51,6 +51,7 @@ use qomm_mpc::program::{
 use qomm_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
 use qomm_proofs::price_limit::{from_threshold as threshold_price_limit, PriceLimitDirection};
 use qomm_proofs::quote_proof::{registered_policy_digest, registry_digest, RegisteredPolicy};
+use qomm_transport::application_crypto::{Signature, VerifyingKey};
 use qomm_transport::frost_coordinator::{distributed_frost_setup, recall_frost_group};
 use qomm_transport::mandate::{
     decode_maker_mandate, decode_taker_mandate, encode_maker_mandate, encode_taker_mandate,
@@ -590,7 +591,7 @@ struct PretradeSigner {
     defmi_id: [u8; 32],
     presentation: KybPresentation,
     registry: SignedCohortRegistry,
-    trusted_issuer: VerifyingKey,
+    trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
     identity_scope: Vec<u8>,
     identity_context: Vec<u8>,
     required_cohort: String,
@@ -679,18 +680,7 @@ fn allocation_note(
         one_time: one_time.compress().to_bytes(),
         value_commitment,
         ephemeral: ephemeral.compress().to_bytes(),
-        masked_value: allocation_scalar(&[
-            b"QOMM:DEMO:ALLOCATION-NOTE:MASKED-VALUE:v1",
-            &job_id,
-            label,
-        ])
-        .to_bytes(),
-        masked_blinding: allocation_scalar(&[
-            b"QOMM:DEMO:ALLOCATION-NOTE:MASKED-BLINDING:v1",
-            &job_id,
-            label,
-        ])
-        .to_bytes(),
+        encrypted_opening: qomm_transport::standing_pool::NoteOpening::Covenant,
         lock_id,
     };
     output.note_id = output.derived_id()?;
@@ -818,24 +808,20 @@ impl QueuedRfqEnvelope {
             .public_keys
             .get("mpc_input")
             .ok_or_else(|| "Taker participant has no MPC-input key".to_string())?;
-        let signature: [u8; 64] = self
-            .approval
-            .signature
-            .as_slice()
-            .try_into()
-            .map_err(|_| "queued RFQ approval signature is not 64 bytes".to_string())?;
-        VerifyingKey::from_bytes(public)
-            .map_err(|_| "Taker MPC-input key is not canonical Ed25519".to_string())?
-            .verify(
-                &EntityApproval::signing_body(
-                    &self.approval_domain,
-                    KeyPurpose::MpcInput,
-                    1,
-                    &self.approval.statement,
-                ),
-                &Signature::from_bytes(&signature),
+        self.approval
+            .verify_signature(
+                &self.approval_domain,
+                &qomm_defmi::participant::PurposeKey {
+                    public_key: *public,
+                    pq_public_key: snapshot
+                        .pq_public_keys
+                        .get("mpc_input")
+                        .ok_or("missing enrolled PQ MPC input key")?
+                        .clone(),
+                    epoch: 1,
+                },
             )
-            .map_err(|_| "queued RFQ approval signature is invalid".to_string())?;
+            .map_err(|error| error.to_string())?;
         let mandate = decode_taker_mandate(&self.signed_taker_mandate)?;
         if mandate.digest()? != self.mandate_digest
             || mandate.admission_slot != self.admission.slot
@@ -901,7 +887,7 @@ pub struct TakerPretradeSignerConfig {
     pub defmi_id: [u8; 32],
     pub presentation: KybPresentation,
     pub registry: SignedCohortRegistry,
-    pub trusted_issuer: VerifyingKey,
+    pub trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
     pub identity_scope: Vec<u8>,
     pub identity_context: Vec<u8>,
     pub required_cohort: String,
@@ -1423,11 +1409,7 @@ impl DistributedMpcEngine {
                 .map_err(|error| format!("Taker anonymous KYB proof expired: {error:?}"))?;
                 let entity_commitment = signer.presentation.entity_commitment();
                 let kyb_presentation_digest = signer.presentation.binding_digest();
-                let taker_public = *signer
-                    .snapshot
-                    .public_keys
-                    .get("settlement")
-                    .ok_or_else(|| "Taker participant has no settlement key".to_string())?;
+                let taker_public = signer.snapshot.settlement_application_key.to_bytes();
                 let mandate = TakerExecutionMandate {
                     venue_id: signer.venue_id,
                     defmi_id: signer.defmi_id,
@@ -2512,11 +2494,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 &identity.required_cohort,
             )
             .map_err(|error| format!("Maker {maker} anonymous KYB proof failed: {error:?}"))?;
-            let maker_public = *signer
-                .snapshot
-                .public_keys
-                .get("quote")
-                .ok_or_else(|| format!("Maker {maker} participant has no quote key"))?;
+            let maker_public = signer.snapshot.quote_application_key.to_bytes();
             let traded_asset_id = traded_asset_id(policy.asset);
             let cash_asset_id = cash_asset_id();
             let mut signed_mandates = Vec::with_capacity(2);
@@ -3998,7 +3976,9 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 };
                 let settlement_venue =
                     Venue::new(settlement_key.clone(), &bounds, frost_public.clone())
-                        .require_threshold_ranges();
+                        .require_threshold_ranges()
+                        .require_pq_committee(market.registered_pq_committee(&frost_public)?)
+                        .map_err(|error| error.to_string())?;
                 let dvp = build_threshold_package_from_proofs(
                     &settlement_key,
                     typed.payment.clone(),
@@ -4032,12 +4012,56 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     Direction::TakerBuys => (maker_leg, taker_leg),
                     Direction::TakerSells => (taker_leg, maker_leg),
                 };
+                let claim_authorization =
+                    |opening: &qomm_proofs::opening_envelope::OpeningEnvelope,
+                     asset: [u8; 32],
+                     hold: [u8; 32],
+                     kind: NoteClaimKind| {
+                        NoteClaimAuthorization::generate(
+                            note_claim_recipient_commitment(
+                                opening.recipient_view.compress().to_bytes(),
+                                typed.context.rfq_nullifier,
+                                asset,
+                                hold,
+                                kind,
+                            )?,
+                            wall_now,
+                            u64::MAX,
+                        )?
+                        .commitment()
+                    };
                 let openings = DelegatedClaimOpenings {
                     proof_job_id: job_id,
                     securities_delivery: proof.handoff.securities_delivery_opening.clone(),
                     securities_refund: proof.handoff.securities_refund_opening.clone(),
                     cash_delivery: proof.handoff.cash_delivery_opening.clone(),
                     cash_refund: proof.handoff.cash_refund_opening.clone(),
+                    authorizations: [
+                        claim_authorization(
+                            &proof.handoff.securities_delivery_opening,
+                            securities_leg.asset_id,
+                            securities_leg.hold_id,
+                            NoteClaimKind::Delivery,
+                        )?,
+                        claim_authorization(
+                            &proof.handoff.securities_refund_opening,
+                            securities_leg.asset_id,
+                            securities_leg.hold_id,
+                            NoteClaimKind::Refund,
+                        )?,
+                        claim_authorization(
+                            &proof.handoff.cash_delivery_opening,
+                            cash_leg.asset_id,
+                            cash_leg.hold_id,
+                            NoteClaimKind::Delivery,
+                        )?,
+                        claim_authorization(
+                            &proof.handoff.cash_refund_opening,
+                            cash_leg.asset_id,
+                            cash_leg.hold_id,
+                            NoteClaimKind::Refund,
+                        )?,
+                    ],
                 };
                 let operation_id = allocation_hash(&[
                     b"QOMM:DEMO:PRODUCT-SETTLEMENT-OP:v1",
@@ -4725,6 +4749,7 @@ impl PreparedNode {
         let mut proof_passphrase = fs::read(&proof_passphrase_path)
             .map_err(|error| format!("proof-party passphrase is unavailable: {error}"))?;
         let proof_party = ProofParty::new(ProofPartyConfig {
+            recipient_opening_keys: Vec::new(),
             node: u16::try_from(config.node)
                 .map_err(|_| "MPC node index exceeds proof-party bounds")?,
             allowed_root: config.state_root.clone(),
@@ -5126,11 +5151,38 @@ impl PreparedNode {
             let stored: AdmissionAttestationWire =
                 serde_json::from_slice(&fs::read(&path).map_err(|error| error.to_string())?)
                     .map_err(|_| "stored MPC admission receipt is malformed".to_string())?;
-            let expected = self.admission_attestation(&request)?;
-            if stored == expected {
-                return Ok(stored);
+            // ML-DSA signing is randomized. Verify the durable receipt against
+            // this node's enrolled key and compare its statement, without re-signing.
+            let trusted = self
+                .proof_party
+                .lock()
+                .map_err(|_| "proof-party state lock is poisoned".to_string())?
+                .application_verifying_key();
+            let (attestation, identity) = decode_admission_receipt(&stored)?;
+            let slot = u32::try_from(request.admission.slot)
+                .map_err(|_| "admission slot is outside the resident-node range".to_string())?;
+            let expected = NodeAdmissionAttestation {
+                node: self.node_u16()?,
+                slot: request.admission.slot,
+                sequence: request.admission.sequence,
+                principal_digest: qomm_transport::order::admission_principal_digest(
+                    &request.admission.principal,
+                )?,
+                ticket_id: principal_ticket_id(slot, &request.admission.principal)?,
+                claim_digest: decode_hex32(&request.admission.claim_digest, "admission claim")?,
+                batch_digest: decode_hex32(&request.input_sha256, "MPC input digest")?,
+                order_digest: decode_hex32(&request.admission.order_digest, "admission order")?,
+                signature: Signature::from_bytes(&[]),
+            };
+            if identity != trusted
+                || !attestation.verify(&trusted)
+                || decode_hex32(&request.admission.ticket_id, "admission ticket")?
+                    != expected.ticket_id
+                || attestation.unsigned()? != expected.unsigned()?
+            {
+                return Err("round id was already admitted with another claim, input digest, or node identity".into());
             }
-            return Err("round id was already admitted with another claim or input digest".into());
+            return Ok(stored);
         }
         let attestation = self.admission_attestation(&request)?;
         atomic_private_write(
@@ -5859,13 +5911,12 @@ pub fn remainder_note_id_of_execution(
 fn decode_admission_receipt(
     value: &AdmissionAttestationWire,
 ) -> Result<(NodeAdmissionAttestation, VerifyingKey), String> {
-    let signature: [u8; 64] = hex::decode(&value.signature)
-        .map_err(|_| "admission signature is not hexadecimal".to_string())?
-        .try_into()
-        .map_err(|_| "admission signature is not 64 bytes".to_string())?;
+    let signature = hex::decode(&value.signature)
+        .map_err(|_| "admission signature is not hexadecimal".to_string())?;
+    Signature::try_from(signature.as_slice()).map_err(|error| error.to_string())?;
     let identity =
         VerifyingKey::from_bytes(&decode_hex32(&value.identity_public, "admission identity")?)
-            .map_err(|_| "admission identity is not a valid Ed25519 key".to_string())?;
+            .map_err(|_| "admission identity is not a valid hybrid key fingerprint".to_string())?;
     let attestation = NodeAdmissionAttestation {
         node: value.node,
         slot: value.slot,
@@ -6074,6 +6125,111 @@ mod tests {
             order_digest: "55".repeat(32),
             identity_public: "66".repeat(32),
             signature: "77".repeat(64),
+        }
+    }
+
+    #[test]
+    fn prepared_node_admission_retry_restores_exact_hybrid_receipt() {
+        let directory = tempdir().unwrap();
+        fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
+        // Exercise the real admission path and encrypted ProofParty state without
+        // launching an MPC program; admission precedes execution by construction.
+        let open = || {
+            let root = directory.path().to_path_buf();
+            let proof_party = ProofParty::new(ProofPartyConfig {
+                recipient_opening_keys: Vec::new(),
+                node: 0,
+                allowed_root: root.clone(),
+                state_file: root.join("proof-state.qps"),
+                state_passphrase: vec![31; 32],
+                n_mm: 2,
+                n_parties: 7,
+                threshold: 4,
+                amount_bits: 16,
+                price_bits: 16,
+                remainder_bits: 16,
+                complete_quote_proof: true,
+                quote_eligibility_bits: 16,
+                quote_span_bits: 16,
+                trusted_defmi_receipt_public: None,
+                allow_health_signing: false,
+            })
+            .unwrap();
+            PreparedNode {
+                config: MpcNodeConfig {
+                    node: 0,
+                    n_parties: 7,
+                    threshold: 4,
+                    n_makers: 2,
+                    references: vec![100],
+                    bit_length: 16,
+                    input_check: true,
+                    listen_host: "127.0.0.1".into(),
+                    api_port: 0,
+                    mp_spdz_root: root.join("unused-mpc"),
+                    state_root: root.clone(),
+                    party_hosts: Vec::new(),
+                    timeout: Duration::from_secs(5),
+                },
+                source_sha256: "11".repeat(32),
+                program: String::new(),
+                party_binary: root.join("unused-party"),
+                host_file: root.join("unused-hosts"),
+                proof_party: Mutex::new(proof_party),
+                maker_state: EncryptedMpcStateStore::new(root.join("maker.qms"), &[32; 32])
+                    .unwrap(),
+                padded_makers: 2,
+            }
+        };
+        let node = open();
+        let request = AdmitRequest {
+            version: PROTOCOL_VERSION,
+            node: 0,
+            round_id: "22".repeat(32),
+            source_sha256: node.source_sha256.clone(),
+            public_market_time: 100,
+            input_sha256: "33".repeat(32),
+            admission: ExecuteAdmission {
+                slot: 7,
+                sequence: 1,
+                principal: "test-participant".into(),
+                ticket_id: hex::encode(principal_ticket_id(7, "test-participant").unwrap()),
+                claim_digest: "44".repeat(32),
+                order_digest: "55".repeat(32),
+            },
+        };
+        let first = node.admit(request.clone()).unwrap();
+        let path = node
+            .round_directory(&request.round_id)
+            .join("admission.json");
+        let persisted = fs::read(&path).unwrap();
+        assert_eq!(node.admit(request.clone()).unwrap(), first);
+        drop(node);
+        let node = open();
+        assert_eq!(node.admit(request.clone()).unwrap(), first);
+        assert_eq!(fs::read(&path).unwrap(), persisted);
+        let mut changed = request.clone();
+        changed.admission.claim_digest = "66".repeat(32);
+        assert!(node.admit(changed).is_err());
+        assert_eq!(fs::read(&path).unwrap(), persisted);
+        // A valid receipt under another node key is not an enrolled receipt.
+        let (mut attestation, _) = decode_admission_receipt(&first).unwrap();
+        let other = qomm_transport::application_crypto::SigningKey::generate(&mut OsRng);
+        attestation = attestation.sign(&other).unwrap();
+        let mut forged = first.clone();
+        forged.identity_public = hex::encode(other.verifying_key().to_bytes());
+        forged.signature = hex::encode(attestation.signature.to_bytes());
+        atomic_private_write(&path, &serde_json::to_vec(&forged).unwrap()).unwrap();
+        assert!(node.admit(request.clone()).is_err());
+        for offset in [14 + 1984, 14 + 1984 + 64] {
+            let mut corrupted = first.clone();
+            let mut bytes = hex::decode(&corrupted.signature).unwrap();
+            bytes[offset] ^= 1;
+            corrupted.signature = hex::encode(bytes);
+            let encoded = serde_json::to_vec(&corrupted).unwrap();
+            atomic_private_write(&path, &encoded).unwrap();
+            assert!(node.admit(request.clone()).is_err());
+            assert_eq!(fs::read(&path).unwrap(), encoded);
         }
     }
 

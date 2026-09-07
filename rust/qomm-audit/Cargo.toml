@@ -8,6 +8,7 @@ license.workspace = true
 name = "qomm_audit"
 
 [dependencies]
+zkfmi-crypto.workspace = true
 qomm-proofs.workspace = true
 qomm-zk.workspace = true
 ed25519-dalek.workspace = true

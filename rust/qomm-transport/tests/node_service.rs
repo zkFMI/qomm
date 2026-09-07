@@ -9,6 +9,7 @@ use qomm_mpc::program::{build_program, policy_rule_source, ProgramConfig, POLICY
 use qomm_proofs::kyb::{
     cohort_id, present, BusinessAttributes, EntityLimits, KybCredential, KybIssuer,
 };
+use qomm_transport::application_crypto::Signature;
 use qomm_transport::executor::{
     circuit_shape_digest, write_source_bound_runtime_executable, ProgramRegistry,
     RegisteredProgram, RuntimeBinding,
@@ -18,6 +19,9 @@ use qomm_transport::node_service::{
     certificate_fingerprint, client_ssl_context, server_ssl_context, KybPolicy, NodeSealingKeys,
     NodeStore, Principal, RateLimitPolicy, ResidentNodeClient, ResidentNodeLocalClient,
     ResidentNodeServer, RECORD_BYTES,
+};
+use qomm_transport::order::{
+    admission_principal_digest, NodeAdmissionAttestation, NodeExecutionAttestation,
 };
 use qomm_transport::wire::{Frame, PAYLOAD_BYTES};
 use serde_json::{json, Value};
@@ -129,7 +133,7 @@ fn request(id: &str, slot: u32, raw: &[u8]) -> Value {
         .finalize()
         .into();
     json!({
-        "version": 1,
+        "version": qomm_transport::node_service::VERSION,
         "request_id": id,
         "operation": "submit",
         "slot": slot,
@@ -341,6 +345,8 @@ fn real_mutual_tls_fixed_records_durable_idempotency_and_reconnect() {
         kyb_clients(&[(client_bundle, frame_key.clone(), "entity-7")]);
     assert!(principals.contains_key(&client_fingerprint));
     principals.insert(coordinator_fingerprint, Principal::coordinator());
+    let sealing_keys = NodeSealingKeys::generate_for_testing();
+    let node_verifier = sealing_keys.public_keys()[2];
     let mut server = ResidentNodeServer::new(
         0,
         "127.0.0.1",
@@ -348,7 +354,7 @@ fn real_mutual_tls_fixed_records_durable_idempotency_and_reconnect() {
         server_ssl_context(&node.cert, &node.key, &node.ca).unwrap(),
         principals,
         Some(kyb_policy),
-        NodeSealingKeys::generate_for_testing(),
+        sealing_keys,
         Arc::clone(&store),
         Some(Arc::clone(&registry)),
         RateLimitPolicy::default(),
@@ -357,9 +363,24 @@ fn real_mutual_tls_fixed_records_durable_idempotency_and_reconnect() {
     )
     .unwrap();
     let transport = start_transport(&mut server);
+    assert!(
+        matches!(transport, TestTransport::Tcp),
+        "acceptance requires real TCP mutual TLS"
+    );
     let mut client = test_client(transport, &server, client_bundle);
     let raw = raw_frame(9, b'p', &frame_key);
     let submitted = request("submit-9", 9, &raw);
+    let mut legacy = submitted.clone();
+    legacy["version"] = json!(1);
+    let rejected = client.call(&legacy).unwrap();
+    assert_eq!(rejected["ok"], false);
+    assert_eq!(rejected["error"], "Error");
+    assert!(rejected["message"]
+        .as_str()
+        .unwrap()
+        .contains("unsupported node-service version"));
+    assert_eq!(store.frame_count().unwrap(), 0);
+    assert_eq!(store.request_count().unwrap(), 0);
     let first = client.call(&submitted).unwrap();
     let second = client.call(&submitted).unwrap();
     assert_eq!(first, second);
@@ -372,23 +393,95 @@ fn real_mutual_tls_fixed_records_durable_idempotency_and_reconnect() {
 
     let mut coordinator = test_client(transport, &server, coordinator_bundle);
     let closed = coordinator
-        .call(&json!({"version": 1, "request_id": "close-9", "operation": "close_slot", "slot": 9}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "close-9", "operation": "close_slot", "slot": 9}))
         .unwrap();
     assert_eq!(closed["closed"], true);
-    let job = json!({"version": 1, "request_id": "compute-9", "operation": "compute",
+    let position_request = json!({
+        "version": qomm_transport::node_service::VERSION,
+        "request_id": "position-9", "operation": "admission_position", "slot": 9,
+        "principal_digest": hex::encode(admission_principal_digest(&client_fingerprint).unwrap()),
+    });
+    let position = coordinator.call(&position_request).unwrap();
+    assert_eq!(position["ok"], true);
+    let fixed32 = |response: &Value, field: &str| -> [u8; 32] {
+        hex::decode(response[field].as_str().unwrap())
+            .unwrap()
+            .try_into()
+            .unwrap()
+    };
+    let signature = |response: &Value, field: &str| {
+        let bytes = hex::decode(response[field].as_str().unwrap()).unwrap();
+        Signature::try_from(bytes.as_slice()).unwrap()
+    };
+    let admission = NodeAdmissionAttestation {
+        node: position["node"].as_u64().unwrap().try_into().unwrap(),
+        slot: position["slot"].as_u64().unwrap(),
+        sequence: position["sequence"].as_u64().unwrap(),
+        principal_digest: fixed32(&position, "principal_digest"),
+        ticket_id: fixed32(&position, "ticket_id"),
+        claim_digest: fixed32(&position, "admission_claim_digest"),
+        batch_digest: fixed32(&position, "batch_digest"),
+        order_digest: fixed32(&position, "order_digest"),
+        signature: signature(&position, "node_attestation"),
+    };
+    assert!(admission.verify(&node_verifier));
+    assert_eq!(coordinator.call(&position_request).unwrap(), position);
+    // The actual response exceeds the legacy record and fits the new fixed record.
+    let admission_bytes = serde_json::to_vec(&position).unwrap().len();
+    assert!(
+        admission_bytes > 4092 && admission_bytes <= qomm_transport::node_service::MAX_JSON_BYTES
+    );
+    for offset in [14 + 1984, 14 + 1984 + 64] {
+        let mut tampered = admission.clone();
+        let mut bytes = tampered.signature.to_bytes();
+        bytes[offset] ^= 1;
+        tampered.signature = Signature::try_from(bytes.as_slice()).unwrap();
+        assert!(
+            !tampered.verify(&node_verifier),
+            "each signature component is mandatory"
+        );
+    }
+    let job = json!({"version": qomm_transport::node_service::VERSION, "request_id": "compute-9", "operation": "compute",
                      "slot": 9, "shape_digest": shape_digest,
                      "batch_digest": "00".repeat(32), "frames": ["caller-controlled"]});
     let computed = coordinator.call(&job).unwrap();
     assert_eq!(computed["ok"], true);
     assert_eq!(computed["batch_digest"], closed["batch_digest"]);
     assert_eq!(computed["stdout_digest"].as_str().unwrap().len(), 64);
+    let execution = NodeExecutionAttestation {
+        node: computed["node"].as_u64().unwrap().try_into().unwrap(),
+        slot: 9,
+        lane: computed["lane"].as_u64().unwrap(),
+        batch_digest: fixed32(&computed, "batch_digest"),
+        source_digest: fixed32(&computed, "mpc_source_digest"),
+        state_generation: computed["mpc_state_generation"].as_u64().unwrap(),
+        frame_count: computed["mpc_frame_count"].as_u64().unwrap(),
+        input_count: computed["mpc_input_count"].as_u64().unwrap(),
+        stdout_digest: fixed32(&computed, "mpc_stdout_digest"),
+        stderr_digest: fixed32(&computed, "mpc_stderr_digest"),
+        persistence_digest: fixed32(&computed, "mpc_persistence_digest"),
+        receipt_digest: fixed32(&computed, "mpc_execution_digest"),
+        signature: signature(&computed, "mpc_execution_attestation"),
+    };
+    assert!(execution.verify(&node_verifier));
+    let execution_bytes = serde_json::to_vec(&computed).unwrap().len();
+    assert!(
+        execution_bytes > 4092 && execution_bytes <= qomm_transport::node_service::MAX_JSON_BYTES
+    );
+    for offset in [14 + 1984, 14 + 1984 + 64] {
+        let mut tampered = execution.clone();
+        let mut bytes = tampered.signature.to_bytes();
+        bytes[offset] ^= 1;
+        tampered.signature = Signature::try_from(bytes.as_slice()).unwrap();
+        assert!(!tampered.verify(&node_verifier));
+    }
     assert_eq!(coordinator.call(&job).unwrap(), computed);
     assert_eq!(
         registry.execution_count(),
         1,
         "idempotent retry ran computation twice"
     );
-    assert_eq!(store.request_count().unwrap(), 3);
+    assert_eq!(store.request_count().unwrap(), 4);
     coordinator.close();
     server.stop();
     assert_eq!(
@@ -570,10 +663,10 @@ fn incomplete_duplicate_unclosed_and_unopened_slots_are_refused() {
         true
     );
     let short_close = coordinator
-        .call(&json!({"version": 1, "request_id": "close-short", "operation": "close_slot", "slot": 40}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "close-short", "operation": "close_slot", "slot": 40}))
         .unwrap();
     let short_compute = coordinator
-        .call(&json!({"version": 1, "request_id": "compute-short", "operation": "compute", "slot": 40, "shape_digest": shape_digest.clone()}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "compute-short", "operation": "compute", "slot": 40, "shape_digest": shape_digest.clone()}))
         .unwrap();
 
     let duplicate_raw = raw_frame(41, b'd', &key_a);
@@ -593,7 +686,7 @@ fn incomplete_duplicate_unclosed_and_unopened_slots_are_refused() {
         true
     );
     let duplicate_close = coordinator
-        .call(&json!({"version": 1, "request_id": "close-duplicate", "operation": "close_slot", "slot": 41}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "close-duplicate", "operation": "close_slot", "slot": 41}))
         .unwrap();
 
     for (client, id, key, marker) in [
@@ -608,10 +701,10 @@ fn incomplete_duplicate_unclosed_and_unopened_slots_are_refused() {
         );
     }
     let unclosed = coordinator
-        .call(&json!({"version": 1, "request_id": "compute-unclosed", "operation": "compute", "slot": 42, "shape_digest": shape_digest}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "compute-unclosed", "operation": "compute", "slot": 42, "shape_digest": shape_digest}))
         .unwrap();
     let unopened = coordinator
-        .call(&json!({"version": 1, "request_id": "compute-unopened", "operation": "compute", "slot": 43, "shape_digest": shape_digest}))
+        .call(&json!({"version": qomm_transport::node_service::VERSION, "request_id": "compute-unopened", "operation": "compute", "slot": 43, "shape_digest": shape_digest}))
         .unwrap();
 
     assert!(

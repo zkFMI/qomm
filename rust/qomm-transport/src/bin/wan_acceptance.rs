@@ -216,7 +216,7 @@ fn probe_node(
     let mut client =
         ResidentNodeClient::new(&node.host, node.port, tls.clone(), &node.server_name, 1);
     let response = client.call(&json!({
-        "version": 1,
+        "version": qomm_transport::node_service::VERSION,
         "request_id": request_id,
         "operation": "health",
         "deployment_id": deployment_id,

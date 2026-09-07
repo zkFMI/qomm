@@ -5,6 +5,7 @@
 //! wallet secret.
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
+#[cfg(test)]
 use curve25519_dalek::scalar::Scalar;
 use qomm_proofs::threshold_range::ThresholdRangeProof;
 use qomm_zk::sigma::ProductProof;
@@ -14,7 +15,7 @@ use sha2::{Digest, Sha256, Sha512};
 
 use crate::dvp_issuer::DvpProofs;
 
-const NOTE_OUTPUT_DOMAIN: &[u8] = b"QOMM:DEFMI:NOTE-OUTPUT:v1";
+const NOTE_OUTPUT_DOMAIN: &[u8] = b"QOMM:DEFMI:NOTE-OUTPUT:v2";
 const STANDING_NOTE_POOL_ID_DOMAIN: &[u8] = b"QOMM:DEFMI:STANDING-NOTE-POOL-ID:v1";
 const STANDING_NOTE_POOL_DELEGATION_DOMAIN: &[u8] = b"QOMM:DEFMI:STANDING-NOTE-POOL-DELEGATION:v1";
 const STANDING_NOTE_POOL_ALLOCATION_SIGNING_DOMAIN: &[u8] =
@@ -140,6 +141,35 @@ pub fn standing_note_pool_delegation_digest(
     )
 }
 
+/// Recipient delivery and a covenant placeholder are distinct wire variants.
+/// A covenant carries no opening and is admissible only with an explicit lock.
+/// It must never be presented as encrypted recipient delivery.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", content = "envelope", deny_unknown_fields)]
+pub enum NoteOpening {
+    Recipient(zkfmi_crypto::sealed::SealedMessage),
+    Covenant,
+}
+
+impl NoteOpening {
+    pub fn validate(&self, lock_id: &[u8; 32]) -> Result<(), String> {
+        match self {
+            Self::Recipient(envelope) => envelope
+                .validate(zkfmi_crypto::sealed::SealingPurpose::NoteOpening, 40)
+                .map_err(|e| e.to_string()),
+            Self::Covenant if *lock_id != [0; 32] => Ok(()),
+            Self::Covenant => Err("a covenant placeholder requires a note lock".into()),
+        }
+    }
+
+    pub fn binding_bytes(&self) -> Vec<u8> {
+        match self {
+            Self::Recipient(envelope) => [vec![1], envelope.binding_bytes()].concat(),
+            Self::Covenant => vec![0],
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StandingPoolNote {
     pub note_id: [u8; 32],
@@ -147,8 +177,7 @@ pub struct StandingPoolNote {
     pub one_time: [u8; 32],
     pub value_commitment: [u8; 32],
     pub ephemeral: [u8; 32],
-    pub masked_value: [u8; 32],
-    pub masked_blinding: [u8; 32],
+    pub encrypted_opening: NoteOpening,
     pub lock_id: [u8; 32],
 }
 
@@ -159,8 +188,7 @@ impl StandingPoolNote {
             "one_time": hex::encode(self.one_time),
             "value_commitment": hex::encode(self.value_commitment),
             "ephemeral": hex::encode(self.ephemeral),
-            "masked_value": hex::encode(self.masked_value),
-            "masked_blinding": hex::encode(self.masked_blinding),
+            "encrypted_opening": self.encrypted_opening,
             "lock_id": hex::encode(self.lock_id),
         })
     }
@@ -184,13 +212,7 @@ impl StandingPoolNote {
                 .decompress()
                 .ok_or_else(|| format!("standing pool note {name} is not canonical"))?;
         }
-        for (name, value) in [
-            ("masked_value", self.masked_value),
-            ("masked_blinding", self.masked_blinding),
-        ] {
-            Option::<Scalar>::from(Scalar::from_canonical_bytes(value))
-                .ok_or_else(|| format!("standing pool note {name} is not canonical"))?;
-        }
+        self.encrypted_opening.validate(&self.lock_id)?;
         if self.note_id != digest_json(NOTE_OUTPUT_DOMAIN, &self.content_body())? {
             return Err("standing pool note identifier differs from its contents".into());
         }
@@ -218,8 +240,7 @@ impl StandingPoolNote {
                 "one_time",
                 "value_commitment",
                 "ephemeral",
-                "masked_value",
-                "masked_blinding",
+                "encrypted_opening",
                 "lock_id",
             ],
             name,
@@ -230,8 +251,13 @@ impl StandingPoolNote {
             one_time: hex32(object, "one_time")?,
             value_commitment: hex32(object, "value_commitment")?,
             ephemeral: hex32(object, "ephemeral")?,
-            masked_value: hex32(object, "masked_value")?,
-            masked_blinding: hex32(object, "masked_blinding")?,
+            encrypted_opening: serde_json::from_value(
+                object
+                    .get("encrypted_opening")
+                    .cloned()
+                    .ok_or("missing note opening")?,
+            )
+            .map_err(|e| e.to_string())?,
             lock_id: hex32(object, "lock_id")?,
         };
         note.validate()?;
@@ -688,8 +714,7 @@ mod tests {
                 one_time: (G * Scalar::from(u64::from(tag) + 1)).compress().to_bytes(),
                 value_commitment: (G * Scalar::from(value)).compress().to_bytes(),
                 ephemeral: (G * Scalar::from(u64::from(tag) + 3)).compress().to_bytes(),
-                masked_value: Scalar::from(u64::from(tag) + 4).to_bytes(),
-                masked_blinding: Scalar::from(u64::from(tag) + 5).to_bytes(),
+                encrypted_opening: NoteOpening::Covenant,
                 lock_id,
             };
             output.note_id = digest_json(NOTE_OUTPUT_DOMAIN, &output.content_body()).unwrap();

@@ -1,7 +1,7 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signer, SigningKey, Verifier};
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
+use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::roles::{check_field_width, dealt_body, split, ComputingNode, InputParty};
 use qomm_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
@@ -249,7 +249,7 @@ fn node_side(
             for (position, value) in values.iter().enumerate() {
                 let shares = split(*value, options.n_nodes, options.value_bits)?;
                 let body = dealt_body(&maker.name, 0, position, shares[0]);
-                prepared.push((body.clone(), key.sign(&body)));
+                prepared.push((body.clone(), key.try_sign(&body)?));
             }
             let started = Instant::now();
             let accepted = prepared

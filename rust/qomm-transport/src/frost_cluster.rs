@@ -182,6 +182,7 @@ pub struct StdioFrostCluster {
     parties: Vec<ProofPartyChild>,
     public: frost::keys::PublicKeyPackage,
     selected: Vec<usize>,
+    pq_committee: qomm_zkpi::QuorumPolicy,
 }
 
 impl StdioFrostCluster {
@@ -213,9 +214,12 @@ impl StdioFrostCluster {
             })
             .collect::<Result<Vec<_>, String>>()?;
         let public = distributed_setup(&mut children, session)?;
+        // This acceptance runner owns and enrolls the freshly spawned node set.
+        let pq_committee = frost_coordinator::read_pq_committee(&mut children, &public)?;
         Ok(Self {
             root,
             parties: children,
+            pq_committee,
             public,
             selected,
         })
@@ -223,6 +227,10 @@ impl StdioFrostCluster {
 
     pub fn public(&self) -> &frost::keys::PublicKeyPackage {
         &self.public
+    }
+
+    pub fn pq_committee(&self) -> &qomm_zkpi::QuorumPolicy {
+        &self.pq_committee
     }
 
     pub fn root(&self) -> &Path {
@@ -233,11 +241,12 @@ impl StdioFrostCluster {
         &mut self,
         partial: &PartialInstruction,
         mandate: ReserveMandateRef<'_>,
-    ) -> Result<frost::Signature, String> {
+    ) -> Result<frost_coordinator::DistributedHybridSignature, String> {
         sign_reserve_payment(
             &mut self.parties,
             &self.selected,
             &self.public,
+            &self.pq_committee,
             partial,
             mandate,
         )
@@ -248,11 +257,12 @@ impl StdioFrostCluster {
         payment: &qomm_zkpi::Instruction,
         context: &typed::ExecutionContext,
         mandate: ReserveMandateRef<'_>,
-    ) -> Result<frost::Signature, String> {
+    ) -> Result<frost_coordinator::DistributedHybridSignature, String> {
         sign_reserve_context(
             &mut self.parties,
             &self.selected,
             &self.public,
+            &self.pq_committee,
             payment,
             context,
             mandate,
@@ -297,9 +307,10 @@ pub fn sign_reserve_payment<T: ProofPartyRpc>(
     parties: &mut [T],
     selected: &[usize],
     public: &frost::keys::PublicKeyPackage,
+    policy: &qomm_zkpi::QuorumPolicy,
     partial: &PartialInstruction,
     mandate: ReserveMandateRef<'_>,
-) -> Result<frost::Signature, String> {
+) -> Result<frost_coordinator::DistributedHybridSignature, String> {
     let message = partial.digest();
     let signing_job = signing_job(&message);
     let mut params = mandate.public_params()?;
@@ -349,10 +360,11 @@ pub fn sign_reserve_payment<T: ProofPartyRpc>(
             .expect("reserve quorum bounds checked")
             .call("authorize_reserve_payment", params.clone())?;
     }
-    let signature = frost_coordinator::distributed_frost_sign(parties, selected, &message, public)?;
+    let signature =
+        frost_coordinator::distributed_hybrid_sign(parties, selected, &message, public, policy)?;
     public
         .verifying_key()
-        .verify(&message, &signature)
+        .verify(&message, &signature.classical)
         .map_err(|_| "reserve payment threshold signature is invalid".to_string())?;
     Ok(signature)
 }
@@ -363,10 +375,11 @@ pub fn sign_reserve_context<T: ProofPartyRpc>(
     parties: &mut [T],
     selected: &[usize],
     public: &frost::keys::PublicKeyPackage,
+    policy: &qomm_zkpi::QuorumPolicy,
     payment: &qomm_zkpi::Instruction,
     context: &typed::ExecutionContext,
     mandate: ReserveMandateRef<'_>,
-) -> Result<frost::Signature, String> {
+) -> Result<frost_coordinator::DistributedHybridSignature, String> {
     let message =
         typed::digest_for(payment, context, qomm_zkpi::DEFAULT_DOMAIN).map_err(str::to_string)?;
     let signing_job = signing_job(&message);
@@ -393,10 +406,11 @@ pub fn sign_reserve_context<T: ProofPartyRpc>(
             .expect("reserve quorum bounds checked")
             .call("authorize_reserve_typed", params.clone())?;
     }
-    let signature = frost_coordinator::distributed_frost_sign(parties, selected, &message, public)?;
+    let signature =
+        frost_coordinator::distributed_hybrid_sign(parties, selected, &message, public, policy)?;
     public
         .verifying_key()
-        .verify(&message, &signature)
+        .verify(&message, &signature.classical)
         .map_err(|_| "typed reserve threshold signature is invalid".to_string())?;
     Ok(signature)
 }

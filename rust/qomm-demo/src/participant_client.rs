@@ -36,8 +36,12 @@ pub struct ParticipantSnapshot {
     pub label: String,
     pub sequence: u64,
     pub public_keys: BTreeMap<String, [u8; 32]>,
+    pub pq_public_keys: BTreeMap<String, Vec<u8>>,
+    pub quote_application_key: qomm_transport::application_crypto::VerifyingKey,
+    pub settlement_application_key: qomm_transport::application_crypto::VerifyingKey,
     pub kyb_public_point: [u8; 32],
     pub note_view_public: [u8; 32],
+    pub note_opening_public: [u8; zkfmi_crypto::sealed::RECIPIENT_PUBLIC_BYTES],
     pub note_spend_public: [u8; 32],
     pub cash: u64,
     pub inventory: u64,
@@ -55,7 +59,7 @@ pub struct ParticipantClient {
 pub struct KybPresentationRequest<'a> {
     pub snapshot: &'a ParticipantSnapshot,
     pub registry: &'a SignedCohortRegistry,
-    pub trusted_issuer: &'a VerifyingKey,
+    pub trusted_issuer: &'a qomm_proofs::kyb::KybIssuerKey,
     pub scope: &'a [u8],
     pub context: &'a [u8],
     pub required_cohort: &'a str,
@@ -255,9 +259,12 @@ impl ParticipantClient {
             .and_then(Value::as_array)
             .ok_or_else(|| "participant snapshot has no public keys".to_string())?;
         let mut public_keys = BTreeMap::new();
+        let mut pq_public_keys = BTreeMap::new();
+        let mut application_keys = BTreeMap::new();
         let mut kyb_public_point = None;
         let mut note_view_public = None;
         let mut note_spend_public = None;
+        let mut note_opening_public = None;
         for record in records {
             if record.get("state").and_then(Value::as_str) != Some("active") {
                 continue;
@@ -268,9 +275,49 @@ impl ParticipantClient {
             let decoded = BASE64
                 .decode(encoded)
                 .map_err(|_| "participant public key is not base64".to_string())?;
+            if let Some(base) = purpose.strip_suffix("_pq") {
+                if !matches!(
+                    base,
+                    "admin" | "settlement" | "quote" | "mpc_input" | "emergency"
+                ) || kind != "mldsa65"
+                    || decoded.len() != zkfmi_crypto::suite::ML_DSA_65_PK_BYTES
+                    || pq_public_keys.insert(base.to_string(), decoded).is_some()
+                {
+                    return Err("participant PQ key enrollment is invalid or repeated".into());
+                }
+                continue;
+            }
+            if purpose == "note_opening" {
+                if kind != "x25519_mlkem768" || note_opening_public.is_some() {
+                    return Err("participant hybrid note key is malformed or repeated".into());
+                }
+                let public: [u8; zkfmi_crypto::sealed::RECIPIENT_PUBLIC_BYTES] = decoded
+                    .try_into()
+                    .map_err(|_| "participant hybrid note key has wrong length")?;
+                qomm_transport::selective_disclosure::WinnerPublicKey::from_raw(&public)?;
+                note_opening_public = Some(public);
+                continue;
+            }
             let public: [u8; 32] = decoded
                 .try_into()
                 .map_err(|_| "participant public key is not 32 bytes".to_string())?;
+            if matches!(
+                purpose.as_str(),
+                "quote_application" | "settlement_application"
+            ) {
+                if kind != "ed25519_mldsa65"
+                    || application_keys
+                        .insert(
+                            purpose.clone(),
+                            qomm_transport::application_crypto::VerifyingKey::from_bytes(&public)
+                                .map_err(|error| error.to_string())?,
+                        )
+                        .is_some()
+                {
+                    return Err("invalid or repeated participant application enrollment".into());
+                }
+                continue;
+            }
             if purpose == "kyb_entity" {
                 if kind != "ristretto"
                     || CompressedRistretto(public).decompress().is_none()
@@ -308,18 +355,24 @@ impl ParticipantClient {
             }
         }
         for purpose in ["admin", "settlement", "quote", "mpc_input", "emergency"] {
-            if !public_keys.contains_key(purpose) {
+            if !public_keys.contains_key(purpose) || !pq_public_keys.contains_key(purpose) {
                 return Err(format!("participant snapshot has no active {purpose} key"));
             }
         }
         let kyb_public_point = kyb_public_point
             .ok_or_else(|| "participant snapshot has no anonymous KYB key".to_string())?;
+        let note_opening_public =
+            note_opening_public.ok_or("participant has no hybrid note opening key")?;
         let note_view_public = note_view_public
             .ok_or_else(|| "participant snapshot has no note viewing key".to_string())?;
         let note_spend_public = note_spend_public
             .ok_or_else(|| "participant snapshot has no note spending key".to_string())?;
         if value.pointer("/note_address/view").and_then(Value::as_str)
             != Some(BASE64.encode(note_view_public).as_str())
+            || value
+                .pointer("/note_address/opening")
+                .and_then(Value::as_str)
+                != Some(BASE64.encode(note_opening_public).as_str())
             || value.pointer("/note_address/spend").and_then(Value::as_str)
                 != Some(BASE64.encode(note_spend_public).as_str())
         {
@@ -331,8 +384,16 @@ impl ParticipantClient {
             label,
             sequence,
             public_keys,
+            pq_public_keys,
+            quote_application_key: *application_keys
+                .get("quote_application")
+                .ok_or("missing enrolled quote application key")?,
+            settlement_application_key: *application_keys
+                .get("settlement_application")
+                .ok_or("missing enrolled settlement application key")?,
             kyb_public_point,
             note_view_public,
+            note_opening_public,
             note_spend_public,
             cash,
             inventory,
@@ -494,14 +555,44 @@ impl ParticipantClient {
     ) -> Result<EntityApproval, String> {
         let purpose_name = purpose_name(purpose);
         let body = EntityApproval::signing_body(&domain_id, purpose, 1, &statement);
-        let signed = self.sign("entity-approval", &body, Some(purpose_name))?;
+        let value = self.request(
+            "POST",
+            "/v1/sign/entity-approval",
+            Some(&json!({
+                "body": BASE64.encode(&body), "purpose": purpose_name,
+            })),
+        )?;
+        let signature = hex::decode(required_string(&value, "signature")?)
+            .map_err(|_| "participant approval is not hex")?;
+        if signature.len() != 64 + zkfmi_crypto::suite::ML_DSA_65_SIG_BYTES {
+            return Err("participant approval requires both signature components".into());
+        }
+        let signed = SignedBody {
+            participant_id: fixed_hex(
+                &required_string(&value, "participant_id")?,
+                "participant id",
+            )?,
+            public_key: fixed_hex(&required_string(&value, "public_key")?, "public key")?,
+            signature: signature[..64].to_vec(),
+        };
         self.verify_signature(snapshot, purpose_name, &body, &signed)?;
+        zkfmi_crypto::traits::Verifier::verify(
+            &zkfmi_crypto::backend::MlDsa65Verifier,
+            zkfmi_crypto::key::KeyPurpose::Attestation,
+            snapshot
+                .pq_public_keys
+                .get(purpose_name)
+                .ok_or("missing enrolled PQ purpose key")?,
+            &body,
+            &signature[64..],
+        )
+        .map_err(|error| error.to_string())?;
         Ok(EntityApproval {
             participant_id: snapshot.participant_id,
             key_purpose: purpose,
             key_epoch: 1,
             statement,
-            signature: signed.signature.to_vec(),
+            signature,
         })
     }
 
@@ -515,7 +606,12 @@ impl ParticipantClient {
         }
         let body = mandate.unsigned()?;
         let signed = self.sign("policy-mandate", &body, None)?;
-        self.verify_signature(snapshot, "quote", &body, &signed)?;
+        self.verify_application_signature(
+            snapshot,
+            &snapshot.quote_application_key,
+            &body,
+            &signed,
+        )?;
         MakerPolicyMandate::from_signed_bytes(&body, signed.signature)
     }
 
@@ -529,7 +625,12 @@ impl ParticipantClient {
         }
         let body = mandate.unsigned()?;
         let signed = self.sign("execution-mandate", &body, None)?;
-        self.verify_signature(snapshot, "settlement", &body, &signed)?;
+        self.verify_application_signature(
+            snapshot,
+            &snapshot.settlement_application_key,
+            &body,
+            &signed,
+        )?;
         TakerExecutionMandate::from_signed_bytes(&body, signed.signature)
     }
 
@@ -1081,6 +1182,15 @@ impl ParticipantClient {
                 .and_then(Value::as_object)
                 .ok_or_else(|| "claim materialization has no destination".to_string())?;
             let destination = Address {
+                opening_public: hex::decode(
+                    destination_value
+                        .get("opening")
+                        .and_then(Value::as_str)
+                        .ok_or("claim destination lacks hybrid key")?,
+                )
+                .map_err(|e| e.to_string())?
+                .try_into()
+                .map_err(|_| "claim destination hybrid key length")?,
                 view: CompressedRistretto(body_hex32(destination_value, "view")?)
                     .decompress()
                     .ok_or_else(|| "claim destination view key is not canonical".to_string())?,
@@ -1091,6 +1201,7 @@ impl ParticipantClient {
             if recipient_handle.compress() != expected_recipient.compress()
                 || destination.view.compress() != expected_view.compress()
                 || destination.spend.compress() != expected_spend.compress()
+                || destination.opening_public != snapshot.note_opening_public
             {
                 return Err("claim materialization changes the participant recipient".into());
             }
@@ -1447,14 +1558,33 @@ impl ParticipantClient {
         let public_key = fixed_hex(&required_string(&value, "public_key")?, "public key")?;
         let signature = hex::decode(required_string(&value, "signature")?)
             .map_err(|_| "participant signature is not hex".to_string())?;
-        let signature: [u8; 64] = signature
-            .try_into()
-            .map_err(|_| "participant signature is not 64 bytes".to_string())?;
+        qomm_transport::application_crypto::Signature::try_from(signature.as_slice())
+            .map_err(|error| error.to_string())?;
         Ok(SignedBody {
             participant_id,
             public_key,
             signature,
         })
+    }
+
+    fn verify_application_signature(
+        &self,
+        snapshot: &ParticipantSnapshot,
+        expected: &qomm_transport::application_crypto::VerifyingKey,
+        body: &[u8],
+        signed: &SignedBody,
+    ) -> Result<(), String> {
+        if signed.participant_id != snapshot.participant_id
+            || signed.public_key != expected.to_bytes()
+        {
+            return Err("application signature differs from the enrolled entity or purpose".into());
+        }
+        let signature =
+            qomm_transport::application_crypto::Signature::try_from(signed.signature.as_slice())
+                .map_err(|error| error.to_string())?;
+        expected
+            .verify_strict(body, &signature)
+            .map_err(|error| error.to_string())
     }
 
     fn verify_signature(
@@ -1473,7 +1603,10 @@ impl ParticipantClient {
         }
         VerifyingKey::from_bytes(expected)
             .map_err(|_| "participant public key is invalid".to_string())?
-            .verify(body, &Signature::from_bytes(&signed.signature))
+            .verify(
+                body,
+                &Signature::from_slice(&signed.signature).map_err(|error| error.to_string())?,
+            )
             .map_err(|_| "participant service returned an invalid signature".to_string())
     }
 
@@ -1547,7 +1680,7 @@ impl ParticipantClient {
 struct SignedBody {
     participant_id: [u8; 32],
     public_key: [u8; 32],
-    signature: [u8; 64],
+    signature: Vec<u8>,
 }
 
 fn fixed_hex(value: &str, label: &str) -> Result<[u8; 32], String> {

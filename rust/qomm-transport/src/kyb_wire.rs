@@ -7,7 +7,7 @@
 
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, VerifyingKey};
+use qomm_proofs::kyb::KybIssuerKey;
 use qomm_proofs::kyb::{KybPresentation, SignedCohortRegistry};
 use qomm_zk::or_dleq::Proof;
 use serde::{Deserialize, Serialize};
@@ -37,7 +37,7 @@ impl KybRegistryWire {
                 .collect(),
             issuer: hex::encode(registry.issuer.to_bytes()),
             registry_id: hex::encode(registry.registry_id),
-            signature: hex::encode(registry.signature.to_bytes()),
+            signature: hex::encode(&registry.signature),
         }
     }
 
@@ -55,13 +55,13 @@ impl KybRegistryWire {
                 .enumerate()
                 .map(|(index, point)| decode_point(point, &format!("KYB registry point {index}")))
                 .collect::<Result<Vec<_>, _>>()?,
-            issuer: VerifyingKey::from_bytes(&decode_fixed(&self.issuer, "KYB registry issuer")?)
-                .map_err(|_| "KYB registry issuer is not canonical Ed25519".to_string())?,
+            issuer: KybIssuerKey::from_bytes(
+                &hex::decode(&self.issuer).map_err(|_| "malformed KYB issuer".to_string())?,
+            )
+            .map_err(|_| "KYB registry issuer is not hybrid".to_string())?,
             registry_id: decode_fixed(&self.registry_id, "KYB registry id")?,
-            signature: Signature::from_bytes(&decode_fixed(
-                &self.signature,
-                "KYB registry signature",
-            )?),
+            signature: hex::decode(&self.signature)
+                .map_err(|_| "malformed KYB signature".to_string())?,
         })
     }
 }

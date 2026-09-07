@@ -22,6 +22,7 @@ struct LocalParty {
 impl LocalParty {
     fn config(node: u16, root: &Path) -> ProofPartyConfig {
         ProofPartyConfig {
+            recipient_opening_keys: Vec::new(),
             node,
             allowed_root: root.to_path_buf(),
             state_file: root.join(format!("node-{node}.qps")),
@@ -297,6 +298,21 @@ fn journaled_round_two_survives_node_and_coordinator_restart() {
     let session = [0x42; 32];
     let plan = prepare_frost_dkg(&mut parties, session).unwrap();
 
+    let first_signed_wire = parties[0]
+        .call(
+            "frost_dkg_round2",
+            json!({"broadcasts": plan.broadcasts.clone()}),
+        )
+        .unwrap();
+    parties[0].restart();
+    let reopened_signed_wire = parties[0]
+        .call(
+            "frost_dkg_round2",
+            json!({"broadcasts": plan.broadcasts.clone()}),
+        )
+        .unwrap();
+    assert_eq!(reopened_signed_wire, first_signed_wire);
+
     // Three different proof processes disappear after emitting their encrypted
     // packages. Their encrypted state must carry enough information to finish
     // the exact journaled transcript, without another round-one secret.
@@ -333,8 +349,9 @@ fn hybrid_dkg_envelopes_reject_downgrade_and_sender_substitution_before_commit()
                 &BASE64.decode(record["envelope"].as_str().unwrap()).unwrap(),
             )
             .unwrap();
-            assert_eq!(envelope.version, 2);
+            assert_eq!(envelope.version, 3);
             assert_eq!(envelope.kem_ciphertext.len(), 1120);
+            assert_eq!(envelope.pq_signature.len(), 3309);
         }
     }
     let call = |party: &mut LocalParty, incoming: &[Value]| {

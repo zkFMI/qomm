@@ -1,8 +1,8 @@
 //! Winner-only delivery of a fixed-size settlement instruction.
-//! Hybrid KEM protects ciphertext confidentiality; recipient key privacy and
-//! the classical taker signature are separate security claims.
+//! Hybrid KEM protects ciphertext confidentiality. The roster-pinned sender
+//! authenticates the exact envelope with both Ed25519 and ML-DSA-65.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 use hkdf::Hkdf;
 use openssl::pkey::{Id, PKey, Private, Public};
 use openssl::symm::{Cipher, Crypter, Mode};
@@ -11,16 +11,27 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use zeroize::Zeroizing;
 use zkfmi_crypto::{
+    backend::MlDsa65Verifier,
     hybrid::kem::{HybridKemEncapsulator, HybridKemKey},
-    suite::{Suite, SuiteId, ML_KEM_768_CT_BYTES, ML_KEM_768_EK_BYTES},
-    traits::{KemDecapsulator, KemEncapsulator},
+    key::{KeyPurpose, KeyRecord},
+    suite::{Suite, SuiteId, ML_DSA_65_SIG_BYTES, ML_KEM_768_CT_BYTES, ML_KEM_768_EK_BYTES},
+    traits::{KemDecapsulator, KemEncapsulator, Signer as CryptoSigner, Verifier as _},
 };
 
-pub const DOMAIN: &[u8] = b"QOMM:WINNER:ENVELOPE:v2";
-const INNER_DOMAIN: &[u8] = b"QOMM:WINNER:PAYLOAD:v2";
+pub const DOMAIN: &[u8] = b"QOMM:WINNER:ENVELOPE:v3";
+const LEGACY_DOMAIN: &[u8] = b"QOMM:WINNER:ENVELOPE:v2";
+const INNER_DOMAIN: &[u8] = b"QOMM:WINNER:PAYLOAD:v3";
 pub const CLEAR_BYTES: usize = 1024;
-pub const VERSION: u8 = 2;
+pub const VERSION: u8 = 3;
 pub const KEM_SUITE: Suite = Suite::new(SuiteId::X25519MlKem768);
+pub const AUTH_SUITE: Suite = Suite::new(SuiteId::MlDsa65);
+
+#[derive(Clone, Copy)]
+pub struct WinnerSenderAuth<'a> {
+    pub ed25519: &'a VerifyingKey,
+    pub pq_key: &'a KeyRecord,
+    pub valid_at: u64,
+}
 
 /// This key is independent of the legacy pairwise MPC exchange key below.
 #[derive(Clone)]
@@ -30,6 +41,11 @@ pub struct WinnerPrivateKey(Arc<HybridKemKey>);
 pub struct WinnerPublicKey(Vec<u8>);
 
 impl WinnerPrivateKey {
+    /// Share ownership without exporting seed bytes; used by recipient wallet adapters.
+    pub fn shared_key(&self) -> Arc<HybridKemKey> {
+        Arc::clone(&self.0)
+    }
+
     pub fn generate() -> Result<Self, String> {
         HybridKemKey::generate()
             .map(|key| Self(Arc::new(key)))
@@ -195,18 +211,26 @@ pub struct WinnerEnvelope {
     pub ciphertext: Vec<u8>,
     pub taker_public: [u8; 32],
     pub signature: Signature,
+    pub pq_signature: Vec<u8>,
 }
 
 impl WinnerEnvelope {
     /// Canonical fixed-size persisted envelope. Unknown versions, suites,
     /// truncation and trailing data are rejected before decryption.
     pub fn encode(&self) -> Result<Vec<u8>, String> {
+        if self.pq_signature.len() != ML_DSA_65_SIG_BYTES {
+            return Err("winner envelope requires a fixed ML-DSA-65 signature".into());
+        }
         let mut bytes = self.unsigned()?;
         bytes.extend_from_slice(&self.signature.to_bytes());
+        bytes.extend_from_slice(&self.pq_signature);
         Ok(bytes)
     }
 
     pub fn decode(bytes: &[u8]) -> Result<Self, String> {
+        if bytes.starts_with(LEGACY_DOMAIN) {
+            return Err("winner envelope v2 is unsupported".into());
+        }
         let expected = DOMAIN.len()
             + 1
             + 4
@@ -218,7 +242,8 @@ impl WinnerEnvelope {
             + 32
             + CLEAR_BYTES
             + 16
-            + 64;
+            + 64
+            + ML_DSA_65_SIG_BYTES;
         if bytes.len() != expected || !bytes.starts_with(DOMAIN) {
             return Err("winner envelope has an invalid encoding".into());
         }
@@ -242,7 +267,9 @@ impl WinnerEnvelope {
         let ciphertext = bytes[at..at + CLEAR_BYTES + 16].to_vec();
         at += CLEAR_BYTES + 16;
         let signature =
-            Signature::from_bytes(bytes[at..].try_into().expect("checked fixed length"));
+            Signature::from_bytes(bytes[at..at + 64].try_into().expect("checked fixed length"));
+        at += 64;
+        let pq_signature = bytes[at..].to_vec();
         Ok(Self {
             version,
             suite: KEM_SUITE,
@@ -253,6 +280,7 @@ impl WinnerEnvelope {
             ciphertext,
             taker_public,
             signature,
+            pq_signature,
         })
     }
 
@@ -280,21 +308,48 @@ impl WinnerEnvelope {
     }
 
     pub fn commitment(&self) -> Result<[u8; 32], String> {
+        if self.pq_signature.len() != ML_DSA_65_SIG_BYTES {
+            return Err("winner envelope requires a fixed ML-DSA-65 signature".into());
+        }
         Ok(Sha256::new()
             .chain_update(self.unsigned()?)
             .chain_update(self.signature.to_bytes())
+            .chain_update(&self.pq_signature)
             .finalize()
             .into())
     }
 
-    pub fn verify_taker(&self, expected: Option<&VerifyingKey>) -> bool {
-        if expected.is_some_and(|key| key.as_bytes() != &self.taker_public) {
-            return false;
+    pub fn verify_taker(
+        &self,
+        expected: &VerifyingKey,
+        pq_key: &KeyRecord,
+        now: u64,
+    ) -> Result<(), String> {
+        if expected.as_bytes() != &self.taker_public {
+            return Err(
+                "winner envelope signature substituted its roster-pinned Ed25519 key".into(),
+            );
         }
-        VerifyingKey::from_bytes(&self.taker_public)
-            .ok()
-            .zip(self.unsigned().ok())
-            .is_some_and(|(key, body)| key.verify(&body, &self.signature).is_ok())
+        pq_key
+            .valid_at(now)
+            .map_err(|error| format!("winner envelope PQ key is unavailable: {error}"))?;
+        if pq_key.suite != AUTH_SUITE || pq_key.purpose != KeyPurpose::SettlementInstruction {
+            return Err("winner envelope requires the roster settlement ML-DSA-65 key".into());
+        }
+        let body = self.unsigned()?;
+        // Evaluate both components before deciding. A valid component never
+        // converts a failure of the other component into acceptance.
+        let classical = expected.verify_strict(&body, &self.signature);
+        let pq = MlDsa65Verifier.verify(
+            KeyPurpose::SettlementInstruction,
+            &pq_key.public_key,
+            &body,
+            &self.pq_signature,
+        );
+        if classical.is_err() || pq.is_err() {
+            return Err("winner envelope sender signatures are invalid".into());
+        }
+        Ok(())
     }
 }
 
@@ -305,7 +360,11 @@ pub fn seal_for_winner(
     context: &[u8],
     quote_digest: [u8; 32],
     taker_key: &SigningKey,
+    taker_pq: &dyn CryptoSigner,
 ) -> Result<WinnerEnvelope, String> {
+    if taker_pq.suite() != AUTH_SUITE {
+        return Err("winner envelope signer must use ML-DSA-65".into());
+    }
     let maker = maker_id.as_bytes();
     if maker.is_empty() || maker.len() > 255 {
         return Err("maker identifier must contain 1..255 UTF-8 bytes".into());
@@ -358,8 +417,16 @@ pub fn seal_for_winner(
         ciphertext,
         taker_public,
         signature: Signature::from_bytes(&[0; 64]),
+        pq_signature: Vec::new(),
     };
-    envelope.signature = taker_key.sign(&envelope.unsigned()?);
+    let unsigned = envelope.unsigned()?;
+    envelope.signature = taker_key.sign(&unsigned);
+    envelope.pq_signature = taker_pq
+        .sign(KeyPurpose::SettlementInstruction, &unsigned)
+        .map_err(|error| error.to_string())?;
+    if envelope.pq_signature.len() != ML_DSA_65_SIG_BYTES {
+        return Err("winner envelope signer returned an invalid ML-DSA-65 signature".into());
+    }
     Ok(envelope)
 }
 
@@ -369,11 +436,9 @@ pub fn open_if_winner(
     private_keys: &[WinnerPrivateKey],
     context: &[u8],
     quote_digest: [u8; 32],
-    expected_taker: Option<&VerifyingKey>,
+    sender: WinnerSenderAuth<'_>,
 ) -> Result<Option<Vec<u8>>, String> {
-    if !envelope.verify_taker(expected_taker) {
-        return Err("the taker signature on the winner envelope is invalid".into());
-    }
+    envelope.verify_taker(sender.ed25519, sender.pq_key, sender.valid_at)?;
     let context_digest: [u8; 32] = Sha256::digest(context).into();
     if envelope.context_digest != context_digest || envelope.quote_digest != quote_digest {
         return Err("the envelope is bound to another quote or market context".into());

@@ -19,8 +19,12 @@ fn issuance_revocation_appeal_merge_cache_and_restart_form_one_lifecycle() {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("kyb-lifecycle.qks");
     let passphrase = b"node-local-kyb-lifecycle-passphrase";
-    let signing = ed25519_dalek::SigningKey::generate(&mut OsRng);
-    let issuer = signing.verifying_key();
+    let signing =
+        std::sync::Arc::new(zkfmi_crypto::hybrid::signature::HybridSigner::generate().unwrap());
+    let issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        &zkfmi_crypto::traits::Signer::public_key(signing.as_ref()),
+    )
+    .unwrap();
     let service = KybLifecycleService::open(&path, passphrase, signing.clone(), 5).unwrap();
     let first = service
         .issue("group-a", b"LEI-A", attributes(), 100, &mut OsRng)
@@ -132,7 +136,7 @@ fn issuance_revocation_appeal_merge_cache_and_restart_form_one_lifecycle() {
     assert!(KybLifecycleService::open(
         &path,
         b"wrong-node-local-passphrase",
-        ed25519_dalek::SigningKey::generate(&mut OsRng),
+        std::sync::Arc::new(zkfmi_crypto::hybrid::signature::HybridSigner::generate().unwrap()),
         5,
     )
     .is_err());

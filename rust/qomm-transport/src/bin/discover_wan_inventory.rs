@@ -81,7 +81,7 @@ fn probe(
     let mut resident =
         ResidentNodeClient::new(&node.host, node.resident_port, tls.clone(), &node.host, 1);
     let resident_response = resident.call(&json!({
-        "version": 1,
+        "version": qomm_transport::node_service::VERSION,
         "request_id": format!("wan-discovery-{nonce}-{}", node.node),
         "operation": "health",
         "deployment_id": spec.deployment_id,

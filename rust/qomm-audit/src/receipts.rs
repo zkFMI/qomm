@@ -1,10 +1,14 @@
 //! Signed per-slot receipts and self-contained fault evidence.
 
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
+use zkfmi_crypto::{
+    hybrid::signature::{HybridSigner, HybridVerifier},
+    key::KeyPurpose,
+    traits::{Signer, Verifier},
+};
 
-const DOMAIN: &[u8] = b"QOMM:AUDIT:v1";
+const DOMAIN: &[u8] = b"QOMM:AUDIT:v2";
 const VERSION: &[u8] = b"2";
 pub const GENESIS: [u8; 32] = [0; 32];
 
@@ -49,7 +53,7 @@ pub struct NodeReceipt {
     pub new_state_digest: [u8; 32],
     pub result_digest: [u8; 32],
     pub emitted_at: u64,
-    pub signature: Signature,
+    pub signature: Vec<u8>,
 }
 
 impl NodeReceipt {
@@ -82,7 +86,7 @@ impl NodeReceipt {
 
 #[allow(clippy::too_many_arguments)]
 pub fn sign_receipt(
-    key: &SigningKey,
+    key: &HybridSigner,
     node: u32,
     spec: &SlotSpec,
     prev_state_digest: [u8; 32],
@@ -90,7 +94,7 @@ pub fn sign_receipt(
     result_digest: [u8; 32],
     emitted_at: u64,
     mm_set_digest: Option<[u8; 32]>,
-) -> NodeReceipt {
+) -> Result<NodeReceipt, String> {
     let mut receipt = NodeReceipt {
         node,
         slot: spec.slot,
@@ -101,10 +105,12 @@ pub fn sign_receipt(
         new_state_digest,
         result_digest,
         emitted_at,
-        signature: Signature::from_bytes(&[0; 64]),
+        signature: vec![],
     };
-    receipt.signature = key.sign(&receipt.signed_body());
-    receipt
+    receipt.signature = key
+        .sign(KeyPurpose::AuditCheckpoint, &receipt.signed_body())
+        .map_err(|error| error.to_string())?;
+    Ok(receipt)
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -157,7 +163,7 @@ impl Evidence {
 }
 
 pub struct AuditLedger {
-    node_keys: BTreeMap<u32, VerifyingKey>,
+    node_keys: BTreeMap<u32, Vec<u8>>,
     by_slot: BTreeMap<u64, BTreeMap<u32, Vec<NodeReceipt>>>,
     specs: BTreeMap<u64, SlotSpec>,
     arrived: BTreeMap<(u64, u32), u64>,
@@ -166,7 +172,7 @@ pub struct AuditLedger {
 }
 
 impl AuditLedger {
-    pub fn new(node_keys: BTreeMap<u32, VerifyingKey>) -> Self {
+    pub fn new(node_keys: BTreeMap<u32, Vec<u8>>) -> Self {
         Self {
             node_keys,
             by_slot: BTreeMap::new(),
@@ -199,8 +205,13 @@ impl AuditLedger {
                 "unknown node",
             )];
         };
-        if key
-            .verify(&receipt.signed_body(), &receipt.signature)
+        if HybridVerifier
+            .verify(
+                KeyPurpose::AuditCheckpoint,
+                key,
+                &receipt.signed_body(),
+                &receipt.signature,
+            )
             .is_err()
         {
             let found = vec![Evidence::new(

@@ -5,15 +5,15 @@
 //! Neither signature contains the eventual exact price.  The MPC quorum may
 //! settle only when its result satisfies both signed envelopes.
 
+use crate::application_crypto::{Signature, SigningKey, VerifyingKey, SIGNATURE_BYTES};
 use curve25519_dalek::ristretto::CompressedRistretto;
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use qomm_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
 use sha2::{Digest, Sha256};
 
-const MAKER_DOMAIN: &[u8] = b"QOMM:MAKER:POLICY-MANDATE:v1";
-const TAKER_DOMAIN: &[u8] = b"QOMM:TAKER:EXECUTION-MANDATE:v1";
-const MAKER_WIRE_MAGIC: &[u8] = b"QOMM:MAKER-MANDATE:WIRE:v1";
-const TAKER_WIRE_MAGIC: &[u8] = b"QOMM:TAKER-MANDATE:WIRE:v1";
+const MAKER_DOMAIN: &[u8] = b"QOMM:MAKER:POLICY-MANDATE:v2";
+const TAKER_DOMAIN: &[u8] = b"QOMM:TAKER:EXECUTION-MANDATE:v2";
+const MAKER_WIRE_MAGIC: &[u8] = b"QOMM:MAKER-MANDATE:WIRE:v2";
+const TAKER_WIRE_MAGIC: &[u8] = b"QOMM:TAKER-MANDATE:WIRE:v2";
 pub const ZERO: [u8; 32] = [0; 32];
 
 fn push_bytes(output: &mut Vec<u8>, value: &[u8]) {
@@ -122,7 +122,7 @@ impl MakerPolicyMandate {
     /// an isolated threshold signer.  The method round-trips the canonical
     /// encoder and verifies the Maker signature; it does not replace the KYB
     /// presentation check performed by the intake and DeFMI services.
-    pub fn from_signed_bytes(unsigned: &[u8], signature: [u8; 64]) -> Result<Self, String> {
+    pub fn from_signed_bytes(unsigned: &[u8], signature: Vec<u8>) -> Result<Self, String> {
         let mut reader = MandateReader::new(unsigned, MAKER_DOMAIN)?;
         let value = Self {
             venue_id: reader.take("venue")?,
@@ -219,7 +219,7 @@ impl MakerPolicyMandate {
         if self.maker_public != key.verifying_key().to_bytes() {
             return Err("Maker signing key does not match the mandate".into());
         }
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -228,7 +228,7 @@ impl MakerPolicyMandate {
         &self,
         presentation: &KybPresentation,
         registry: &SignedCohortRegistry,
-        trusted_issuer: &VerifyingKey,
+        trusted_issuer: &qomm_proofs::kyb::KybIssuerKey,
         kyb_scope: &[u8],
         kyb_context: &[u8],
         required_cohort: &str,
@@ -310,7 +310,7 @@ pub struct TakerExecutionMandate {
 impl TakerExecutionMandate {
     /// Decode and authenticate the exact pre-RFQ Taker mandate presented to an
     /// isolated threshold signer.
-    pub fn from_signed_bytes(unsigned: &[u8], signature: [u8; 64]) -> Result<Self, String> {
+    pub fn from_signed_bytes(unsigned: &[u8], signature: Vec<u8>) -> Result<Self, String> {
         let mut reader = MandateReader::new(unsigned, TAKER_DOMAIN)?;
         let value = Self {
             venue_id: reader.take("venue")?,
@@ -427,7 +427,7 @@ impl TakerExecutionMandate {
         if self.taker_public != key.verifying_key().to_bytes() {
             return Err("Taker signing key does not match the mandate".into());
         }
-        self.signature = key.sign(&self.unsigned()?);
+        self.signature = key.try_sign(&self.unsigned()?)?;
         Ok(self)
     }
 
@@ -436,7 +436,7 @@ impl TakerExecutionMandate {
         &self,
         presentation: &KybPresentation,
         registry: &SignedCohortRegistry,
-        trusted_issuer: &VerifyingKey,
+        trusted_issuer: &qomm_proofs::kyb::KybIssuerKey,
         kyb_scope: &[u8],
         kyb_context: &[u8],
         required_cohort: &str,
@@ -483,7 +483,8 @@ fn encode_signed_mandate(
 ) -> Result<Vec<u8>, String> {
     let length = u32::try_from(body.len())
         .map_err(|_| "mandate body exceeds the canonical wire length".to_string())?;
-    let mut wire = Vec::with_capacity(magic.len() + 4 + body.len() + 64);
+    Signature::try_from(signature.to_bytes().as_slice()).map_err(|error| error.to_string())?;
+    let mut wire = Vec::with_capacity(magic.len() + 4 + body.len() + SIGNATURE_BYTES);
     wire.extend_from_slice(magic);
     wire.extend_from_slice(&length.to_be_bytes());
     wire.extend_from_slice(body);
@@ -491,9 +492,9 @@ fn encode_signed_mandate(
     Ok(wire)
 }
 
-fn decode_signed_mandate<'a>(magic: &[u8], raw: &'a [u8]) -> Result<(&'a [u8], [u8; 64]), String> {
+fn decode_signed_mandate<'a>(magic: &[u8], raw: &'a [u8]) -> Result<(&'a [u8], Vec<u8>), String> {
     let header = magic.len() + 4;
-    if raw.len() < header + 64 || !raw.starts_with(magic) {
+    if raw.len() < header + SIGNATURE_BYTES || !raw.starts_with(magic) {
         return Err("mandate wire has an invalid header".into());
     }
     let body_len = u32::from_be_bytes(
@@ -501,13 +502,12 @@ fn decode_signed_mandate<'a>(magic: &[u8], raw: &'a [u8]) -> Result<(&'a [u8], [
             .try_into()
             .expect("four-byte mandate length"),
     ) as usize;
-    if raw.len() != header + body_len + 64 {
+    if raw.len() != header + body_len + SIGNATURE_BYTES {
         return Err("mandate wire has a non-canonical length".into());
     }
     let body = &raw[header..header + body_len];
-    let signature = raw[header + body_len..]
-        .try_into()
-        .expect("checked 64-byte mandate signature");
+    let signature = raw[header + body_len..].to_vec();
+    Signature::try_from(signature.as_slice()).map_err(|error| error.to_string())?;
     Ok((body, signature))
 }
 
@@ -520,7 +520,7 @@ pub fn admission_receipt_digest(receipt_bytes: &[u8]) -> Result<[u8; 32], String
     let mut framed = Vec::new();
     push_bytes(&mut framed, receipt_bytes);
     Ok(Sha256::new()
-        .chain_update(b"QOMM:MANDATE:ADMISSION-RECEIPT:v1")
+        .chain_update(b"QOMM:MANDATE:ADMISSION-RECEIPT:v2")
         .chain_update(framed)
         .finalize()
         .into())

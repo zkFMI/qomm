@@ -6,11 +6,11 @@
 //! policy, inventory, or cleartext Shamir-share openings. Each encrypted
 //! opening share is recipient-bound and remains opaque to the coordinator.
 
+use crate::application_crypto::{Signature as ApplicationSignature, VerifyingKey};
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature as Ed25519Signature, VerifyingKey};
 use qomm_proofs::opening_envelope::{opening_context, EncryptedOpeningShare, OpeningEnvelope};
 use qomm_proofs::price_limit::PriceLimitDirection;
 use qomm_proofs::threshold_range::ThresholdRangeProof;
@@ -34,7 +34,7 @@ use crate::proof_codec::{
     encode_quote_verification, encode_threshold_range, QuoteVerificationBundle,
 };
 
-pub const HANDOFF_VERSION: u8 = 8;
+pub const HANDOFF_VERSION: u8 = 9;
 const MAX_PRIVATE_RECORD_BYTES: usize = 64 << 20;
 
 pub struct SettlementHandoff {
@@ -332,9 +332,9 @@ struct WireRecord {
 #[serde(deny_unknown_fields)]
 struct WireOpeningShare {
     party: usize,
-    ephemeral: String,
-    masked_value: String,
-    masked_blinding: String,
+    recipient_public: Vec<u8>,
+    sealed: zkfmi_crypto::sealed::SealedMessage,
+    blinding_adjustment: String,
 }
 
 #[derive(Deserialize, Serialize)]
@@ -395,10 +395,9 @@ fn encode_attestation(
 }
 
 fn decode_attestation(value: WireAdmissionAttestation) -> Result<NodeAdmissionAttestation, String> {
-    let signature: [u8; 64] = hex::decode(&value.signature)
-        .map_err(|_| "admission signature is not hexadecimal".to_string())?
-        .try_into()
-        .map_err(|_| "admission signature is not 64 bytes".to_string())?;
+    let signature = hex::decode(&value.signature)
+        .map_err(|_| "admission signature is not hexadecimal".to_string())?;
+    ApplicationSignature::try_from(signature.as_slice()).map_err(|error| error.to_string())?;
     let result = NodeAdmissionAttestation {
         node: value.node,
         slot: value.slot,
@@ -408,7 +407,7 @@ fn decode_attestation(value: WireAdmissionAttestation) -> Result<NodeAdmissionAt
         claim_digest: parse_hex32(&value.claim_digest, "admission claim")?,
         batch_digest: parse_hex32(&value.batch_digest, "admission batch")?,
         order_digest: parse_hex32(&value.order_digest, "admission order")?,
-        signature: Ed25519Signature::from_bytes(&signature),
+        signature: ApplicationSignature::from_bytes(&signature),
     };
     result.unsigned()?;
     Ok(result)
@@ -447,9 +446,9 @@ fn encode_opening_envelope(value: &OpeningEnvelope) -> Result<WireOpeningEnvelop
             .iter()
             .map(|share| WireOpeningShare {
                 party: share.party,
-                ephemeral: hex32(share.ephemeral.compress().to_bytes()),
-                masked_value: hex32(share.masked_value.to_bytes()),
-                masked_blinding: hex32(share.masked_blinding.to_bytes()),
+                recipient_public: share.recipient_public.clone(),
+                sealed: share.sealed.clone(),
+                blinding_adjustment: hex32(share.blinding_adjustment.to_bytes()),
             })
             .collect(),
     })
@@ -466,11 +465,11 @@ fn decode_opening_envelope(value: WireOpeningEnvelope) -> Result<OpeningEnvelope
             .map(|share| {
                 Ok(EncryptedOpeningShare {
                     party: share.party,
-                    ephemeral: parse_point(&share.ephemeral, "opening ephemeral")?,
-                    masked_value: parse_scalar(&share.masked_value, "opening masked value")?,
-                    masked_blinding: parse_scalar(
-                        &share.masked_blinding,
-                        "opening masked blinding",
+                    recipient_public: share.recipient_public,
+                    sealed: share.sealed,
+                    blinding_adjustment: parse_scalar(
+                        &share.blinding_adjustment,
+                        "opening blinding adjustment",
                     )?,
                 })
             })

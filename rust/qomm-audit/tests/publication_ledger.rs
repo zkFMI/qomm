@@ -1,34 +1,48 @@
-use ed25519_dalek::{Signer, SigningKey};
 use qomm_audit::distributed_dp::DpMechanism;
 use qomm_audit::publication::{NodeSignature, ZERO};
 use qomm_audit::publication_ledger::{BudgetAllocation, PublicationLedger, PublicationRequest};
-use rand_core::OsRng;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::sync::{Arc, Barrier};
+use zkfmi_crypto::{hybrid::signature::HybridSigner, key::KeyPurpose, traits::Signer};
 
-fn keys() -> BTreeMap<String, SigningKey> {
+fn keys() -> BTreeMap<String, Arc<HybridSigner>> {
     (1..=7)
-        .map(|node| (format!("node-{node}"), SigningKey::generate(&mut OsRng)))
+        .map(|node| {
+            (
+                format!("node-{node}"),
+                Arc::new(HybridSigner::generate().unwrap()),
+            )
+        })
         .collect()
 }
 
-fn registry(keys: &BTreeMap<String, SigningKey>) -> BTreeMap<String, ed25519_dalek::VerifyingKey> {
+fn registry(keys: &BTreeMap<String, Arc<HybridSigner>>) -> BTreeMap<String, Vec<u8>> {
     keys.iter()
-        .map(|(node, key)| (node.clone(), key.verifying_key()))
+        .map(|(node, key)| (node.clone(), key.public_key()))
         .collect()
+}
+
+#[test]
+fn registry_cannot_count_one_pq_key_as_several_members() {
+    let directory = tempfile::tempdir().unwrap();
+    let mut keys = registry(&keys());
+    let duplicate_pq = keys["node-1"][32..].to_vec();
+    keys.get_mut("node-2").unwrap()[32..].copy_from_slice(&duplicate_pq);
+    assert!(PublicationLedger::open(directory.path().join("ledger.json"), keys, 3).is_err());
+    assert!(!directory.path().join("ledger.json").exists());
 }
 
 fn signatures(
     body: &[u8],
-    keys: &BTreeMap<String, SigningKey>,
+    keys: &BTreeMap<String, Arc<HybridSigner>>,
     count: usize,
 ) -> Vec<NodeSignature> {
     keys.iter()
         .take(count)
         .map(|(node_id, key)| NodeSignature {
             node_id: node_id.clone(),
-            signature: key.sign(body),
+            signature: key.sign(KeyPurpose::AuditCheckpoint, body).unwrap(),
         })
         .collect()
 }

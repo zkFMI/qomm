@@ -14,7 +14,7 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
-use ed25519_dalek::{Signer, VerifyingKey};
+use ed25519_dalek::Signer;
 use qomm_defmi::avalanche::{AvalancheClient, CanonicalNoteClaim};
 use qomm_defmi::facility::{
     CreditFacilityRelationProof, CreditFacilityTransition, CreditTransitionKind, ZERO,
@@ -54,11 +54,12 @@ const MAX_HTTP_BYTES: usize = 1 << 20;
 const MAX_SIGNED_BODY: usize = 1 << 16;
 const MAX_OUTBOX_REQUEST_BYTES: usize = 1 << 18;
 const MAX_OUTBOX_ENTRIES: usize = 10_000;
-const MAKER_DOMAIN: &[u8] = b"QOMM:MAKER:POLICY-MANDATE:v1";
-const TAKER_DOMAIN: &[u8] = b"QOMM:TAKER:EXECUTION-MANDATE:v1";
+const MAKER_DOMAIN: &[u8] = b"QOMM:MAKER:POLICY-MANDATE:v2";
+const TAKER_DOMAIN: &[u8] = b"QOMM:TAKER:EXECUTION-MANDATE:v2";
 const KYB_KEY_PURPOSE: &str = "kyb_entity";
 const NOTE_VIEW_KEY_PURPOSE: &str = "note_view";
 const NOTE_SPEND_KEY_PURPOSE: &str = "note_spend";
+const NOTE_OPENING_KEY_PURPOSE: &str = "note_opening";
 const KYB_MAX_TIER: u32 = 4;
 
 /// A note reservation and its credit-facility hold use related, but distinct,
@@ -296,7 +297,10 @@ impl ParticipantService {
             let state: ParticipantState =
                 serde_json::from_slice(&fs::read(&state_path).map_err(|error| error.to_string())?)
                     .map_err(|error| error.to_string())?;
-            if state.version != 1
+            if state.version != 3
+                || !state.key_ids.contains_key("quote_application")
+                || !state.key_ids.contains_key("settlement_application")
+                || !state.key_ids.contains_key(NOTE_OPENING_KEY_PURPOSE)
                 || state.role != config.role
                 || state.participant_id != hex::encode(config.participant_id)
             {
@@ -322,6 +326,17 @@ impl ParticipantService {
                     purpose.into(),
                     store.generate(purpose, KeyKind::Ed25519, now, lifetime, metadata())?,
                 );
+                let pq_purpose = format!("{purpose}_pq");
+                key_ids.insert(
+                    pq_purpose.clone(),
+                    store.generate(&pq_purpose, KeyKind::MlDsa65, now, lifetime, metadata())?,
+                );
+            }
+            for purpose in ["quote_application", "settlement_application"] {
+                key_ids.insert(
+                    purpose.into(),
+                    store.generate(purpose, KeyKind::HybridSignature, now, lifetime, metadata())?,
+                );
             }
             key_ids.insert(
                 KYB_KEY_PURPOSE.into(),
@@ -339,8 +354,18 @@ impl ParticipantService {
                     store.generate(purpose, KeyKind::Ristretto, now, lifetime, metadata())?,
                 );
             }
+            key_ids.insert(
+                NOTE_OPENING_KEY_PURPOSE.into(),
+                store.generate(
+                    NOTE_OPENING_KEY_PURPOSE,
+                    KeyKind::HybridKem,
+                    now,
+                    lifetime,
+                    metadata(),
+                )?,
+            );
             let state = ParticipantState {
-                version: 1,
+                version: 3,
                 role: config.role,
                 label: config.label.clone(),
                 participant_id: hex::encode(config.participant_id),
@@ -403,6 +428,11 @@ impl ParticipantService {
                 &serde_json::to_vec_pretty(&state).map_err(|error| error.to_string())?,
             )?;
         }
+        for purpose in ["admin", "settlement", "quote", "mpc_input", "emergency"] {
+            if !state.key_ids.contains_key(&format!("{purpose}_pq")) {
+                return Err("participant requires explicit independently enrolled PQ keys before live recovery".into());
+            }
+        }
         Ok(Self {
             config,
             store,
@@ -410,6 +440,29 @@ impl ParticipantService {
             state_path,
             state: Mutex::new(state),
         })
+    }
+
+    fn active_application_fingerprint(&self, purpose: &str) -> Result<[u8; 32], String> {
+        let record = self
+            .store
+            .snapshot()?
+            .keys
+            .into_iter()
+            .find(|record| record.purpose == purpose && record.state == "active")
+            .ok_or_else(|| format!("participant has no active {purpose} key"))?;
+        if record.kind != KeyKind::HybridSignature {
+            return Err(format!(
+                "participant {purpose} key requires hybrid re-enrollment"
+            ));
+        }
+        let fingerprint: [u8; 32] = BASE64
+            .decode(record.public)
+            .map_err(|_| format!("participant {purpose} key is not base64"))?
+            .try_into()
+            .map_err(|_| format!("participant {purpose} fingerprint is not 32 bytes"))?;
+        qomm_transport::application_crypto::VerifyingKey::from_bytes(&fingerprint)
+            .map_err(|_| format!("participant {purpose} fingerprint is invalid"))?;
+        Ok(fingerprint)
     }
 
     fn queued_reservation(
@@ -639,8 +692,18 @@ impl ParticipantService {
                 refund.ok_or_else(|| "settled Taker RFQ has no refund claim".to_string())?;
             let delivery =
                 delivery.ok_or_else(|| "settled Taker RFQ has no delivery claim".to_string())?;
-            let refund_amount = canonical_claim_amount(&refund, &recipient_secret, &key)?;
-            let delivery_amount = canonical_claim_amount(&delivery, &recipient_secret, &key)?;
+            let refund_amount = canonical_claim_amount(
+                &refund,
+                &recipient_secret,
+                self.note_opening_key()?.as_ref(),
+                &key,
+            )?;
+            let delivery_amount = canonical_claim_amount(
+                &delivery,
+                &recipient_secret,
+                self.note_opening_key()?.as_ref(),
+                &key,
+            )?;
             let consumed = envelope
                 .maximum_amount
                 .checked_sub(refund_amount)
@@ -885,9 +948,11 @@ impl ParticipantService {
                         .take(refund.opening_envelope.threshold)
                         .map(|share| share.party)
                         .collect::<Vec<_>>();
-                    let (refund_scalar, refund_blinding) = refund
-                        .opening_envelope
-                        .decrypt(&recipient_secret, &quorum)?;
+                    let (refund_scalar, refund_blinding) = refund.opening_envelope.decrypt(
+                        &recipient_secret,
+                        self.note_opening_key()?.as_ref(),
+                        &quorum,
+                    )?;
                     let refund_amount = scalar_to_u64(refund_scalar)?;
                     if refund_amount > prior_envelope.maximum_amount
                         || key
@@ -1070,10 +1135,7 @@ impl ParticipantService {
             .ristretto_scalar()
             .copied()
             .ok_or_else(|| "participant note spend key is not Ristretto".to_string())?;
-        let destination = Address {
-            view: G * view,
-            spend: G * spend,
-        };
+        let destination = Wallet::from_parts(view, spend, self.note_opening_key()?).address;
         let recipient_secret = Scalar::from(participant_handle_scalar(
             b"taker",
             &self.config.participant_id,
@@ -1137,6 +1199,7 @@ impl ParticipantService {
                 PRODUCT_DVP_REMAINDER_BITS,
                 rfq_nullifier,
                 &recipient_secret,
+                self.note_opening_key()?.as_ref(),
                 &destination,
                 &quorum,
                 operation_id,
@@ -1162,6 +1225,24 @@ impl ParticipantService {
         }))
     }
 
+    fn note_opening_key(
+        &self,
+    ) -> Result<std::sync::Arc<zkfmi_crypto::hybrid::kem::HybridKemKey>, String> {
+        let key_id = self
+            .state
+            .lock()
+            .map_err(|_| "participant state lock poisoned")?
+            .key_ids
+            .get(NOTE_OPENING_KEY_PURPOSE)
+            .cloned()
+            .ok_or("participant has no hybrid note opening key")?;
+        self.store
+            .private_key(&key_id, unix_seconds()?, false)?
+            .hybrid_kem()
+            .map(|key| key.shared_key())
+            .ok_or("note opening key is not hybrid KEM".into())
+    }
+
     fn snapshot(&self) -> Result<Value, String> {
         let state = self
             .state
@@ -1177,15 +1258,13 @@ impl ParticipantService {
         };
         let note_view = public_for(NOTE_VIEW_KEY_PURPOSE)?;
         let note_spend = public_for(NOTE_SPEND_KEY_PURPOSE)?;
+        let note_opening = public_for(NOTE_OPENING_KEY_PURPOSE)?;
         let now = unix_seconds()?;
         let outbox_entries = self.outbox.summaries()?;
         let outbox_metrics = self.outbox.metrics(now)?;
         let queued_reserves = if self.config.role == ParticipantRole::Taker {
-            let settlement_public: [u8; 32] = BASE64
-                .decode(public_for("settlement")?)
-                .map_err(|_| "participant settlement key is not base64".to_string())?
-                .try_into()
-                .map_err(|_| "participant settlement key is not 32 bytes".to_string())?;
+            let settlement_public =
+                self.active_application_fingerprint("settlement_application")?;
             self.queued_reserve_totals(settlement_public)?
         } else {
             QueuedReserveTotals {
@@ -1215,6 +1294,7 @@ impl ParticipantService {
             "note_address": {
                 "view": note_view,
                 "spend": note_spend,
+                "opening": note_opening,
             },
             "mpc_outbox": {
                 "durable": true,
@@ -1250,20 +1330,8 @@ impl ParticipantService {
             if expires_at <= accepted_at {
                 return Err("an expired request cannot enter the MPC outbox".into());
             }
-            let settlement_public: [u8; 32] = self
-                .store
-                .snapshot()?
-                .keys
-                .into_iter()
-                .find(|record| record.purpose == "settlement" && record.state == "active")
-                .ok_or_else(|| "participant has no active settlement key".to_string())
-                .and_then(|record| {
-                    BASE64
-                        .decode(record.public)
-                        .map_err(|_| "participant settlement key is not base64".to_string())?
-                        .try_into()
-                        .map_err(|_| "participant settlement key is not 32 bytes".to_string())
-                })?;
+            let settlement_public =
+                self.active_application_fingerprint("settlement_application")?;
             let (direction, amount, _) = Self::queued_reservation(
                 &signed_request,
                 &request_id,
@@ -1446,20 +1514,7 @@ impl ParticipantService {
                 entry.request_id == request.request_id && entry.request_digest == request_digest
             })
             .ok_or_else(|| "corporate outbox request was not found".to_string())?;
-        let settlement_public: [u8; 32] = self
-            .store
-            .snapshot()?
-            .keys
-            .into_iter()
-            .find(|record| record.purpose == "settlement" && record.state == "active")
-            .ok_or_else(|| "participant has no active settlement key".to_string())
-            .and_then(|record| {
-                BASE64
-                    .decode(record.public)
-                    .map_err(|_| "participant settlement key is not base64".to_string())?
-                    .try_into()
-                    .map_err(|_| "participant settlement key is not 32 bytes".to_string())
-            })?;
+        let settlement_public = self.active_application_fingerprint("settlement_application")?;
         let mut signed = self
             .outbox
             .signed_request(&request.request_id, request_digest)?;
@@ -1692,8 +1747,10 @@ impl ParticipantService {
             return Err("mandate body is empty or outside its bound".into());
         }
         let (purpose, domain) = match (self.config.role, operation) {
-            (ParticipantRole::Maker, "policy-mandate") => ("quote", MAKER_DOMAIN),
-            (ParticipantRole::Taker, "execution-mandate") => ("settlement", TAKER_DOMAIN),
+            (ParticipantRole::Maker, "policy-mandate") => ("quote_application", MAKER_DOMAIN),
+            (ParticipantRole::Taker, "execution-mandate") => {
+                ("settlement_application", TAKER_DOMAIN)
+            }
             (_, "entity-approval") => {
                 let purpose = request
                     .purpose
@@ -1738,10 +1795,41 @@ impl ParticipantService {
                 .ok_or_else(|| format!("participant has no {purpose} key"))?
         };
         let key = self.store.private_key(&key_id, now, false)?;
-        let signing = key
-            .ed25519()
-            .ok_or_else(|| "participant mandate key is not Ed25519".to_string())?;
-        let signature = signing.sign(&body);
+        let (public_key, mut signature) = if operation == "entity-approval" {
+            let signing = key
+                .ed25519()
+                .ok_or("entity approval classical key is not Ed25519")?;
+            (
+                signing.verifying_key().to_bytes(),
+                signing.sign(&body).to_bytes().to_vec(),
+            )
+        } else {
+            let signing = key
+                .hybrid_signature()
+                .ok_or("participant application key requires explicit hybrid enrollment")?;
+            (
+                signing.verifying_key().to_bytes(),
+                signing.try_sign(&body)?.to_bytes(),
+            )
+        };
+        if operation == "entity-approval" {
+            use zkfmi_crypto::traits::Signer as _;
+            let pq_id = self
+                .state
+                .lock()
+                .map_err(|_| "participant state lock poisoned")?
+                .key_ids
+                .get(&format!("{purpose}_pq"))
+                .cloned()
+                .ok_or("participant has no independently enrolled PQ purpose key")?;
+            let pq = self.store.private_key(&pq_id, now, false)?;
+            signature.extend(
+                pq.ml_dsa65()
+                    .ok_or("participant PQ purpose key has wrong suite")?
+                    .sign(zkfmi_crypto::key::KeyPurpose::Attestation, &body)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
         let digest = hex::encode(Sha256::digest(&body));
         body.fill(0);
         let mut state = self
@@ -1762,18 +1850,20 @@ impl ParticipantService {
             "role": state.role,
             "operation": operation,
             "key_id": key_id,
-            "public_key": hex::encode(signing.verifying_key().to_bytes()),
+            "public_key": hex::encode(public_key),
             "body_sha256": digest,
-            "signature": hex::encode(signature.to_bytes()),
+            "signature": hex::encode(signature),
             "sequence": state.sequence,
             "post_match_signature": false,
         }))
     }
 
     fn present_kyb(&self, request: KybPresentRequest) -> Result<Value, String> {
-        let trusted =
-            VerifyingKey::from_bytes(&fixed_hex(&request.trusted_issuer, "trusted KYB issuer")?)
-                .map_err(|_| "trusted KYB issuer is not canonical Ed25519".to_string())?;
+        let trusted = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+            &hex::decode(&request.trusted_issuer)
+                .map_err(|_| "malformed hybrid issuer key".to_string())?,
+        )
+        .map_err(|_| "trusted KYB issuer is not a hybrid key".to_string())?;
         let registry = request.registry.into_registry()?;
         let now = unix_seconds()?;
         verify_registry(&registry, &trusted, now)
@@ -1893,7 +1983,7 @@ impl ParticipantService {
             .ristretto_scalar()
             .copied()
             .ok_or_else(|| "participant note spend key is not Ristretto".to_string())?;
-        let wallet = Wallet::from_parts(view, spend);
+        let wallet = Wallet::from_parts(view, spend, self.note_opening_key()?);
         let rpc = docker_rpc_client(&self.config.defmi_endpoint, Duration::from_secs(30))?;
         let key = Pedersen::new(b"qomm:defmi:v1");
         let mut ledger = NoteLedger::new(key.clone(), 64);
@@ -1968,6 +2058,7 @@ impl ParticipantService {
         let covenant = Address {
             view: G * scalar(b"view"),
             spend: G * scalar(b"spend"),
+            opening_public: wallet.address.opening_public,
         };
         let change_blinding = Scalar::random(&mut OsRng);
         let context = [b"QOMM:DEMO:STANDING-POOL-SPEND:v1".as_slice(), &pool_id].concat();
@@ -2066,7 +2157,7 @@ impl ParticipantService {
             .ristretto_scalar()
             .copied()
             .ok_or_else(|| "participant note spend key is not Ristretto".to_string())?;
-        let wallet = Wallet::from_parts(view, spend);
+        let wallet = Wallet::from_parts(view, spend, self.note_opening_key()?);
         let rpc = docker_rpc_client(&self.config.defmi_endpoint, Duration::from_secs(30))?;
         let key = Pedersen::new(b"qomm:defmi:v1");
         let mut ledger = NoteLedger::new(key.clone(), 64);
@@ -2209,7 +2300,7 @@ impl ParticipantService {
             merged_commitment,
             &merged_blinding,
             &mut OsRng,
-        );
+        )?;
         let consolidated_output = NoteOutput::from_note(&merged_note, asset_id, ZERO)?;
         if rpc.state_root()? != state_root {
             return Err("DeFMI changed before consolidation proofs were sealed".into());
@@ -2289,7 +2380,7 @@ impl ParticipantService {
             .ristretto_scalar()
             .copied()
             .ok_or_else(|| "participant note spend key is not Ristretto".to_string())?;
-        let wallet = Wallet::from_parts(view, spend);
+        let wallet = Wallet::from_parts(view, spend, self.note_opening_key()?);
         let rpc = docker_rpc_client(&self.config.defmi_endpoint, Duration::from_secs(30))?;
         let mut ledger = NoteLedger::new(key.clone(), 64);
         let mut canonical = Vec::new();
@@ -2370,6 +2461,7 @@ impl ParticipantService {
         let covenant = Address {
             view: G * covenant_scalar(b"view"),
             spend: G * covenant_scalar(b"spend"),
+            opening_public: wallet.address.opening_public,
         };
         let change = source_opening
             .value
@@ -2755,6 +2847,7 @@ fn scalar_to_u64(value: Scalar) -> Result<u64, String> {
 fn canonical_claim_amount(
     claim: &CanonicalNoteClaim,
     recipient_secret: &Scalar,
+    recipient_key: &zkfmi_crypto::hybrid::kem::HybridKemKey,
     key: &Pedersen,
 ) -> Result<u64, String> {
     claim.claim()?;
@@ -2770,6 +2863,7 @@ fn canonical_claim_amount(
         .collect::<Vec<_>>();
     let (amount, blinding) = claim.opening_envelope.decrypt_u64(
         recipient_secret,
+        recipient_key,
         &quorum,
         PRODUCT_DVP_REMAINDER_BITS,
     )?;
@@ -2792,6 +2886,7 @@ fn claim_materialization_json(
         "destination": {
             "view": hex::encode(destination.view.compress().to_bytes()),
             "spend": hex::encode(destination.spend.compress().to_bytes()),
+            "opening": hex::encode(destination.opening_public),
         },
         "materialization": materialization.body()?,
         "ownership_proof": {
@@ -2819,7 +2914,6 @@ fn bounded_hex(value: &str, name: &str, maximum: usize) -> Result<Vec<u8>, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ed25519_dalek::Signature;
     use qomm_transport::mandate::{encode_taker_mandate, TakerExecutionMandate};
     use tempfile::tempdir;
 
@@ -2844,9 +2938,9 @@ mod tests {
         expires_at: u64,
     ) -> (String, String) {
         let now = unix_seconds().unwrap();
-        let key_id = service.state.lock().unwrap().key_ids["settlement"].clone();
+        let key_id = service.state.lock().unwrap().key_ids["settlement_application"].clone();
         let stored = service.store.private_key(&key_id, now, false).unwrap();
-        let signing = stored.ed25519().unwrap();
+        let signing = stored.hybrid_signature().unwrap();
         let maximum_blinding = u64::from(nonce) + 70;
         let nonzero = |label: u8| {
             Sha256::new()
@@ -2881,7 +2975,7 @@ mod tests {
             allow_partial: false,
             auto_settle: true,
             taker_public: signing.verifying_key().to_bytes(),
-            signature: Signature::from_bytes(&[0; 64]),
+            signature: qomm_transport::application_crypto::Signature::from_bytes(&[]),
         }
         .sign(signing)
         .unwrap();
@@ -2953,7 +3047,43 @@ mod tests {
         let service =
             ParticipantService::initialize(config(ParticipantRole::Maker, root.path())).unwrap();
         let snapshot = service.snapshot().unwrap();
-        assert_eq!(snapshot["keys"]["keys"].as_array().unwrap().len(), 8);
+        let keys = service.store.snapshot().unwrap().keys;
+        let actual = keys
+            .iter()
+            .map(|record| (record.purpose.as_str(), record.kind))
+            .collect::<BTreeMap<_, _>>();
+        let required = BTreeMap::from([
+            ("admin", KeyKind::Ed25519),
+            ("admin_pq", KeyKind::MlDsa65),
+            ("settlement", KeyKind::Ed25519),
+            ("settlement_pq", KeyKind::MlDsa65),
+            ("quote", KeyKind::Ed25519),
+            ("quote_pq", KeyKind::MlDsa65),
+            ("mpc_input", KeyKind::Ed25519),
+            ("mpc_input_pq", KeyKind::MlDsa65),
+            ("emergency", KeyKind::Ed25519),
+            ("emergency_pq", KeyKind::MlDsa65),
+            ("quote_application", KeyKind::HybridSignature),
+            ("settlement_application", KeyKind::HybridSignature),
+            (KYB_KEY_PURPOSE, KeyKind::Ristretto),
+            (NOTE_VIEW_KEY_PURPOSE, KeyKind::Ristretto),
+            (NOTE_SPEND_KEY_PURPOSE, KeyKind::Ristretto),
+            (NOTE_OPENING_KEY_PURPOSE, KeyKind::HybridKem),
+        ]);
+        assert_eq!(actual, required);
+        let application_key = |purpose: &str| {
+            keys.iter()
+                .find(|record| record.purpose == purpose)
+                .unwrap()
+        };
+        assert_ne!(
+            application_key("quote_application").key_id.as_str(),
+            application_key("settlement_application").key_id.as_str()
+        );
+        assert_ne!(
+            application_key("quote_application").public.as_str(),
+            application_key("settlement_application").public.as_str()
+        );
         assert!(snapshot["note_address"]["view"].as_str().is_some());
         assert!(snapshot["note_address"]["spend"].as_str().is_some());
         assert!(service
@@ -2966,8 +3096,11 @@ mod tests {
             )
             .unwrap_err()
             .contains("post-match"));
+        let persisted_keys = snapshot["keys"]["keys"].clone();
         drop(service);
-        ParticipantService::initialize(config(ParticipantRole::Maker, root.path())).unwrap();
+        let reopened =
+            ParticipantService::initialize(config(ParticipantRole::Maker, root.path())).unwrap();
+        assert_eq!(reopened.snapshot().unwrap()["keys"]["keys"], persisted_keys);
     }
 
     #[test]
@@ -2978,6 +3111,14 @@ mod tests {
         let now = unix_seconds().unwrap();
         let expires_at = now + 300;
         let (request_id, signed_request) = queued_request(&service, 600_000, 1, expires_at);
+        assert!(service
+            .enqueue_outbox(OutboxEnqueueRequest {
+                request_id: "00".repeat(32),
+                signed_request: signed_request.clone(),
+                expires_at,
+            })
+            .unwrap_err()
+            .contains("differs from its signed Taker mandate"));
         let response = service
             .enqueue_outbox(OutboxEnqueueRequest {
                 request_id: request_id.clone(),
