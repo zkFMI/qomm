@@ -1,0 +1,1231 @@
+{
+ "assets": [
+  {
+   "name": "USD/JPY",
+   "reference": 15750,
+   "scale": 100
+  },
+  {
+   "name": "EUR/USD",
+   "reference": 10850,
+   "scale": 10000
+  },
+  {
+   "name": "BTC/USD",
+   "reference": 6420000,
+   "scale": 100
+  }
+ ],
+ "busy": true,
+ "config": {
+  "auto_rounds": true,
+  "engine": "sim",
+  "engine_note": "Rust share layer and qomm-zk decoder; tournament cleartext",
+  "input_check": true,
+  "n_makers": 8,
+  "n_nodes": 9,
+  "robust": true,
+  "robust_reason": "",
+  "round_seconds": 8,
+  "step_ms": 350,
+  "threshold": 2
+ },
+ "history": [
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "746382570",
+   "ms": 387.4,
+   "named": [],
+   "named_counts": {},
+   "number": 9,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "dd7922ff79d00fb8de15bbae2d60730a7ec16318ac9f7c3f5cfb0e11013e5fbc",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "2722417640",
+   "ms": 383.1,
+   "named": [],
+   "named_counts": {},
+   "number": 10,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "7f4ac919dd5d42084623b7d89eed03e42a98d47c6018a05789e382f2d13174a0",
+    "status": "released"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "940531041",
+   "ms": 402.4,
+   "named": [],
+   "named_counts": {},
+   "number": 11,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "246c7a8fbb56e718bc1745549f75ce5772a9dabea2b650a820f0f4aae0d412bf",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "3081009766",
+   "ms": 385.3,
+   "named": [],
+   "named_counts": {},
+   "number": 12,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "c0e38d93dfb4290d260a62c58e4cd02cbc9f965f441d3fb1b7d6fadd81d1ebd1",
+    "status": "cover"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "2567238598",
+   "ms": 388.5,
+   "named": [],
+   "named_counts": {},
+   "number": 13,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "a49847861b8a00c114e140d588076540e846a92b292944f44485cd900d7f4641",
+    "status": "cover"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "427046306",
+   "ms": 388.8,
+   "named": [],
+   "named_counts": {},
+   "number": 14,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "335dad476ccd62ca51f087fd11fb73a25321cf7ce03b0bedfaee4d8e9fcdbf34",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "1948661794",
+   "ms": 392.3,
+   "named": [],
+   "named_counts": {},
+   "number": 15,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "e4010340309edcb2a58e12abee8c62406602fcb16997274e03f0fc9cc76b482c",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "3651558507",
+   "ms": 390.9,
+   "named": [],
+   "named_counts": {},
+   "number": 16,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": null,
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  }
+ ],
+ "index": null,
+ "kind": "observer",
+ "label": "",
+ "next_round_in": null,
+ "notices": [
+  {
+   "at": 1788034101.455066,
+   "code": "finished",
+   "fields": {
+    "number": 5,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034111.699171,
+   "code": "finished",
+   "fields": {
+    "number": 6,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034121.933687,
+   "code": "finished",
+   "fields": {
+    "number": 7,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034132.19366,
+   "code": "finished",
+   "fields": {
+    "number": 8,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034142.483273,
+   "code": "finished",
+   "fields": {
+    "number": 9,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034152.748738,
+   "code": "finished",
+   "fields": {
+    "number": 10,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034163.068674,
+   "code": "finished",
+   "fields": {
+    "number": 11,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034173.357339,
+   "code": "finished",
+   "fields": {
+    "number": 12,
+    "real": false
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034183.616798,
+   "code": "finished",
+   "fields": {
+    "number": 13,
+    "real": false
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034193.869981,
+   "code": "finished",
+   "fields": {
+    "number": 14,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034200.213159,
+   "code": "finished",
+   "fields": {
+    "number": 15,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034202.458746,
+   "code": "finished",
+   "fields": {
+    "number": 16,
+    "real": true
+   },
+   "tone": "info"
+  }
+ ],
+ "observer": {
+  "behaviours": {
+   "0": "honest",
+   "1": "honest",
+   "2": "honest",
+   "3": "honest",
+   "4": "honest",
+   "5": "honest",
+   "6": "honest",
+   "7": "honest",
+   "8": "honest"
+  },
+  "eligible": 2,
+  "maker_portfolios": [
+   {
+    "maker": 0,
+    "portfolio": {
+     "cash": {
+      "available": 49992632000,
+      "reserved": 7368000,
+      "total": 50000000000
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 4500,
+       "name": "USD/JPY",
+       "reserved": 500,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 5000,
+       "name": "EUR/USD",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 5000,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 0,
+     "cash": 7368000,
+     "inventory": 500
+    }
+   },
+   {
+    "maker": 1,
+    "portfolio": {
+     "cash": {
+      "available": 49999571260,
+      "reserved": 1077000,
+      "total": 50000648260
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 4840,
+       "name": "EUR/USD",
+       "reserved": 100,
+       "total": 4940
+      },
+      {
+       "asset": 2,
+       "available": 5000,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 1,
+     "cash": 1077000,
+     "inventory": 100
+    }
+   },
+   {
+    "maker": 2,
+    "portfolio": {
+     "cash": {
+      "available": 48074613400,
+      "reserved": 3209467000,
+      "total": 51284080400
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 5000,
+       "name": "EUR/USD",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 4300,
+       "name": "BTC/USD",
+       "reserved": 500,
+       "total": 4800
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 2,
+     "cash": 3209467000,
+     "inventory": 500
+    }
+   },
+   {
+    "maker": 3,
+    "portfolio": {
+     "cash": {
+      "available": 49999842680,
+      "reserved": 1578500,
+      "total": 50001421180
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 4810,
+       "name": "USD/JPY",
+       "reserved": 100,
+       "total": 4910
+      },
+      {
+       "asset": 1,
+       "available": 5000,
+       "name": "EUR/USD",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 5000,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 0,
+     "cash": 1578500,
+     "inventory": 100
+    }
+   },
+   {
+    "maker": 4,
+    "portfolio": {
+     "cash": {
+      "available": 50000000000,
+      "reserved": 0,
+      "total": 50000000000
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 5000,
+       "name": "EUR/USD",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 5000,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 2,
+     "cash": 0,
+     "inventory": 0
+    }
+   },
+   {
+    "maker": 5,
+    "portfolio": {
+     "cash": {
+      "available": 50544667360,
+      "reserved": 1067200,
+      "total": 50545734560
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 4900,
+       "name": "EUR/USD",
+       "reserved": 100,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 4915,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 4915
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 1,
+     "cash": 1067200,
+     "inventory": 100
+    }
+   },
+   {
+    "maker": 6,
+    "portfolio": {
+     "cash": {
+      "available": 48716135800,
+      "reserved": 1283864200,
+      "total": 50000000000
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 5000,
+       "name": "EUR/USD",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 4800,
+       "name": "BTC/USD",
+       "reserved": 200,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 2,
+     "cash": 1283864200,
+     "inventory": 200
+    }
+   },
+   {
+    "maker": 7,
+    "portfolio": {
+     "cash": {
+      "available": 49999464500,
+      "reserved": 535500,
+      "total": 50000000000
+     },
+     "inventory": [
+      {
+       "asset": 0,
+       "available": 5000,
+       "name": "USD/JPY",
+       "reserved": 0,
+       "total": 5000
+      },
+      {
+       "asset": 1,
+       "available": 4950,
+       "name": "EUR/USD",
+       "reserved": 50,
+       "total": 5000
+      },
+      {
+       "asset": 2,
+       "available": 5000,
+       "name": "BTC/USD",
+       "reserved": 0,
+       "total": 5000
+      }
+     ]
+    },
+    "reserve": {
+     "asset": 1,
+     "cash": 535500,
+     "inventory": 50
+    }
+   }
+  ],
+  "mask": "3651432080",
+  "policies": [
+   {
+    "active": 1,
+    "ask_level": 0,
+    "asset": 0,
+    "expiry": 1000000000,
+    "inv": 0,
+    "invcoef": 1,
+    "maxqty": 500,
+    "slope": 2,
+    "spread": 14,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": -3,
+    "asset": 1,
+    "expiry": 1000000000,
+    "inv": -20,
+    "invcoef": 1,
+    "maxqty": 100,
+    "slope": 0,
+    "spread": 57,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": 1,
+    "asset": 2,
+    "expiry": 1000000000,
+    "inv": 24,
+    "invcoef": 1,
+    "maxqty": 500,
+    "slope": 2,
+    "spread": 91,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": -4,
+    "asset": 0,
+    "expiry": 1000000000,
+    "inv": 57,
+    "invcoef": 1,
+    "maxqty": 100,
+    "slope": 0,
+    "spread": 18,
+    "use_ref": 1
+   },
+   {
+    "active": 0,
+    "ask_level": 10,
+    "asset": 2,
+    "expiry": 1000000000,
+    "inv": -4,
+    "invcoef": 1,
+    "maxqty": 100,
+    "slope": 2,
+    "spread": 56,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": -5,
+    "asset": 1,
+    "expiry": 1000000000,
+    "inv": -26,
+    "invcoef": 1,
+    "maxqty": 100,
+    "slope": 1,
+    "spread": 47,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": -10,
+    "asset": 2,
+    "expiry": 1000000000,
+    "inv": -36,
+    "invcoef": 1,
+    "maxqty": 200,
+    "slope": 3,
+    "spread": 33,
+    "use_ref": 1
+   },
+   {
+    "active": 1,
+    "ask_level": -2,
+    "asset": 1,
+    "expiry": 1000000000,
+    "inv": -17,
+    "invcoef": 1,
+    "maxqty": 50,
+    "slope": 2,
+    "spread": 21,
+    "use_ref": 1
+   }
+  ],
+  "price": 15803,
+  "quotes": [
+   {
+    "ask": 15950,
+    "asset": 0,
+    "bid": 15536,
+    "eligible": true,
+    "maker": 0,
+    "reason": ""
+   },
+   {
+    "ask": 15727,
+    "asset": 1,
+    "bid": 15670,
+    "eligible": false,
+    "maker": 1,
+    "reason": "different market"
+   },
+   {
+    "ask": 15975,
+    "asset": 2,
+    "bid": 15484,
+    "eligible": false,
+    "maker": 2,
+    "reason": "different market"
+   },
+   {
+    "ask": 15803,
+    "asset": 0,
+    "bid": 15785,
+    "eligible": true,
+    "maker": 3,
+    "reason": ""
+   },
+   {
+    "ask": 15956,
+    "asset": 2,
+    "bid": 15500,
+    "eligible": false,
+    "maker": 4,
+    "reason": "switched off"
+   },
+   {
+    "ask": 15819,
+    "asset": 1,
+    "bid": 15572,
+    "eligible": false,
+    "maker": 5,
+    "reason": "different market"
+   },
+   {
+    "ask": 16004,
+    "asset": 2,
+    "bid": 15371,
+    "eligible": false,
+    "maker": 6,
+    "reason": "different market"
+   },
+   {
+    "ask": 15931,
+    "asset": 1,
+    "bid": 15510,
+    "eligible": false,
+    "maker": 7,
+    "reason": "different market"
+   }
+  ],
+  "request": {
+   "asset": 0,
+   "direction": 0,
+   "is_real": 1,
+   "qty": 100
+  },
+  "settlements": [
+   {
+    "asset": 0,
+    "automatic": true,
+    "cash": 1578900,
+    "detail": "",
+    "direction": 0,
+    "limit_price": 20000,
+    "maker": 3,
+    "price": 15789,
+    "quantity": 100,
+    "reason_code": "automatic_dvp",
+    "round": 15,
+    "state_root": "e4010340309edcb2a58e12abee8c62406602fcb16997274e03f0fc9cc76b482c",
+    "status": "settled"
+   },
+   {
+    "asset": 1,
+    "automatic": true,
+    "cash": 108210,
+    "detail": "",
+    "direction": 0,
+    "limit_price": 10958,
+    "maker": 1,
+    "price": 10821,
+    "quantity": 10,
+    "reason_code": "automatic_dvp",
+    "round": 14,
+    "state_root": "335dad476ccd62ca51f087fd11fb73a25321cf7ce03b0bedfaee4d8e9fcdbf34",
+    "status": "settled"
+   },
+   {
+    "asset": 1,
+    "automatic": false,
+    "cash": null,
+    "detail": "",
+    "direction": 0,
+    "limit_price": 10958,
+    "maker": null,
+    "price": null,
+    "quantity": 10,
+    "reason_code": "cover",
+    "round": 13,
+    "state_root": "a49847861b8a00c114e140d588076540e846a92b292944f44485cd900d7f4641",
+    "status": "cover"
+   },
+   {
+    "asset": 0,
+    "automatic": false,
+    "cash": null,
+    "detail": "",
+    "direction": 1,
+    "limit_price": 15593,
+    "maker": null,
+    "price": null,
+    "quantity": 100,
+    "reason_code": "cover",
+    "round": 12,
+    "state_root": "c0e38d93dfb4290d260a62c58e4cd02cbc9f965f441d3fb1b7d6fadd81d1ebd1",
+    "status": "cover"
+   },
+   {
+    "asset": 0,
+    "automatic": true,
+    "cash": 157720,
+    "detail": "",
+    "direction": 1,
+    "limit_price": 15593,
+    "maker": 3,
+    "price": 15772,
+    "quantity": 10,
+    "reason_code": "automatic_dvp",
+    "round": 11,
+    "state_root": "246c7a8fbb56e718bc1745549f75ce5772a9dabea2b650a820f0f4aae0d412bf",
+    "status": "settled"
+   },
+   {
+    "asset": 1,
+    "automatic": false,
+    "cash": null,
+    "detail": "",
+    "direction": 1,
+    "limit_price": 10742,
+    "maker": 1,
+    "price": 10733,
+    "quantity": 50,
+    "reason_code": "price_limit",
+    "round": 10,
+    "state_root": "7f4ac919dd5d42084623b7d89eed03e42a98d47c6018a05789e382f2d13174a0",
+    "status": "released"
+   },
+   {
+    "asset": 2,
+    "automatic": true,
+    "cash": 320993650,
+    "detail": "",
+    "direction": 1,
+    "limit_price": 6355800,
+    "maker": 5,
+    "price": 6419873,
+    "quantity": 50,
+    "reason_code": "automatic_dvp",
+    "round": 9,
+    "state_root": "dd7922ff79d00fb8de15bbae2d60730a7ec16318ac9f7c3f5cfb0e11013e5fbc",
+    "status": "settled"
+   },
+   {
+    "asset": 1,
+    "automatic": true,
+    "cash": 540050,
+    "detail": "",
+    "direction": 0,
+    "limit_price": 10958,
+    "maker": 1,
+    "price": 10801,
+    "quantity": 50,
+    "reason_code": "automatic_dvp",
+    "round": 8,
+    "state_root": "a19591868b8a76016d30ee081a6dd2d3886b45d2da8669d5fbc6e7c2b0baa871",
+    "status": "settled"
+   }
+  ],
+  "taker_portfolio": {
+   "cash": {
+    "available": 48166115600,
+    "reserved": 2000000,
+    "total": 48168115600
+   },
+   "inventory": [
+    {
+     "asset": 0,
+     "available": 5090,
+     "name": "USD/JPY",
+     "reserved": 0,
+     "total": 5090
+    },
+    {
+     "asset": 1,
+     "available": 5060,
+     "name": "EUR/USD",
+     "reserved": 0,
+     "total": 5060
+    },
+    {
+     "asset": 2,
+     "available": 5285,
+     "name": "BTC/USD",
+     "reserved": 0,
+     "total": 5285
+    }
+   ]
+  },
+  "winner": 3
+ },
+ "phase": "check",
+ "phase_fields": {
+  "nodes": 9,
+  "rejected": [],
+  "skipped": false,
+  "values": 85
+ },
+ "phase_note": "85 x 9 shares against the commitments they were dealt under",
+ "public": {
+  "abort_code": "",
+  "abort_fields": {},
+  "abort_reason": "",
+  "aborted": false,
+  "corrections": 0,
+  "engine": "sim",
+  "engine_stats": {},
+  "inert": false,
+  "masked_key": "3651558507",
+  "ms": 390.9,
+  "named": [],
+  "named_counts": {},
+  "number": 16,
+  "open_capacity": 3,
+  "product_capacity": 2,
+  "reductions": 17,
+  "rejected": [],
+  "settlement": null,
+  "silent": [],
+  "verified": null,
+  "verified_detail": ""
+ },
+ "seat": "observer",
+ "seats": [
+  {
+   "forced_manual": false,
+   "held": true,
+   "id": "maker:0",
+   "index": 0,
+   "kind": "maker",
+   "label": "probe",
+   "mine": false,
+   "mode": "manual"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:1",
+   "index": 1,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:2",
+   "index": 2,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:3",
+   "index": 3,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:4",
+   "index": 4,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:5",
+   "index": 5,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:6",
+   "index": 6,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:7",
+   "index": 7,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": true,
+   "id": "node:0",
+   "index": 0,
+   "kind": "node",
+   "label": "probe",
+   "mine": false,
+   "mode": "manual"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:1",
+   "index": 1,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:2",
+   "index": 2,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:3",
+   "index": 3,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:4",
+   "index": 4,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:5",
+   "index": 5,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:6",
+   "index": 6,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:7",
+   "index": 7,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "behaviour": "honest",
+   "forced_manual": false,
+   "held": false,
+   "id": "node:8",
+   "index": 8,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": true,
+   "id": "taker",
+   "index": 0,
+   "kind": "taker",
+   "label": "probe",
+   "mine": false,
+   "mode": "manual"
+  }
+ ],
+ "session": "d172b043229ec6b808842f02",
+ "type": "view"
+}

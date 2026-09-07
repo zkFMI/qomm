@@ -1,0 +1,26 @@
+# Build context for demo-network/compose.yaml is this directory (the qomm
+# repository root). The Dockerfile copies only rust/ and qomm_demo/static/;
+# everything else is kept out of the context so a build does not ship the
+# evidence archive, notebooks or a local target directory to the daemon.
+.git
+.codex
+artifacts
+notebooks
+research
+doc
+docs
+deploy
+tests
+qomm_demo/tests
+qomm_demo/audit
+target
+rust/target
+**/target
+**/node_modules
+**/.DS_Store
+**/*.pdf
+**/*.aux
+**/*.log
+**/*.out
+**/*.toc
+**/__pycache__

@@ -1,0 +1,649 @@
+{
+ "assets": [
+  {
+   "name": "USD/JPY",
+   "reference": 15750,
+   "scale": 100
+  },
+  {
+   "name": "EUR/USD",
+   "reference": 10850,
+   "scale": 10000
+  },
+  {
+   "name": "BTC/USD",
+   "reference": 6420000,
+   "scale": 100
+  }
+ ],
+ "busy": true,
+ "config": {
+  "auto_rounds": true,
+  "engine": "sim",
+  "engine_note": "Rust share layer and qomm-zk decoder; tournament cleartext",
+  "input_check": true,
+  "n_makers": 8,
+  "n_nodes": 9,
+  "robust": true,
+  "robust_reason": "",
+  "round_seconds": 8,
+  "step_ms": 350,
+  "threshold": 2
+ },
+ "history": [
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "746382570",
+   "ms": 387.4,
+   "named": [],
+   "named_counts": {},
+   "number": 9,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "dd7922ff79d00fb8de15bbae2d60730a7ec16318ac9f7c3f5cfb0e11013e5fbc",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "2722417640",
+   "ms": 383.1,
+   "named": [],
+   "named_counts": {},
+   "number": 10,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "7f4ac919dd5d42084623b7d89eed03e42a98d47c6018a05789e382f2d13174a0",
+    "status": "released"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "940531041",
+   "ms": 402.4,
+   "named": [],
+   "named_counts": {},
+   "number": 11,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "246c7a8fbb56e718bc1745549f75ce5772a9dabea2b650a820f0f4aae0d412bf",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "3081009766",
+   "ms": 385.3,
+   "named": [],
+   "named_counts": {},
+   "number": 12,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "c0e38d93dfb4290d260a62c58e4cd02cbc9f965f441d3fb1b7d6fadd81d1ebd1",
+    "status": "cover"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "2567238598",
+   "ms": 388.5,
+   "named": [],
+   "named_counts": {},
+   "number": 13,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": false,
+    "state_root": "a49847861b8a00c114e140d588076540e846a92b292944f44485cd900d7f4641",
+    "status": "cover"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "427046306",
+   "ms": 388.8,
+   "named": [],
+   "named_counts": {},
+   "number": 14,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "335dad476ccd62ca51f087fd11fb73a25321cf7ce03b0bedfaee4d8e9fcdbf34",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "1948661794",
+   "ms": 392.3,
+   "named": [],
+   "named_counts": {},
+   "number": 15,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "e4010340309edcb2a58e12abee8c62406602fcb16997274e03f0fc9cc76b482c",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  },
+  {
+   "abort_code": "",
+   "abort_fields": {},
+   "abort_reason": "",
+   "aborted": false,
+   "corrections": 0,
+   "engine": "sim",
+   "engine_stats": {},
+   "inert": false,
+   "masked_key": "3651558507",
+   "ms": 390.9,
+   "named": [],
+   "named_counts": {},
+   "number": 16,
+   "open_capacity": 3,
+   "product_capacity": 2,
+   "reductions": 17,
+   "rejected": [],
+   "settlement": {
+    "automatic": true,
+    "state_root": "352b8afeca7986e78fd24d830045b8f185edaeb85661316466f84a9909895789",
+    "status": "settled"
+   },
+   "silent": [],
+   "verified": null,
+   "verified_detail": ""
+  }
+ ],
+ "index": 0,
+ "kind": "maker",
+ "label": "probe",
+ "maker": {
+  "fields": [
+   "asset",
+   "ask_level",
+   "spread",
+   "slope",
+   "invcoef",
+   "inv",
+   "maxqty",
+   "expiry",
+   "active",
+   "use_ref"
+  ],
+  "fill": null,
+  "policy": {
+   "active": 1,
+   "ask_level": 0,
+   "asset": 0,
+   "expiry": 1000000000,
+   "inv": 0,
+   "invcoef": 1,
+   "maxqty": 500,
+   "slope": 2,
+   "spread": 14,
+   "use_ref": 1
+  },
+  "portfolio": {
+   "cash": {
+    "available": 49992632000,
+    "reserved": 7368000,
+    "total": 50000000000
+   },
+   "inventory": [
+    {
+     "asset": 0,
+     "available": 4500,
+     "name": "USD/JPY",
+     "reserved": 500,
+     "total": 5000
+    },
+    {
+     "asset": 1,
+     "available": 5000,
+     "name": "EUR/USD",
+     "reserved": 0,
+     "total": 5000
+    },
+    {
+     "asset": 2,
+     "available": 5000,
+     "name": "BTC/USD",
+     "reserved": 0,
+     "total": 5000
+    }
+   ]
+  },
+  "reserve": {
+   "asset": 0,
+   "cash": 7368000,
+   "inventory": 500
+  },
+  "settlement": null,
+  "told_nothing": true
+ },
+ "next_round_in": null,
+ "notices": [
+  {
+   "at": 1788034111.699137,
+   "code": "finished",
+   "fields": {
+    "number": 6,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034121.933653,
+   "code": "finished",
+   "fields": {
+    "number": 7,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034132.193617,
+   "code": "finished",
+   "fields": {
+    "number": 8,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034142.483234,
+   "code": "finished",
+   "fields": {
+    "number": 9,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034152.748701,
+   "code": "finished",
+   "fields": {
+    "number": 10,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034163.068637,
+   "code": "finished",
+   "fields": {
+    "number": 11,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034173.357302,
+   "code": "finished",
+   "fields": {
+    "number": 12,
+    "real": false
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034183.616761,
+   "code": "finished",
+   "fields": {
+    "number": 13,
+    "real": false
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034193.869946,
+   "code": "finished",
+   "fields": {
+    "number": 14,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034198.418289,
+   "code": "claimed",
+   "fields": {
+    "label": "probe",
+    "seat": "maker:0"
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034200.21312,
+   "code": "finished",
+   "fields": {
+    "number": 15,
+    "real": true
+   },
+   "tone": "info"
+  },
+  {
+   "at": 1788034202.458708,
+   "code": "finished",
+   "fields": {
+    "number": 16,
+    "real": true
+   },
+   "tone": "info"
+  }
+ ],
+ "phase": "settle",
+ "phase_fields": {
+  "automatic": true,
+  "reason": "automatic_dvp",
+  "state_root": "352b8afeca7986e78fd24d830045b8f185edaeb85661316466f84a9909895789",
+  "status": "settled"
+ },
+ "phase_note": "settled: automatic_dvp",
+ "public": {
+  "abort_code": "",
+  "abort_fields": {},
+  "abort_reason": "",
+  "aborted": false,
+  "corrections": 0,
+  "engine": "sim",
+  "engine_stats": {},
+  "inert": false,
+  "masked_key": "3651558507",
+  "ms": 390.9,
+  "named": [],
+  "named_counts": {},
+  "number": 16,
+  "open_capacity": 3,
+  "product_capacity": 2,
+  "reductions": 17,
+  "rejected": [],
+  "settlement": {
+   "automatic": true,
+   "state_root": "352b8afeca7986e78fd24d830045b8f185edaeb85661316466f84a9909895789",
+   "status": "settled"
+  },
+  "silent": [],
+  "verified": null,
+  "verified_detail": ""
+ },
+ "seat": "maker:0",
+ "seats": [
+  {
+   "forced_manual": false,
+   "held": true,
+   "id": "maker:0",
+   "index": 0,
+   "kind": "maker",
+   "label": "probe",
+   "mine": true,
+   "mode": "manual"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:1",
+   "index": 1,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:2",
+   "index": 2,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:3",
+   "index": 3,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:4",
+   "index": 4,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:5",
+   "index": 5,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:6",
+   "index": 6,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "maker:7",
+   "index": 7,
+   "kind": "maker",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": true,
+   "id": "node:0",
+   "index": 0,
+   "kind": "node",
+   "label": "probe",
+   "mine": false,
+   "mode": "manual"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:1",
+   "index": 1,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:2",
+   "index": 2,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:3",
+   "index": 3,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:4",
+   "index": 4,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:5",
+   "index": 5,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:6",
+   "index": 6,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:7",
+   "index": 7,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": false,
+   "id": "node:8",
+   "index": 8,
+   "kind": "node",
+   "label": "",
+   "mine": false,
+   "mode": "auto"
+  },
+  {
+   "forced_manual": false,
+   "held": true,
+   "id": "taker",
+   "index": 0,
+   "kind": "taker",
+   "label": "probe",
+   "mine": false,
+   "mode": "manual"
+  }
+ ],
+ "session": "e810fdb8c89e92d7628ed2cb",
+ "type": "view"
+}

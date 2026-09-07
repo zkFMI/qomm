@@ -42,6 +42,12 @@ header button:hover{background:rgba(255,255,255,.25)}
   border:1px solid var(--bad);border-radius:8px;background:var(--bad-pale);
   color:var(--bad);font-weight:650}
 .error-banner.warn{border-color:var(--amber);background:var(--amber-pale);color:var(--amber)}
+/* What the room's engine actually guarantees, stated in the body before any
+   design description. Amber for the cleartext simulation, teal for MPC. */
+.engine-banner{max-width:1120px;margin:.7rem auto 0;padding:.55rem .8rem;border-radius:8px;
+  font-size:.82rem;line-height:1.5;border:1px solid var(--teal);background:var(--teal-pale);color:var(--text)}
+.engine-banner.sim{border-color:var(--amber);background:var(--amber-pale)}
+@media(max-width:640px){.engine-banner{margin:.6rem .6rem 0}}
 
 main{max-width:1120px;margin:0 auto;padding:.9rem}
 .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
@@ -171,6 +177,11 @@ tr.mine td{background:var(--blue-pale)}
 .lobby-grid button b{display:block;font-size:.9rem}
 .lobby-grid button span{color:var(--gray);font-size:.72rem}
 .lobby-grid .empty{grid-column:1/-1}
+.lobby-group{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:.15rem .6rem;align-items:baseline;
+  margin-top:.45rem;padding-top:.45rem;border-top:1px solid var(--mist)}
+.lobby-group:first-child{margin-top:0;padding-top:0;border-top:0}
+.lobby-group b{font-size:.88rem;color:var(--ink)}
+.lobby-group span{color:var(--gray);font-size:.76rem}
 footer{color:var(--gray);font-size:.72rem;text-align:center;padding:1rem}
 
 /* --- phase strip ------------------------------------------------------- */

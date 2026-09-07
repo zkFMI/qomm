@@ -11,16 +11,27 @@
 /* ========================================================================= */
 const S = {
 ja: {
-  title:"QOMM", subtitle:"分割したまま計算して最良気配を選ぶ取引照合",
-  engineSim:"Rust試作", engineSimShort:"Rust試作", engineSimNote:"分割計算は実装どおり。照合の比較は平文",
-  engineMpc:"MP-SPDZ実行（価格照合）", engineMpcShort:"MPC価格照合", engineMpcNote:"価格照合を秘密計算し、証明済みzkPIをDeFMIへ送ります。",
+  title:"QOMM", subtitle:"注文の中身を隠したまま、いちばん良い気配の相手と取引を成立させるデモ",
+  engineSim:"試作エンジン（比較は平文）", engineSimShort:"試作", engineSimNote:"値の分割は実装どおりですが、価格の比較は暗号化せずに行います。",
+  engineMpc:"秘密計算で価格照合", engineMpcShort:"秘密計算", engineMpcNote:"価格の比較を秘密計算（MP-SPDZ）で行い、証明済みの zkPI を DeFMI へ送ります。",
   leave:"離席", langOther:"EN",
   connecting:"サーバーに接続しています…",
   reconnecting:"接続が切れました。再接続しています…",
   lobbyTitle:"参加する席を選ぶ",
-  lobbyWhy:"席ごとに見える情報が異なります。それがこの仕組みの核心です。空席は自動で動きます。",
+  lobbyWhy:"席によって見える情報が違います。それがこの仕組みの核心です。誰も座っていない席は自動で動きます。",
   yourName:"表示名（任意）", watch:"全体表示で観る（デモ専用）",
-  theSeats:"空席は自動動作、名前が出ている席は人が操作中",
+  theSeats:"空席は自動で動き、名前が出ている席は人が操作しています",
+  roleTaker:"注文を出す側（Taker）", roleTakerWhy:"取引したい注文を出します。約定価格を受け取るのはこの席だけです。",
+  roleMaker:"気配を出す側（Maker）", roleMakerWhy:"売り買いの気配と最大数量を先に登録し、注文の相手になります。注文の中身は見えません。",
+  roleNode:"計算ノード", roleNodeWhy:"分割された値だけで計算します。在庫も資金も持ちません。",
+  roleNodeWhySim:"設計では分割された値だけで計算します。この試作エンジンでは、価格の比較は部屋（サーバー）が平文で行います。在庫も資金も持ちません。",
+  // Shown wherever the design is described while the room runs the
+  // simulation engine: the share layer is real, the comparison is not hidden.
+  engineNoticeSim:"この部屋は試作エンジンで動いています。注文と方針を分けて配る処理、不正の訂正、確保と決済の流れは実装どおりですが、価格の比較は暗号化せず平文で行います。席ごとに見える情報を絞っているのは画面上の投影で、秘密計算による保証ではありません。以下の「分割された値だけ」という説明は設計の説明です。",
+  engineNoticeMpc:"この部屋は秘密計算（MP-SPDZ）で価格を比較しています。席ごとの表示の絞り込みは画面上の投影で、秘匿の保証は計算側の設計によります。",
+  designNote:"設計の説明",
+  engineNodeSim:"試作エンジン：このノードが持つ分割した値は実装どおりですが、価格の比較は部屋側が平文で行います。",
+  legendSim:"試作エンジン：価格の比較は平文です。分割・訂正・確保・決済の流れは実装どおりです。",
   whatIsThis:"このデモについて",
   publicTitle:"公開情報", publicWhy:"ラウンド終了後に全員が確認できる情報です。",
   historyTitle:"最近のラウンド",
@@ -29,8 +40,9 @@ ja: {
   taken:"使用中", auto:"自動", manual:"操作中",
   seatTaker:"注文者", seatMaker:"値付け", seatNode:"計算ノード", seatObserver:"全体表示",
   // phases
-  phaseDeal:"注文と価格方針を分割", phaseCheck:"不正な入力を検査", phaseReduce:"非公開のまま価格を比較",
-  phaseOpen:"注文者だけが読める結果を返す", phaseSettle:"zkPIを検証してDeFMIで決済", phaseIdle:"待機中", phaseDone:"完了", phaseQueued:"復旧待ち",
+  phaseDeal:"注文と気配の方針を分けて配る", phaseCheck:"入力が正しいか確かめる", phaseReduce:"中身を見ずに価格を比べる",
+  phaseReduceSim:"価格を比べる（試作：平文で比較）",
+  phaseOpen:"注文者だけが読める結果を返す", phaseSettle:"証明を確かめて DeFMI で決済", phaseIdle:"待機中", phaseDone:"完了", phaseQueued:"復旧待ち（未成立）",
   stopped:"停止", silent:"不参加", opened:"公開される暗号文", everyoneSees:"平文は非公開",
   idleManual:"注文者の送信を待っています。",
   idleAuto:"次のラウンドを待っています。",
@@ -39,7 +51,7 @@ ja: {
   ph_check:(f)=>`配布された${f.values}×${f.nodes}件の値が配布記録と一致するか検査しています。`,
   ph_check_skipped:"入力の検査は無効です。配られたのと違う値を使うノードを誰も止められません。",
   ph_check_rejected:(f)=>`${nodeList(f.rejected)}の入力が配布記録と一致しません。計算前に除外し、停止しました。`,
-  ph_reduce:(f)=>`分割したまま${f.products}回の掛け算を実行し、開いた値を検査しています。`,
+  ph_reduce:(f)=>`分割した値で${f.products}回の掛け算を実行し、開いた値を検査しています。価格の比較そのものは試作エンジンが平文で行っています。`,
   ph_reduce_mpc:(f)=>`MP-SPDZ が回路を実行しました（${f.rounds}ラウンド・${f.mb} MB）。`,
   ph_reduce_corrected:(f)=>` ${f.corrections}回を訂正し、${nodeList(f.named)}を特定しました。`,
   ph_open:"照合結果を注文者だけが読める形にして返しています。",
@@ -49,12 +61,16 @@ ja: {
   ph_settle_cover:"ダミー通信のため、台帳は変更しません。",
   ph_done:(f)=>`ラウンド #${f.number} 完了。`,
   ph_queued:(f)=>`ラウンド #${f.number} はまだ完了していません。`,
-  computeMs:(ms)=>`処理完了まで ${formatDuration(ms, 'ja')}`,
+  computeMs:(ms)=>`処理時間 ${formatDuration(ms, 'ja')}`,
   // graph
   graphAria:"取引の流れを示すネットワーク図",
-  gTaker:"注文者", gMaker:"値付け", gNode:"MPCノード", gMatcher:"価格照合",
-  gZkpi:"zkPI証明検証", gLedger:"DeFMI決済台帳", you:"あなた",
-  productBoundary:"注文順、法人の予約枠、証明済みzkPI、DvP決済はAvalanche上のDeFMI専用VMへ記録します。MPCノードは資産を保有しません。",
+  gTaker:"注文者", gMaker:"値付け", gNode:"計算ノード", gMatcher:"価格照合",
+  gZkpi:"決済の証明（zkPI）", gLedger:"DeFMI 台帳", you:"あなた",
+  productBoundary:"設計では、受付の順番、各社の確保枠、証明済みの zkPI、同時決済（DvP）の記録を Avalanche 上の DeFMI に記録します。計算ノードは資産を持ちません。",
+  ledgerLocal:"この部屋の台帳はプロセス内の試験用台帳です。表示する台帳の識別値はその値で、Avalanche 上の DeFMI への記録ではありません。",
+  ledgerGateway:"台帳の記録先はゲートウェイ側の構成に従います（DeFMI ネットワーク構成では Avalanche 上の DeFMI）。",
+  candidate:"最良気配の候補（未約定）", candidatePrice:"比較で選ばれた価格（未約定）",
+  ledgerDvp:"同時引き渡し", ledgerReleased:"確保分を解放", ledgerHeld:"保留", ledgerUnchanged:"変更なし", ledgerNone:"—",
   legendNoCustody:"計算ノードは在庫も資金も保有しません。届くのは分割された値だけです。",
   legendLines:"動く線: いま流れている情報 ・ 淡い線: この席には見えない経路",
   eShares:"分割した値", eMyOrder:"あなたの注文を分割", eMyPolicy:"あなたの方針を分割",
@@ -63,14 +79,14 @@ ja: {
   eNoChange:"変更なし",
   nIdle:"待機", nReceiving:"受取中", nChecking:"検査中", nComputing:"計算中",
   nDone:"完了", nSilent:"不参加", nRejected:"除外", nNamed:"不正を訂正", nStopped:"停止", nQueued:"復旧待ち",
-  mCompare:"全社の気配を比較", mPick:"最良気配を選定", mNone:"該当なし",
-  zPass:"参照値と一致", zFail:"参照値と不一致", zDecoded:"開示値の検査を通過",
+  mCompare:"全社の気配を比較", mCompareSim:"全社の気配を比較（平文）", mPick:"最良気配を選定", mNone:"該当なし",
+  zPass:"検証に合格", zFail:"検証に不合格", zDecoded:"開いた値の検査に合格",
   zStopped:"不合格・停止", zWait:"待機",
   lSettled:"決済完了", lReleased:"予約を解放", lQueued:"予約を保持", lCover:"ダミー・変更なし", lWait:"待機",
   orderHidden:"注文は非公開", policyHidden:"方針は非公開",
   activeShort:"稼働", inactiveShort:"停止", maxShort:"最大", winner:"約定相手",
   // portfolio
-  pfCash:"決済資金", pfAvailable:"利用可能", pfReserved:"予約中", pfTotal:"合計",
+  pfCash:"資金", pfAvailable:"利用可能", pfReserved:"予約中", pfTotal:"合計",
   pfDeltaReserve:"予約", pfDeltaSettle:"決済", pfDeltaRelease:"解放", pfDeltaUpdate:"予約枠更新",
   pfNodeNote:"このノードは在庫も資金も保有しません。届くのは分割された値だけで、元の注文や価格は復元できません。",
   pfObserverTitle:"全参加者の在庫と資金（デモ専用の全体表示）",
@@ -118,7 +134,7 @@ ja: {
   coverRound:"このラウンドはダミー通信でした。価格は使われません。",
   settlementTitle:"照合と決済", noSettlement:"まだ決済結果はありません。",
   status:"状態", settled:"決済完了", released:"予約を解放", queued:"MPC復旧待ち", coverStatus:"ダミー（残高変更なし）",
-  settlementCash:"受渡資金", stateRoot:"台帳ハッシュ", queueStateRoot:"画面上の予約記録", automatic:"追加署名なしで決済",
+  settlementCash:"受渡資金", stateRoot:"台帳の識別値", queueStateRoot:"画面上の予約記録", automatic:"追加署名なしで決済",
   sr_cover:"ダミー通信のため台帳は変更していません。",
   sr_mpc_aborted:"計算が安全に停止したため予約を解放しました。",
   sr_mpc_queued:"注文と法人内の予約枠を暗号化キューに保持しています。復旧後にDeFMI正式予約を作り、自動再送します。",
@@ -127,8 +143,8 @@ ja: {
   sr_automatic_dvp:"予約済みの在庫と資金を台帳が同時に更新しました。",
   price:"価格",
   // maker
-  makerTitle:"価格方針",
-  makerWhy:"注文は見えません。方針と最大数量を先に登録し、見えない注文に対して評価されます。",
+  makerTitle:"気配の方針",
+  makerWhy:"注文は見えません。気配の方針と最大数量を先に登録しておくと、見えない注文に対して自動で評価されます。",
   ask_level:"基準価格への上乗せ", spread:"売値と買値の差", slope:"数量が増えた時の調整", invcoef:"在庫に応じた調整の強さ",
   inv:"現在の在庫調整", maxqty:"最大数量", active:"稼働", assetLabel:"対象銘柄",
   invWhy:"＋で両方の気配を上げ（買い戻したい）、−で下げます（売りたい）。",
@@ -142,7 +158,7 @@ ja: {
   tryWhy:"この計算はブラウザ内だけで行われ、サーバーには送られません。",
   tryQty:"数量", ask:"売り気配", bid:"買い気配", on:"稼働", off:"停止",
   // node
-  nodeTitle:"保有データ",
+  nodeTitle:"このノードが持っている値",
   nodeWhy:"注文と方針を分割した値です。このノード単体では元の値を復元できません。",
   noCustody:"計算ノードは在庫や資金を保有しません。分割された値で計算し、検証結果と台帳ハッシュだけを確認します。",
   behaviourTitle:"ノードの動作設定",
@@ -199,15 +215,15 @@ ja: {
   a_engine:(f)=>`外部エンジンが失敗しました${f.detail?"："+f.detail:""}`,
   a_queued:()=>"計算ノードの復旧待ち。法人キューから自動再送します。",
   explain:[
-    ["注文者","注文を出す側です。注文は分割されて送られ、どの計算ノードにも全体は渡りません。約定価格を受け取れるのはこの席だけです。"],
-    ["値付け参加者","価格方針と最大数量を先に登録します。注文は見えません。約定すると予約枠から自動で決済されます。"],
-    ["計算ノード","分割された値だけを使って計算します。在庫や資金は保有しません。不正な動作を試すこともできます。"]
+    ["注文者（Taker）","取引したい注文を出す側です。設計では注文は分割されて送られ、どの計算ノードにも全体は渡りません。約定価格を受け取れるのはこの席だけです。"],
+    ["値付け（Maker）","売り買いの気配の方針と最大数量を先に登録し、注文の相手になる側です。他の席の画面に注文の中身は表示されません。約定すると確保しておいた枠から自動で決済されます。"],
+    ["計算ノード","設計では分割された値だけを使って計算します。在庫や資金は持ちません。不正な動作を試すこともできます。"]
   ]
 },
 en: {
-  title:"QOMM", subtitle:"best-quote matching computed on split values",
-  engineSim:"Rust simulation", engineSimShort:"Rust test", engineSimNote:"real share layer; the comparison is in the clear",
-  engineMpc:"MP-SPDZ (quote matching)", engineMpcShort:"MPC matching", engineMpcNote:"the quote circuit runs under secure computation and sends a proved zkPI to DeFMI",
+  title:"QOMM", subtitle:"a trade is matched with the best quote without revealing the order",
+  engineSim:"simulation (cleartext compare)", engineSimShort:"sim", engineSimNote:"real share layer; the price comparison is in the clear",
+  engineMpc:"secure computation (MPC)", engineMpcShort:"MPC", engineMpcNote:"the quote circuit runs under secure computation (MP-SPDZ) and sends a proved zkPI to DeFMI",
   leave:"leave", langOther:"JA",
   connecting:"connecting to the server…",
   reconnecting:"connection lost — reconnecting…",
@@ -215,6 +231,15 @@ en: {
   lobbyWhy:"Each seat sees different information. That difference is the core argument. Empty seats run automatically.",
   yourName:"your name (optional)", watch:"watch everything (demo only)",
   theSeats:"empty seats run automatically; named ones have a person",
+  roleTaker:"Requests a trade (Taker)", roleTakerWhy:"Sends the order. Only this seat receives the matched price.",
+  roleMaker:"Provides quotes (Maker)", roleMakerWhy:"Registers a quoting policy and a maximum size up front; never sees the order.",
+  roleNode:"Compute nodes", roleNodeWhy:"Compute on split values only. Hold no inventory or cash.",
+  roleNodeWhySim:"By design they compute on split values only. In this simulation engine the price comparison is done by the room (server) in the clear. They hold no inventory or cash.",
+  engineNoticeSim:"This room runs the simulation engine. Splitting and dealing, error correction, reserves and settlement work as implemented, but the price comparison runs in the clear, not under secure computation. Per-seat views are a screen projection, not a guarantee from secure computation. Statements below about \"split values only\" describe the design.",
+  engineNoticeMpc:"This room compares prices under secure computation (MP-SPDZ). Per-seat views are a screen projection; the confidentiality guarantee comes from the computation design.",
+  designNote:"Design description",
+  engineNodeSim:"Simulation engine: the split values this node holds are real, but the price comparison is done by the room in the clear.",
+  legendSim:"Simulation engine: the price comparison is in the clear. Splitting, correction, reserves and settlement work as implemented.",
   whatIsThis:"About this demo",
   publicTitle:"Public information", publicWhy:"What everyone can see after a round.",
   historyTitle:"Recent rounds",
@@ -223,7 +248,8 @@ en: {
   taken:"taken", auto:"auto", manual:"held",
   seatTaker:"taker", seatMaker:"maker", seatNode:"node", seatObserver:"observer",
   phaseDeal:"split & deal", phaseCheck:"check inputs", phaseReduce:"price & match",
-  phaseOpen:"masked result", phaseSettle:"check & demo settlement", phaseIdle:"idle", phaseDone:"done", phaseQueued:"waiting for recovery",
+  phaseReduceSim:"price & match (sim: cleartext compare)",
+  phaseOpen:"keyed result", phaseSettle:"verify proof & settle on DeFMI", phaseIdle:"idle", phaseDone:"done", phaseQueued:"waiting for recovery (not settled)",
   stopped:"stopped", silent:"absent", opened:"public ciphertext", everyoneSees:"plaintext stays private",
   idleManual:"Waiting for the taker to send.",
   idleAuto:"Waiting for the next round.",
@@ -232,7 +258,7 @@ en: {
   ph_check:(f)=>`Checking ${f.values} × ${f.nodes} pieces against the dealing records.`,
   ph_check_skipped:"Input check is off: nothing stops a node using a value it was not dealt.",
   ph_check_rejected:(f)=>`${nodeList(f.rejected)} stated a value the dealing record does not bind. Excluded and stopped.`,
-  ph_reduce:(f)=>`${f.products} multiplications on split values; the openings are decoded and checked.`,
+  ph_reduce:(f)=>`${f.products} multiplications on split values; the openings are decoded and checked. The price comparison itself runs in the clear (simulation engine).`,
   ph_reduce_mpc:(f)=>`MP-SPDZ ran the circuit (${f.rounds} rounds, ${f.mb} MB).`,
   ph_reduce_corrected:(f)=>` ${f.corrections} corrected, named ${nodeList(f.named)}.`,
   ph_open:"The result is revealed under a key only the taker can remove.",
@@ -245,8 +271,12 @@ en: {
   computeMs:(ms)=>`completed in ${formatDuration(ms, 'en')}`,
   graphAria:"network diagram of the trade flow",
   gTaker:"Taker", gMaker:"Maker", gNode:"Node", gMatcher:"Match",
-  gZkpi:"zkPI proof verification", gLedger:"DeFMI settlement ledger", you:"you",
-  productBoundary:"Request order, corporate reserve limits, proved zkPI instructions and DvP settlement are recorded by the DeFMI custom VM on Avalanche. MPC nodes never custody assets.",
+  gZkpi:"Settlement proof (zkPI)", gLedger:"DeFMI ledger", you:"you",
+  productBoundary:"By design, request order, corporate reserve limits, proved zkPI instructions and DvP settlement are recorded by the DeFMI custom VM on Avalanche. MPC nodes never custody assets.",
+  ledgerLocal:"This room's ledger is an in-process demo ledger; the ledger hash shown is its value, not a record on DeFMI on Avalanche.",
+  ledgerGateway:"Where the ledger is recorded follows the gateway's configuration (DeFMI on Avalanche in the DeFMI network setup).",
+  candidate:"best-quote candidate (not filled)", candidatePrice:"price picked by the comparison (not filled)",
+  ledgerDvp:"DvP", ledgerReleased:"reserve released", ledgerHeld:"held", ledgerUnchanged:"unchanged", ledgerNone:"—",
   legendNoCustody:"Nodes hold no inventory or cash; only split values reach them.",
   legendLines:"moving line: information in flight · faint line: a path this seat cannot see",
   eShares:"split values", eMyOrder:"your order, split", eMyPolicy:"your policy, split",
@@ -255,7 +285,7 @@ en: {
   eNoChange:"no change",
   nIdle:"idle", nReceiving:"receiving", nChecking:"checking", nComputing:"computing",
   nDone:"done", nSilent:"absent", nRejected:"excluded", nNamed:"corrected", nStopped:"stopped", nQueued:"awaiting recovery",
-  mCompare:"comparing quotes", mPick:"best quote picked", mNone:"no match",
+  mCompare:"comparing quotes", mCompareSim:"comparing quotes (cleartext)", mPick:"best quote picked", mNone:"no match",
   zPass:"matches reference", zFail:"does not match", zDecoded:"openings decoded",
   zStopped:"failed — stopped", zWait:"idle",
   lSettled:"settled", lReleased:"released", lQueued:"reserve held", lCover:"dummy — unchanged", lWait:"idle",
@@ -383,11 +413,26 @@ en: {
   a_engine:(f)=>`the external engine failed${f.detail?": "+f.detail:""}`,
   a_queued:()=>"waiting for MPC recovery; automatic replay remains pending",
   explain:[
-    ["Taker","sends the order. It is split so no single node sees it all. Only this seat gets the price."],
-    ["Maker","registers a price policy and a maximum size; never sees the order. A win settles from the reserve automatically."],
-    ["Node","computes on split values. Holds no inventory or cash. Can misbehave on purpose."]
+    ["Taker","sends the order. By design it is split so no single node sees it all. Only this seat gets the price."],
+    ["Maker","registers a price policy and a maximum size; the order is not shown on other seats' screens. A win settles from the reserve automatically."],
+    ["Node","by design computes on split values. Holds no inventory or cash. Can misbehave on purpose."]
   ]
 }};
+// The room's engine decides what the screen may claim: 'sim' keeps the share
+// layer but compares prices in the clear, so design statements get qualified.
+function isSim(){ return !!(V && V.config && V.config.engine === 'sim'); }
+// A frontend started with a private gateway carries its port in the page; a
+// standalone room has none and settles on its own in-process demo ledger.
+function gatewayConfigured(){
+  return typeof document !== 'undefined'
+    && !!(document.querySelector('meta[name="qomm-gateway-port"]')?.content || '').trim();
+}
+function ledgerNote(){ return t(gatewayConfigured() ? 'ledgerGateway' : 'ledgerLocal'); }
+function ledgerOutcome(status){
+  return status === 'settled' ? t('ledgerDvp') : status === 'released' ? t('ledgerReleased')
+    : status === 'queued' ? t('ledgerHeld') : status === 'cover' ? t('ledgerUnchanged') : t('ledgerNone');
+}
+function engineKey(key){ return isSim() && S[lang] && S[lang][key + 'Sim'] !== undefined ? key + 'Sim' : key; }
 
 const hasDom = typeof document !== 'undefined';
 let lang = 'ja';
@@ -713,7 +758,7 @@ function drawPhaseStrip(){
     else if (at > i && (V.phase !== 'idle')) cls += ' done';
     if (stop && (V.phase === 'settle' || V.phase === 'done' || at > i) && i === stopIndex) cls += ' stopped';
     if (stop && i > stopIndex && i < phaseIndex('settle')) cls = 'phase-step';
-    const step = el('span', cls, t(key)); step.setAttribute('role', 'listitem');
+    const step = el('span', cls, t(engineKey(key))); step.setAttribute('role', 'listitem');
     if (V.phase === id) step.setAttribute('aria-current', 'step');
     strip.appendChild(step);
   });
@@ -775,9 +820,9 @@ function graphModel(W){
   const tw = compact ? Math.min(224, W - 2 * padX) : 170;
   const th = compact ? 138 : 160;
   const takerX = compact ? W / 2 : padX + tw / 2;
-  const mh = compact ? 138 : 160;
+  let mh = compact ? 138 : 160;
   const makerPositions = [];
-  let mw, participantBottom;
+  let mw, participantBottom, slim = false;
   if (compact){
     const makerCols = Math.max(1, Math.min(2, nMakers));
     mw = Math.min(154, (W - 2 * padX - gap * (makerCols - 1)) / makerCols);
@@ -794,6 +839,11 @@ function graphModel(W){
   } else {
     const makerAreaL = padX + tw + gap * 2, makerAreaR = W - padX;
     mw = Math.max(112, Math.min(154, (makerAreaR - makerAreaL - gap * (nMakers - 1)) / Math.max(nMakers, 1)));
+    // Eight Makers in one lane leave ~112px per card: a two-column metric
+    // grid ellipsizes every label there. Slim cards list the four figures as
+    // label/value rows instead and get the extra height that needs.
+    slim = mw < 140;
+    if (slim) mh = 196;
     const makerSpan = mw * nMakers + gap * (nMakers - 1);
     const makerStart = makerAreaL + Math.max(0, (makerAreaR - makerAreaL - makerSpan) / 2);
     for (let i = 0; i < nMakers; i++) makerPositions.push({x: makerStart + i * (mw + gap) + mw / 2, y: rowA});
@@ -822,7 +872,7 @@ function graphModel(W){
   const add = (n) => { nodes.push(n); return n; };
   add({id: 'taker', type: 'taker', x: takerX, y: rowA, w: tw, h: th});
   for (let i = 0; i < nMakers; i++)
-    add({id: 'maker:' + i, type: 'maker', index: i, x: makerPositions[i].x, y: makerPositions[i].y, w: mw, h: mh});
+    add({id: 'maker:' + i, type: 'maker', index: i, x: makerPositions[i].x, y: makerPositions[i].y, w: mw, h: mh, slim});
   for (let i = 0; i < nNodes; i++){
     const r = Math.floor(i / nPerRow), c = i % nPerRow;
     const count = Math.min(nPerRow, nNodes - r * nPerRow);
@@ -963,6 +1013,7 @@ function graphModel(W){
       if (dealState === 'flow' && (mine(n.id) || kind !== 'maker')) n.classes.push('is-active');
       if (winnerKnown === n.index && (phase === 'settle' || phase === 'done') && settleStatus === 'settled') n.classes.push('is-winner');
       if (compact) n.classes.push('compact');
+      if (n.slim) n.classes.push('is-slim');
     } else if (n.type === 'node'){
       n.title = t('gNode') + ' ' + n.index;
       const live = !silent.has(n.index) && !rejected.has(n.index);
@@ -982,11 +1033,14 @@ function graphModel(W){
     } else if (n.type === 'matcher'){
       n.title = t('gMatcher');
       if (queuePending) { n.sub = t('nQueued'); n.classes.push('is-stopped'); }
-      else if (phase === 'reduce') { n.sub = t('mCompare'); n.classes.push('is-active'); }
+      else if (phase === 'reduce') { n.sub = t(engineKey('mCompare')); n.classes.push('is-active'); }
       else if (stop && stopIndex <= phaseIndex('reduce') && at >= stopIndex) { n.sub = t('nStopped'); n.classes.push('is-stopped'); }
       else if (at >= phaseIndex('open')){
-        n.sub = kind === 'taker' && taker && taker.last ? (taker.last.winner === null || taker.last.winner === undefined ? t('mNone') : `${t('winner')}: ${t('gMaker')} ${taker.last.winner}`)
-          : kind === 'observer' && obs ? (obs.winner === null || obs.winner === undefined ? t('mNone') : `${t('winner')}: ${t('gMaker')} ${obs.winner}`)
+        // The comparison picks a candidate; only a settled round makes it the
+        // counterparty. A released/queued/cover round shows the candidate.
+        const pickLabel = settleStatus === 'settled' ? t('winner') : t('candidate');
+        n.sub = kind === 'taker' && taker && taker.last ? (taker.last.winner === null || taker.last.winner === undefined ? t('mNone') : `${pickLabel}: ${t('gMaker')} ${taker.last.winner}`)
+          : kind === 'observer' && obs ? (obs.winner === null || obs.winner === undefined ? t('mNone') : `${pickLabel}: ${t('gMaker')} ${obs.winner}`)
           : t('mPick');
         if (phase === 'open') n.classes.push('is-active');
       } else n.sub = t('nIdle');
@@ -1015,42 +1069,48 @@ function graphModel(W){
         : null;
     if (portfolio){
       const asset = (portfolio.inventory || [])[0];
+      // Short labels in both languages: the card cell is 40–60px wide. The
+      // full wording stays in the tooltip / accessible name.
       n.metrics = [
-        {label: lang === 'ja' ? '利用可 資金' : t('pfAvailable') + ' ' + t('pfCash'),
+        {label: lang === 'ja' ? '利用可 資金' : 'cash',
           fullLabel: t('pfAvailable') + ' ' + t('pfCash'), value: showGraphCash(portfolio.cash.available),
           fullValue: showCash(portfolio.cash.available)},
-        {label: lang === 'ja' ? '予約 資金' : t('pfReserved') + ' ' + t('pfCash'),
+        {label: lang === 'ja' ? '予約 資金' : 'reserved',
           fullLabel: t('pfReserved') + ' ' + t('pfCash'), value: showGraphCash(portfolio.cash.reserved),
           fullValue: showCash(portfolio.cash.reserved), tone: 'reserved'},
       ];
       if (asset){
-        n.metrics.push({label: lang === 'ja' ? asset.name : t('pfAvailable') + ' ' + asset.name,
+        n.metrics.push({label: asset.name,
           fullLabel: t('pfAvailable') + ' ' + asset.name, value: showCash(asset.available)});
-        n.metrics.push({label: lang === 'ja' ? '予約 ' + asset.name : t('pfReserved') + ' ' + asset.name,
+        // The two-column metric grid has no room for "予約 USD/JPY"; the
+        // asset is named by the neighbouring cell and by the tooltip.
+        n.metrics.push({label: lang === 'ja' ? '予約分' : t('pfReserved'),
           fullLabel: t('pfReserved') + ' ' + asset.name, value: showCash(asset.reserved), tone: 'reserved'});
       }
     } else if (n.type === 'node'){
       n.metrics = [
         {label: lang === 'ja' ? '保有' : 'custody', fullLabel: lang === 'ja' ? '保有資産' : 'custody',
           value: lang === 'ja' ? '資産なし' : 'none', tone: 'muted'},
-        {label: lang === 'ja' ? '受取' : 'input', fullLabel: lang === 'ja' ? '受信データ' : 'input',
-          value: lang === 'ja' ? '分割片' : 'shares', fullValue: lang === 'ja' ? '秘密分散値' : 'shares', tone: 'muted'},
+        {label: lang === 'ja' ? '受け取り' : 'input', fullLabel: lang === 'ja' ? '受け取るデータ' : 'input',
+          value: lang === 'ja' ? '分割した値' : 'shares', fullValue: lang === 'ja' ? '分割した値（秘密分散）' : 'shares', tone: 'muted'},
       ];
     } else if (n.type === 'matcher'){
+      // Real configuration only: the node count comes from the room, and the
+      // engine name says whether the comparison ran under MPC or in the clear.
       n.metrics = [
-        {label: lang === 'ja' ? '計算方式' : 'compute', value: 'MP-SPDZ'},
-        {label: lang === 'ja' ? '必要応答' : 'quorum', value: '5 / 7'},
+        {label: lang === 'ja' ? '計算ノード' : 'nodes', value: lang === 'ja' ? `${nNodes} 台` : String(nNodes)},
+        {label: lang === 'ja' ? '比較の方式' : 'engine', value: cfg.engine === 'mpc' ? (lang === 'ja' ? '秘密計算' : 'MPC') : (lang === 'ja' ? '試作（平文）' : 'sim (clear)')},
       ];
     } else if (n.type === 'zkpi'){
       n.metrics = [
-        {label: lang === 'ja' ? '照合証明' : 'match proof', value: pub.verified === true ? 'OK' : pub.verified === false ? 'NG' : '--'},
+        {label: lang === 'ja' ? '検証' : 'proof check', value: pub.verified === true ? (lang === 'ja' ? '合格' : 'passed') : pub.verified === false ? (lang === 'ja' ? '不合格' : 'failed') : '--'},
         {label: lang === 'ja' ? '追加署名' : 'post signature', value: lang === 'ja' ? '不要' : 'none'},
       ];
     } else if (n.type === 'ledger'){
       const root = phase === 'settle' ? (V.phase_fields || {}).state_root : settlement && settlement.state_root;
       n.metrics = [
-        {label: lang === 'ja' ? '決済方式' : 'settlement', value: 'DvP'},
-        {label: lang === 'ja' ? '状態根' : 'state root', value: root ? shortRoot(root) : '--'},
+        {label: lang === 'ja' ? '決済' : 'settlement', value: ledgerOutcome(settleStatus)},
+        {label: lang === 'ja' ? '台帳の識別値' : 'ledger hash', value: root ? shortRoot(root) : '--'},
       ];
     }
   });
@@ -1078,7 +1138,7 @@ function drawNetworkGraph(){
     noRoundText: noRound ? t('noRoundYet') + ' ' + phaseCaption() : '',
     legend: [['taker','gTaker'],['maker','gMaker'],['node','gNode'],['matcher','gMatcher'],['zkpi','gZkpi'],['ledger','gLedger']]
       .map(([type, key]) => ({type, label: t(key)})),
-    legendNotes: [t('legendNoCustody'), t('legendLines'), t('productBoundary')],
+    legendNotes: (isSim() ? [t('legendSim')] : []).concat([t('legendNoCustody'), t('legendLines'), t('productBoundary'), ledgerNote()]),
     reducedMotion,
   });
 }
@@ -1419,6 +1479,12 @@ function render(){
     const v = t(n.dataset.sPlaceholder); if (typeof v === 'string') n.placeholder = v; });
   $('btn-lang').textContent = t('langOther');
   const c = V.config;
+  // Engine notice in the body, not only the header badge: what the room
+  // actually guarantees right now, before any design description.
+  const banner = $('engine-banner');
+  banner.textContent = t(c.engine === 'sim' ? 'engineNoticeSim' : 'engineNoticeMpc');
+  banner.classList.toggle('sim', c.engine === 'sim');
+  banner.classList.remove('hide');
   const eng = $('engineBadge');
   eng.textContent = c.engine === 'sim' ? t('engineSim') : t('engineMpc');
   eng.dataset.short = c.engine === 'sim' ? t('engineSimShort') : t('engineMpcShort');
@@ -1426,7 +1492,7 @@ function render(){
     + (lang === 'en' && c.engine_note ? ' · ' + c.engine_note : '');
   eng.className = 'badge engine' + (c.engine === 'sim' ? '' : ' mpc');
   $('roundNum').textContent = (V.public && V.public.number)
-    ? '#' + V.public.number + ' · ' + (lang === 'ja' ? '完了まで' : '')
+    ? '#' + V.public.number + ' · ' + (lang === 'ja' ? '処理時間 ' : '')
       + formatDuration(V.public.ms, lang) : '#--';
   const badge = $('seatBadge');
   const seatName = V.kind === 'taker' ? t('seatTaker') : V.kind === 'maker' ? t('seatMaker') + ' ' + V.index
@@ -1542,16 +1608,33 @@ function drawNotices(){
 /* ─── lobby ────────────────────────────────────────────────────────── */
 function buildLobby(){
   const grid = $('lobby-grid'); grid.textContent = ''; grid.setAttribute('aria-busy', 'false');
-  V.seats.forEach(s => {
-    const b = el('button'); b.type = 'button';
-    const name = s.kind === 'taker' ? t('seatTaker') : (s.kind === 'maker' ? t('seatMaker') : t('seatNode')) + ' ' + s.index;
-    b.appendChild(el('b', null, name));
-    b.appendChild(el('span', null, s.held ? (s.label || t('taken')) : t('auto')));
-    b.disabled = s.held;
-    b.onclick = () => send({type:'claim', seat:s.id, label:$('pname').value});
-    grid.appendChild(b);
+  // Seats are grouped by what the role does, in the order a newcomer reads
+  // the market: who asks for a trade, who quotes, who computes.
+  const groups = [['taker', 'roleTaker', 'roleTakerWhy'], ['maker', 'roleMaker', 'roleMakerWhy'], ['node', 'roleNode', 'roleNodeWhy']];
+  groups.forEach(([kind, titleKey, whyKey]) => {
+    const seats = V.seats.filter(s => s.kind === kind);
+    if (!seats.length) return;
+    const head = el('div', 'lobby-group');
+    head.appendChild(el('b', null, t(titleKey)));
+    head.appendChild(el('span', null, t(engineKey(whyKey))));
+    grid.appendChild(head);
+    seats.forEach(s => {
+      const b = el('button'); b.type = 'button';
+      const name = s.kind === 'taker' ? t('seatTaker') : (s.kind === 'maker' ? t('seatMaker') : t('seatNode')) + ' ' + s.index;
+      b.appendChild(el('b', null, name));
+      b.appendChild(el('span', null, s.held ? (s.label || t('taken')) : t('auto')));
+      b.disabled = s.held;
+      b.onclick = () => send({type:'claim', seat:s.id, label:$('pname').value});
+      grid.appendChild(b);
+    });
   });
   const ex = $('explain'); ex.textContent = '';
+  if (isSim()){
+    const note = el('div', 'note-box'); note.style.marginBottom = '.6rem';
+    note.appendChild(el('b', null, t('designNote') + ' — '));
+    note.appendChild(document.createTextNode(t('engineNoticeSim')));
+    ex.appendChild(note);
+  }
   t('explain').forEach(([name, why]) => {
     const d = el('div'); d.style.marginBottom = '.4rem';
     d.appendChild(el('b', null, name + ' — '));
@@ -1668,14 +1751,14 @@ function buildTaker(root){
   opened.appendChild(maskedKey); r.appendChild(opened);
   r.appendChild(el('div', 'why', '↓ ' + t('minusMask')));
   const priv = el('div', 'hidden-box');
-  priv.appendChild(el('div', 'tag', t('yourPrice')));
+  const priceTag = el('div', 'tag', t('yourPrice')); priv.appendChild(priceTag);
   const price = el('div', 'big', '--'); priv.appendChild(price);
   const winner = el('div', null, ''); priv.appendChild(winner);
   r.appendChild(priv);
   root.appendChild(r);
   const settlementCard = card(t('settlementTitle'), '');
   const settlement = el('div'); settlementCard.appendChild(settlement); root.appendChild(settlementCard);
-  takerEls = {sel, side, qty, limitLabel, limit, limitHint, kind, reserve, go, maskedKey, price, winner, settlement};
+  takerEls = {sel, side, qty, limitLabel, limit, limitHint, kind, reserve, go, maskedKey, priceTag, price, winner, settlement};
 }
 function updateTaker(){
   const d = V.taker || {}, p = d.pending || {}, last = d.last, e = takerEls;
@@ -1713,8 +1796,12 @@ function updateTaker(){
     e.price.textContent = '--'; e.winner.textContent = t('noMaker');
     return;
   }
+  // A picked quote is only a counterparty once this round settled; a limit
+  // miss or a released reserve leaves it a candidate.
+  const filled = !!(d.settlement && d.settlement.status === 'settled');
+  e.priceTag.textContent = filled ? t('yourPrice') : t('candidatePrice');
   e.price.textContent = showPrice(V.assets, last.asset, last.price);
-  e.winner.textContent = t('winnerIs') + ': ' + t('gMaker') + ' ' + last.winner
+  e.winner.textContent = (filled ? t('winnerIs') : t('candidate')) + ': ' + t('gMaker') + ' ' + last.winner
     + '   ·   ' + t('eligible') + ' ' + last.eligible
     + (last.is_real ? '' : '   ·   ' + t('coverRound'));
 }
@@ -1814,6 +1901,7 @@ function updateMaker(){
 let nodeEls = {};
 function buildNode(root){
   const c = card(t('behaviourTitle'), t('behaviourWhy'));
+  if (isSim()) c.appendChild(el('div', 'note-box', t('engineNodeSim')));
   const inert = el('div', 'note-box hide');
   inert.appendChild(el('b', null, t('inertTitle')));
   inert.appendChild(el('div', null, t('inertWhy')));
@@ -1912,10 +2000,12 @@ function buildObserver(root){
 function updateObserver(){
   const d = V.observer || {}, e = obsEls;
   e.head.textContent = '';
+  const latestSettlement = (d.settlements || [])[0];
+  const roundSettled = !!(latestSettlement && latestSettlement.status === 'settled');
   if (d.request){
     const parts = [
       [t('request'), V.assets[d.request.asset].name + ' ' + (d.request.direction ? t('sell') : t('buy')) + ' ' + d.request.qty + (d.request.is_real ? '' : ' · ' + t('cover'))],
-      [t('winner'), d.winner === null || d.winner === undefined ? '--' : t('gMaker') + ' ' + d.winner],
+      [roundSettled ? t('winner') : t('candidate'), d.winner === null || d.winner === undefined ? '--' : t('gMaker') + ' ' + d.winner],
       [t('price'), showPrice(V.assets, d.request.asset, d.price)],
     ];
     parts.forEach(([k, v]) => { const box = el('div', 'hidden-box');

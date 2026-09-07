@@ -1,0 +1,680 @@
+name: qomm-demo-network
+
+x-build: &app-build
+  # The build context is the qomm repository root; the image clones the
+  # pinned zkFMI/defmi and zkFMI/zkpi revisions itself (see Dockerfile).
+  context: ..
+  dockerfile: demo-network/Dockerfile
+  # The images only use the host network while fetching pinned build inputs.
+  # Runtime services still communicate exclusively on the qomm-demo bridge.
+  network: host
+
+x-mpc-common: &mpc-common
+  image: qomm-demo-mpc:local
+  restart: unless-stopped
+  expose:
+    - "5000"
+    - "9100"
+  networks:
+    - qomm-demo
+  healthcheck:
+    test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9100/health"]
+    interval: 5s
+    timeout: 3s
+    retries: 60
+    start_period: 180s
+
+x-participant-common: &participant-common
+  image: qomm-demo-app:local
+  restart: unless-stopped
+  expose:
+    - "9200"
+  networks:
+    - qomm-demo
+  depends_on:
+    defmi-network:
+      condition: service_healthy
+  healthcheck:
+    test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9200/health"]
+    interval: 5s
+    timeout: 3s
+    retries: 20
+
+services:
+  defmi-network:
+    image: qomm-demo-defmi:local
+    build:
+      <<: *app-build
+      target: defmi-runtime
+    restart: unless-stopped
+    command:
+      - --runner
+      - /usr/local/bin/avalanche-network-runner
+      - --avalanchego
+      - /usr/local/bin/avalanchego
+      - --vm
+      - /usr/local/bin/qomm-avalanche-vm
+      - --genesis-config
+      - /etc/qomm-defmi/genesis.json
+      - --state-root
+      - /var/lib/qomm-defmi
+      - --runner-port
+      - "18080"
+      - --runner-gateway-port
+      - "18081"
+      - --proxy-host
+      - 0.0.0.0
+      - --proxy-port
+      - "9650"
+    ports:
+      - "9650:9650"
+    volumes:
+      - defmi-state:/var/lib/qomm-defmi
+    networks:
+      - qomm-demo
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:9650/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 90
+      start_period: 120s
+
+  mpc-0:
+    <<: *mpc-common
+    build:
+      <<: *app-build
+      target: mpc-runtime
+    command: &mpc-command
+      - qomm-mpc-node
+      - --node
+      - "0"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-0-state:/var/lib/qomm-mpc
+
+  mpc-1:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "1"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-1-state:/var/lib/qomm-mpc
+
+  mpc-2:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "2"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-2-state:/var/lib/qomm-mpc
+
+  mpc-3:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "3"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-3-state:/var/lib/qomm-mpc
+
+  mpc-4:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "4"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-4-state:/var/lib/qomm-mpc
+
+  mpc-5:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "5"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-5-state:/var/lib/qomm-mpc
+
+  mpc-6:
+    <<: *mpc-common
+    command:
+      - qomm-mpc-node
+      - --node
+      - "6"
+      - --api-port
+      - "9100"
+      - --listen-host
+      - 0.0.0.0
+      - --mp-spdz-root
+      - /opt/MP-SPDZ
+      - --state-root
+      - /var/lib/qomm-mpc
+      - --makers
+      - "4"
+      - --references
+      - 15750,10850,6420000
+      - --bit-length
+      - "63"
+      - --party-hosts
+      - mpc-0:5000,mpc-1:5000,mpc-2:5000,mpc-3:5000,mpc-4:5000,mpc-5:5000,mpc-6:5000
+    volumes:
+      - mpc-6-state:/var/lib/qomm-mpc
+
+  maker-0:
+    <<: *participant-common
+    build:
+      <<: *app-build
+      target: app-runtime
+    command: &maker-command
+      - qomm-participant-node
+      - --role
+      - maker
+      - --label
+      - Maker-0
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "50000000000"
+      - --inventory
+      - "5000"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - maker-0-state:/var/lib/qomm-participant
+
+  maker-1:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - maker
+      - --label
+      - Maker-1
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "50000000000"
+      - --inventory
+      - "5000"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - maker-1-state:/var/lib/qomm-participant
+
+  maker-2:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - maker
+      - --label
+      - Maker-2
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "50000000000"
+      - --inventory
+      - "5000"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - maker-2-state:/var/lib/qomm-participant
+
+  maker-3:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - maker
+      - --label
+      - Maker-3
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "50000000000"
+      - --inventory
+      - "5000"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - maker-3-state:/var/lib/qomm-participant
+
+  taker:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - taker
+      - --label
+      - Taker
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "3000000"
+      - --inventory
+      - "300"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - taker-state:/var/lib/qomm-participant
+
+  mpc-operator-0:
+    <<: *participant-common
+    command: &mpc-operator-command
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-0
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-0-state:/var/lib/qomm-participant
+
+  mpc-operator-1:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-1
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-1-state:/var/lib/qomm-participant
+
+  mpc-operator-2:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-2
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-2-state:/var/lib/qomm-participant
+
+  mpc-operator-3:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-3
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-3-state:/var/lib/qomm-participant
+
+  mpc-operator-4:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-4
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-4-state:/var/lib/qomm-participant
+
+  mpc-operator-5:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-5
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-5-state:/var/lib/qomm-participant
+
+  mpc-operator-6:
+    <<: *participant-common
+    command:
+      - qomm-participant-node
+      - --role
+      - mpc-operator
+      - --label
+      - MPC-Operator-6
+      - --host
+      - 0.0.0.0
+      - --port
+      - "9200"
+      - --state-root
+      - /var/lib/qomm-participant
+      - --cash
+      - "0"
+      - --inventory
+      - "0"
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+    volumes:
+      - mpc-operator-6-state:/var/lib/qomm-participant
+
+  gateway:
+    image: qomm-demo-app:local
+    build:
+      <<: *app-build
+      target: app-runtime
+    restart: unless-stopped
+    environment:
+      # Audit journal of every DeFMI transition the gateway issues (method and
+      # params, verbatim); the acceptance run re-presents an accepted
+      # allocation from it to show the L1 refuses a second application.
+      QOMM_DEFMI_JOURNAL_DIR: /home/qomm/defmi-journal
+    command:
+      - qomm-demo
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8801"
+      - --makers
+      - "4"
+      - --nodes
+      - "7"
+      - --threshold
+      - "2"
+      # The gateway defaults to the in-process `sim` engine; the demo network
+      # runs the seven MPC services, so the distributed engine is selected
+      # explicitly.
+      - --engine
+      - distributed
+      - --mpc-endpoints
+      - http://mpc-0:9100,http://mpc-1:9100,http://mpc-2:9100,http://mpc-3:9100,http://mpc-4:9100,http://mpc-5:9100,http://mpc-6:9100
+      - --defmi-endpoint
+      - http://defmi-network:9650/rpc
+      - --maker-endpoints
+      - http://maker-0:9200,http://maker-1:9200,http://maker-2:9200,http://maker-3:9200
+      - --taker-endpoint
+      - http://taker:9200
+      - --mpc-operator-endpoints
+      - http://mpc-operator-0:9200,http://mpc-operator-1:9200,http://mpc-operator-2:9200,http://mpc-operator-3:9200,http://mpc-operator-4:9200,http://mpc-operator-5:9200,http://mpc-operator-6:9200
+      - --round-seconds
+      - "15"
+      - --step-ms
+      - "450"
+      # The public acceptance demo is operator-driven. Background bot rounds
+      # would mutate DeFMI while an outage/replay test is measuring that the
+      # corporate queue causes exactly one canonical transition.
+      - --no-auto-rounds
+    expose:
+      - "8801"
+    networks:
+      - qomm-demo
+    depends_on:
+      defmi-network:
+        condition: service_healthy
+      mpc-0: {condition: service_healthy}
+      mpc-1: {condition: service_healthy}
+      mpc-2: {condition: service_healthy}
+      mpc-3: {condition: service_healthy}
+      mpc-4: {condition: service_healthy}
+      mpc-5: {condition: service_healthy}
+      mpc-6: {condition: service_healthy}
+      maker-0: {condition: service_healthy}
+      maker-1: {condition: service_healthy}
+      maker-2: {condition: service_healthy}
+      maker-3: {condition: service_healthy}
+      taker: {condition: service_healthy}
+      mpc-operator-0: {condition: service_healthy}
+      mpc-operator-1: {condition: service_healthy}
+      mpc-operator-2: {condition: service_healthy}
+      mpc-operator-3: {condition: service_healthy}
+      mpc-operator-4: {condition: service_healthy}
+      mpc-operator-5: {condition: service_healthy}
+      mpc-operator-6: {condition: service_healthy}
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8801/"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  frontend:
+    image: qomm-demo-app:local
+    # Same image as the participants and the gateway; declared here too so
+    # `docker compose build frontend` rebuilds the UI instead of doing nothing.
+    build:
+      <<: *app-build
+      target: app-runtime
+    restart: unless-stopped
+    command:
+      - qomm-frontend
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8800"
+      - --gateway-host
+      - gateway
+      - --gateway-port
+      # The Rust frontend proxies /ws inside this Compose network. Browsers use
+      # the same public 8800 origin as the static UI, so a second exposed port
+      # cannot accidentally resolve to another local or remote QOMM gateway.
+      - "8801"
+    ports:
+      - "8800:8800"
+    networks:
+      - qomm-demo
+    depends_on:
+      gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://localhost:8800/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+networks:
+  qomm-demo:
+    # Keep each Compose deployment isolated.  A fixed engine-level name made
+    # two concurrently running demo projects share DNS aliases such as
+    # `maker-0`; requests could then reach a participant from the other legal
+    # venue and invalidate its signed KYB cohort.
+    driver: bridge
+    internal: false
+
+volumes:
+  defmi-state:
+  mpc-0-state:
+  mpc-1-state:
+  mpc-2-state:
+  mpc-3-state:
+  mpc-4-state:
+  mpc-5-state:
+  mpc-6-state:
+  maker-0-state:
+  maker-1-state:
+  maker-2-state:
+  maker-3-state:
+  taker-state:
+  mpc-operator-0-state:
+  mpc-operator-1-state:
+  mpc-operator-2-state:
+  mpc-operator-3-state:
+  mpc-operator-4-state:
+  mpc-operator-5-state:
+  mpc-operator-6-state:
