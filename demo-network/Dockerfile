@@ -12,10 +12,10 @@ ARG RUST_VERSION=1.97.1
 ARG MP_SPDZ_COMMIT=9d809599ea6ce627216a389ca7d984fbb75d0cb9
 # zkpi carries the MP-SPDZ patches, including the mandatory hybrid TLS one.
 # Must equal the zkpi `rev` in rust/Cargo.toml.
-ARG ZKPI_COMMIT=38baa1a86bedd2b47d7439c57412d25a20f9c405
+ARG ZKPI_COMMIT=1366f4c0c20924c5c2665a13fe0901de3a4f76f8
 # defmi provides `qomm-avalanche-vm` and the `defmi_network` launcher.
 # Must equal the defmi `rev` in rust/Cargo.toml.
-ARG DEFMI_COMMIT=1034c0a76c76a88e266ae6afef8a7ce4607c6f1f
+ARG DEFMI_COMMIT=4a6081f653516d1b17ba650b9d8f5c4e5bcb2bc7
 # Empty means `nproc` of the build host.
 ARG BUILD_JOBS=
 # OpenSSL 3.5 is the first release with X25519MLKEM768 and ML-DSA. MP-SPDZ and

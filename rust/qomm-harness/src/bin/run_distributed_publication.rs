@@ -11,7 +11,9 @@ use qomm_audit::publication::{NodePublicationEvidence, NodeSignature};
 use qomm_audit::publication_ledger::{BudgetAllocation, PublicationLedger, PublicationRequest};
 use qomm_harness::local_mpc::LocalMpcRun;
 use qomm_harness::{unique_temp_dir, write_pretty_json, HarnessResult};
-use qomm_transport::proof_party::{ProofRequest, ProofResponse};
+use qomm_transport::proof_party::{
+    verify_peer_identity, FrostPeerEntry, ProofRequest, ProofResponse,
+};
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -292,16 +294,19 @@ fn run() -> HarnessResult<()> {
             "frost_identity",
             json!({"session": hex::encode(identity_session)}),
         )?;
-        let public = hex::decode(
-            identity
-                .get("publication_public")
-                .and_then(Value::as_str)
-                .ok_or("proof party omitted its publication identity")?,
-        )?;
-        if public.len() != 1984 {
+        // Pin nothing unsigned: both identity self-signatures (Ed25519 and
+        // ML-DSA-65) must cover the v3 identity body, which binds the
+        // publication key to this child's FROST identity for this session.
+        let entry: FrostPeerEntry = serde_json::from_value(identity)
+            .map_err(|_| "proof party emitted a malformed FROST identity")?;
+        if entry.party as usize != node + 1 {
+            return Err("proof party answered for another FROST party".into());
+        }
+        let verified = verify_peer_identity(&entry, &identity_session)?;
+        if verified.publication_public.len() != 1984 {
             return Err("proof-party publication identity has the wrong width".into());
         }
-        publication_registry.insert(format!("node-{node}"), public);
+        publication_registry.insert(format!("node-{node}"), verified.publication_public);
     }
 
     let governance_keys = (0..PARTIES)
