@@ -1,17 +1,17 @@
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{median, parse_value, repo_root, sample_sd, write_pretty_json, HarnessResult};
-use qomm_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
-use qomm_proofs::threshold_quote::{deal_quote_shares, joint_prove_quote};
-use qomm_proofs::threshold_range::{
-    deal_bits, joint_prove_range_from_contributions, verify_threshold_range,
-};
-use zkfmi_zk::bitrange::{prove_range, verify_range};
-use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
+use zkfmi_zk::bitrange::{prove_range, verify_range};
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
+use zkpi_proofs::threshold_quote::{deal_quote_shares, joint_prove_quote};
+use zkpi_proofs::threshold_range::{
+    deal_bits, joint_prove_range_from_contributions, verify_threshold_range,
+};
 
 struct Options {
     out: PathBuf,

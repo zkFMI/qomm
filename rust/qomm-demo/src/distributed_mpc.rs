@@ -18,7 +18,8 @@ use crate::mpc::{
     CORPORATE_QUEUE_UNAVAILABLE, CORPORATE_QUEUE_WAITING_SLOT,
 };
 use crate::participant_client::{
-    ClaimedCorporateRequest, CorporateOutboxAction, ParticipantClient, ParticipantSnapshot,
+    approval_derivation_signature, ClaimedCorporateRequest, CorporateOutboxAction,
+    ParticipantClient, ParticipantSnapshot,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
@@ -44,49 +45,10 @@ use qomm_mpc::inputs::{
     QUOTE_POLICY_BLINDING_FIELDS,
 };
 use qomm_mpc::program::{
-    build_program, pow2_ceil, sentinel_for, CheckMode, Mode, ProgramConfig, Reference, StopAfter,
-    ED25519_ORDER, PRODUCT_DVP_REMAINDER_BITS, PRODUCT_QUOTE_ELIGIBILITY_BITS,
-    PRODUCT_QUOTE_SPAN_BITS, PRODUCT_ZKPI_AMOUNT_BITS, PRODUCT_ZKPI_PRICE_BITS,
+    build_program, pow2_ceil, CheckMode, Mode, ProgramConfig, Reference, StopAfter, ED25519_ORDER,
+    PRODUCT_DVP_REMAINDER_BITS, PRODUCT_QUOTE_ELIGIBILITY_BITS, PRODUCT_QUOTE_SPAN_BITS,
+    PRODUCT_ZKPI_AMOUNT_BITS, PRODUCT_ZKPI_PRICE_BITS,
 };
-use qomm_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
-use qomm_proofs::price_limit::{from_threshold as threshold_price_limit, PriceLimitDirection};
-use qomm_proofs::quote_proof::{registered_policy_digest, registry_digest, RegisteredPolicy};
-use qomm_transport::application_crypto::{Signature, VerifyingKey};
-use qomm_transport::frost_coordinator::{distributed_frost_setup, recall_frost_group};
-use qomm_transport::mandate::{
-    decode_maker_mandate, decode_taker_mandate, encode_maker_mandate, encode_taker_mandate,
-    Direction, MakerPolicyMandate, TakerExecutionMandate,
-};
-use qomm_transport::mpc_result::fill_mask_commitment;
-use qomm_transport::mpc_result::{
-    decode_node_public_result_attestation, encode_node_public_result_attestation,
-    encode_public_result_attestations, verify_public_result_lane, NodePublicResultAttestation,
-};
-use qomm_transport::order::{
-    encode_admission_attestations, principal_ticket_id, verify_admission_lane,
-    NodeAdmissionAttestation, COMMITTEE_NODES,
-};
-use qomm_transport::pretrade_authority::{
-    PretradeAcknowledgement, PretradeReservationBinding, ReservationParty,
-};
-use qomm_transport::proof_client::ProofPartyRpc;
-use qomm_transport::proof_codec::{
-    encode_dvp_proofs, encode_quote_verification, encode_threshold_range,
-};
-use qomm_transport::proof_party::{ProofParty, ProofPartyConfig, ProofRequest, ProofResponse};
-use qomm_transport::resident_mpc::{
-    combine_partial_commitments, commit_standing_pool_remainder_with_store, rebind_standing_pool,
-    scalar_to_decimal, splice_standing_maker_shares, EncryptedMpcStateStore, InputSharing,
-    MpcSecretState, StandingPoolBinding, StandingPoolCommitRequest, StandingPoolStateReceipt,
-};
-use qomm_transport::settlement_handoff::encode_private_record;
-use qomm_transport::standing_pool::{
-    standing_pool_reservation_metadata, threshold_dvp_package_digest, threshold_dvp_sides,
-    threshold_range_proof_digest,
-};
-use zkfmi_zk::pedersen::Pedersen;
-use zkpi::typed::{AuthorizationScope, ExecutionContext, OperationKind, TradeDirection};
-use zkpi::{typed_wire, Bounds, Venue};
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -102,6 +64,42 @@ use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi::typed::{AuthorizationScope, ExecutionContext, OperationKind, TradeDirection};
+use zkpi::{typed_wire, Bounds, Venue};
+use zkpi_committee::application_crypto::{Signature, VerifyingKey};
+use zkpi_committee::frost_coordinator::{distributed_frost_setup, recall_frost_group};
+use zkpi_committee::mandate::{
+    decode_maker_mandate, decode_taker_mandate, encode_maker_mandate, encode_taker_mandate,
+    Direction, MakerPolicyMandate, TakerExecutionMandate,
+};
+use zkpi_committee::mpc_result::fill_mask_commitment;
+use zkpi_committee::mpc_result::{
+    decode_node_public_result_attestation, encode_node_public_result_attestation,
+    encode_public_result_attestations, verify_public_result_lane, NodePublicResultAttestation,
+};
+use zkpi_committee::order::{
+    encode_admission_attestations, principal_ticket_id, verify_admission_lane,
+    NodeAdmissionAttestation, COMMITTEE_NODES,
+};
+use zkpi_committee::pretrade_authority::{
+    PretradeAcknowledgement, PretradeReservationBinding, ReservationParty,
+};
+use zkpi_committee::proof_client::ProofPartyRpc;
+use zkpi_committee::proof_codec::{
+    encode_dvp_proofs, encode_quote_verification, encode_threshold_range,
+};
+use zkpi_committee::proof_party::{ProofParty, ProofPartyConfig, ProofRequest, ProofResponse};
+use zkpi_committee::resident_mpc::{
+    combine_partial_commitments, commit_standing_pool_remainder_with_store, rebind_standing_pool,
+    scalar_to_decimal, splice_standing_maker_shares, EncryptedMpcStateStore, InputSharing,
+    MpcSecretState, StandingPoolBinding, StandingPoolCommitRequest, StandingPoolStateReceipt,
+};
+use zkpi_committee::settlement_handoff::encode_private_record;
+use zkpi_committee::standing_pool::{
+    standing_pool_reservation_metadata, threshold_dvp_package_digest, threshold_dvp_sides,
+    threshold_range_proof_digest,
+};
 use zkpi_defmi_sdk::application::qomm_manifest_v1;
 use zkpi_defmi_sdk::execution::{ApplicationExecutionPlan, ExecutionNodeDigest, ExecutionShape};
 use zkpi_defmi_sdk::finality::{accept_canonical_transition, CanonicalTransition};
@@ -110,6 +108,9 @@ use zkpi_defmi_sdk::product::{
     finalize_product_settlement, prove_complete_quote, prove_product_settlement,
     CompleteQuotePublicInput, ProductSettlementRequest, RegisteredPolicyOpening,
 };
+use zkpi_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
+use zkpi_proofs::price_limit::{from_threshold as threshold_price_limit, PriceLimitDirection};
+use zkpi_proofs::quote_proof::{registered_policy_digest, registry_digest, RegisteredPolicy};
 
 const PROTOCOL_VERSION: u8 = 1;
 const MAX_HTTP_BYTES: usize = 8 << 20;
@@ -591,7 +592,7 @@ struct PretradeSigner {
     defmi_id: [u8; 32],
     presentation: KybPresentation,
     registry: SignedCohortRegistry,
-    trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
+    trusted_issuer: zkpi_proofs::kyb::KybIssuerKey,
     identity_scope: Vec<u8>,
     identity_context: Vec<u8>,
     required_cohort: String,
@@ -642,15 +643,15 @@ fn allocation_scalar(parts: &[&[u8]]) -> Scalar {
     scalar
 }
 
-fn participant_derived_u64(approval: &EntityApproval, label: &[u8]) -> u64 {
+fn participant_derived_u64(approval: &EntityApproval, label: &[u8]) -> Result<u64, String> {
     let digest = Sha256::new()
         .chain_update(b"QOMM:MAKER:PARTICIPANT-DERIVED-VALUE:v1")
         .chain_update(approval.participant_id)
         .chain_update(approval.statement)
-        .chain_update(&approval.signature)
+        .chain_update(approval_derivation_signature(approval)?)
         .chain_update(label)
         .finalize();
-    u64::from_be_bytes(digest[..8].try_into().expect("SHA-256 prefix")).max(1)
+    Ok(u64::from_be_bytes(digest[..8].try_into().expect("SHA-256 prefix")).max(1))
 }
 
 /// Create a public covenant note. It deliberately has no wallet recipient:
@@ -680,7 +681,7 @@ fn allocation_note(
         one_time: one_time.compress().to_bytes(),
         value_commitment,
         ephemeral: ephemeral.compress().to_bytes(),
-        encrypted_opening: qomm_transport::standing_pool::NoteOpening::Covenant,
+        encrypted_opening: zkpi_committee::standing_pool::NoteOpening::Covenant,
         lock_id,
     };
     output.note_id = output.derived_id()?;
@@ -887,7 +888,7 @@ pub struct TakerPretradeSignerConfig {
     pub defmi_id: [u8; 32],
     pub presentation: KybPresentation,
     pub registry: SignedCohortRegistry,
-    pub trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
+    pub trusted_issuer: zkpi_proofs::kyb::KybIssuerKey,
     pub identity_scope: Vec<u8>,
     pub identity_context: Vec<u8>,
     pub required_cohort: String,
@@ -1620,8 +1621,9 @@ impl DistributedMpcEngine {
             }),
         };
         let mut generated = build_inputs(&config).map_err(|error| error.to_string())?;
-        let max_reference = self.references.iter().copied().max().unwrap_or(0);
-        let sentinel = sentinel_for(self.bit_length, self.config.n_mm, 8 * max_reference)
+        let sentinel = self
+            .config
+            .packing_sentinel()
             .map_err(|error| error.to_string())?;
         finish_reference(&mut generated, &config, sentinel, Mode::Rfq)
             .map_err(|error| error.to_string())?;
@@ -2449,20 +2451,20 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 KeyPurpose::Quote,
                 source_policy_digest,
             )?;
-            let policy_version = participant_derived_u64(&policy_seed, b"policy-version");
+            let policy_version = participant_derived_u64(&policy_seed, b"policy-version")?;
             self.maker_policy_versions[maker] = policy_version;
             let mut policy_blindings = [0_u64; QUOTE_POLICY_BLINDING_FIELDS];
             for (field, blinding) in policy_blindings.iter_mut().enumerate() {
                 *blinding = participant_derived_u64(
                     &policy_seed,
                     format!("policy-field-{field}").as_bytes(),
-                );
+                )?;
             }
             let registered = self.registered_policy(maker, policy, &policy_blindings)?;
             let policy_digest = registered_policy_digest(maker, &registered);
             let inventory_reserve_blinding =
-                participant_derived_u64(&policy_seed, b"inventory-reserve");
-            let cash_reserve_blinding = participant_derived_u64(&policy_seed, b"cash-reserve");
+                participant_derived_u64(&policy_seed, b"inventory-reserve")?;
+            let cash_reserve_blinding = participant_derived_u64(&policy_seed, b"cash-reserve")?;
             if policy.active == 0 {
                 self.maker_authorities[maker] = Some(CachedMakerAuthority {
                     source_policy_digest,
@@ -2586,7 +2588,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 .map(|endpoint| HttpProofPartyClient::new(endpoint, self.timeout))
                 .collect::<Vec<_>>();
             let pq_committee =
-                qomm_transport::frost_coordinator::read_pq_committee(&mut proof_parties, public)?;
+                zkpi_committee::frost_coordinator::read_pq_committee(&mut proof_parties, public)?;
             market.register_verifier(
                 registry_digest,
                 public,
@@ -3478,12 +3480,9 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     .ok_or_else(|| "real request names an unknown asset".to_string())?;
                 let biased_cost = opened_cost
                     .checked_add(
-                        sentinel_for(
-                            self.bit_length,
-                            self.config.n_mm,
-                            8 * self.references.iter().copied().max().unwrap_or(0),
-                        )
-                        .map_err(|error| error.to_string())?,
+                        self.config
+                            .packing_sentinel()
+                            .map_err(|error| error.to_string())?,
                     )
                     .ok_or_else(|| "quote proof cost bias overflowed".to_string())?;
                 let winner_value = biased_cost
@@ -3526,12 +3525,9 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     quantity_blinding: round_slot.saturating_add(151),
                     now,
                     sentinel: i64::try_from(
-                        sentinel_for(
-                            self.bit_length,
-                            self.config.n_mm,
-                            8 * self.references.iter().copied().max().unwrap_or(0),
-                        )
-                        .map_err(|error| error.to_string())?,
+                        self.config
+                            .packing_sentinel()
+                            .map_err(|error| error.to_string())?,
                     )
                     .map_err(|_| "quote sentinel exceeds i64")?,
                     direction: u8::try_from(request.direction)
@@ -4013,7 +4009,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     Direction::TakerSells => (taker_leg, maker_leg),
                 };
                 let claim_authorization =
-                    |opening: &qomm_proofs::opening_envelope::OpeningEnvelope,
+                    |opening: &zkpi_proofs::opening_envelope::OpeningEnvelope,
                      asset: [u8; 32],
                      hold: [u8; 32],
                      kind: NoteClaimKind| {
@@ -4604,6 +4600,8 @@ impl MpcQuoteEngine for DistributedMpcEngine {
 
 #[derive(Clone, Debug)]
 pub struct MpcNodeConfig {
+    /// Operator-selected corporate services, never supplied by a claim request.
+    pub recipient_participants: Vec<String>,
     pub node: usize,
     pub n_parties: usize,
     pub threshold: usize,
@@ -4632,6 +4630,74 @@ struct PreparedNode {
     /// persistence, and never read back by the coordinator.
     maker_state: EncryptedMpcStateStore,
     padded_makers: usize,
+}
+
+fn enroll_recipient_opening_keys(
+    config: &MpcNodeConfig,
+) -> Result<Vec<zkpi_committee::proof_party::RecipientOpeningKey>, String> {
+    if config.recipient_participants.len() != config.n_makers + 1 {
+        return Err("recipient enrollment requires every Maker and one Taker".into());
+    }
+    let mut identities = BTreeSet::new();
+    let mut views = BTreeSet::new();
+    let mut makers = 0;
+    let mut takers = 0;
+    let mut recipients = Vec::new();
+    for endpoint in &config.recipient_participants {
+        let snapshot = ParticipantClient::new(endpoint, Duration::from_secs(15))?.snapshot()?;
+        match snapshot.role.as_str() {
+            "maker" => makers += 1,
+            "taker" => takers += 1,
+            _ => return Err("recipient enrollment contains a non-trading participant".into()),
+        }
+        // Claims address the pre-trade participant handle, not the wallet's
+        // unrelated note-view point. The corporate service decrypts these
+        // handle-addressed envelopes with its enrolled hybrid note key.
+        let recipient_view = (G * Scalar::from(participant_handle_scalar(
+            snapshot.role.as_bytes(),
+            &snapshot.participant_id,
+        )))
+        .compress()
+        .to_bytes();
+        if !identities.insert(snapshot.participant_id) || !views.insert(recipient_view) {
+            return Err("recipient enrollment repeats a participant or note view".into());
+        }
+        recipients.push(zkpi_committee::proof_party::RecipientOpeningKey {
+            view: recipient_view,
+            public: snapshot.note_opening_public.to_vec(),
+        });
+    }
+    if makers != config.n_makers || takers != 1 {
+        return Err("recipient enrollment does not match the configured trading population".into());
+    }
+    recipients.sort_by_key(|recipient| recipient.view);
+    let encoded = serde_json::to_vec(&recipients).map_err(|error| error.to_string())?;
+    let path = config.state_root.join("recipient-opening-directory.json");
+    pin_recipient_opening_directory(&path, &encoded)?;
+    Ok(recipients)
+}
+
+fn pin_recipient_opening_directory(path: &Path, encoded: &[u8]) -> Result<(), String> {
+    // This development network's operator selects the services in Compose.
+    // Pin their independently fetched keys before admitting any proof jobs;
+    // silently changing a recipient after a restart is never permitted.
+    match fs::read(path) {
+        Ok(prior) if prior == encoded => {}
+        Ok(_) => {
+            return Err(
+                "enrolled recipient opening directory changed; operator migration required".into(),
+            )
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+            atomic_private_write(path, encoded)?;
+        }
+        Err(error) => {
+            return Err(format!(
+                "recipient opening directory is unavailable: {error}"
+            ))
+        }
+    }
+    Ok(())
 }
 
 fn read_certified_admission(
@@ -4749,7 +4815,7 @@ impl PreparedNode {
         let mut proof_passphrase = fs::read(&proof_passphrase_path)
             .map_err(|error| format!("proof-party passphrase is unavailable: {error}"))?;
         let proof_party = ProofParty::new(ProofPartyConfig {
-            recipient_opening_keys: Vec::new(),
+            recipient_opening_keys: enroll_recipient_opening_keys(&config)?,
             node: u16::try_from(config.node)
                 .map_err(|_| "MPC node index exceeds proof-party bounds")?,
             allowed_root: config.state_root.clone(),
@@ -5165,7 +5231,7 @@ impl PreparedNode {
                 node: self.node_u16()?,
                 slot: request.admission.slot,
                 sequence: request.admission.sequence,
-                principal_digest: qomm_transport::order::admission_principal_digest(
+                principal_digest: zkpi_committee::order::admission_principal_digest(
                     &request.admission.principal,
                 )?,
                 ticket_id: principal_ticket_id(slot, &request.admission.principal)?,
@@ -6129,6 +6195,25 @@ mod tests {
     }
 
     #[test]
+    fn recipient_opening_directory_is_pinned_across_restart_and_refuses_replacement() {
+        let directory = tempdir().unwrap();
+        let path = directory.path().join("recipients.json");
+        let enrolled = b"operator-enrolled-public-directory";
+        pin_recipient_opening_directory(&path, enrolled).unwrap();
+        pin_recipient_opening_directory(&path, enrolled).unwrap();
+        assert_eq!(
+            fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+            0o600
+        );
+        assert!(pin_recipient_opening_directory(&path, b"replacement").is_err());
+        assert_eq!(fs::read(&path).unwrap(), enrolled);
+        fs::write(&path, b"corrupt").unwrap();
+        assert!(pin_recipient_opening_directory(&path, enrolled).is_err());
+        assert_eq!(fs::read(&path).unwrap(), b"corrupt");
+        assert!(pin_recipient_opening_directory(directory.path(), enrolled).is_err());
+    }
+
+    #[test]
     fn prepared_node_admission_retry_restores_exact_hybrid_receipt() {
         let directory = tempdir().unwrap();
         fs::set_permissions(directory.path(), fs::Permissions::from_mode(0o700)).unwrap();
@@ -6157,6 +6242,7 @@ mod tests {
             .unwrap();
             PreparedNode {
                 config: MpcNodeConfig {
+                    recipient_participants: Vec::new(),
                     node: 0,
                     n_parties: 7,
                     threshold: 4,
@@ -6214,7 +6300,7 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), persisted);
         // A valid receipt under another node key is not an enrolled receipt.
         let (mut attestation, _) = decode_admission_receipt(&first).unwrap();
-        let other = qomm_transport::application_crypto::SigningKey::generate(&mut OsRng);
+        let other = zkpi_committee::application_crypto::SigningKey::generate(&mut OsRng);
         attestation = attestation.sign(&other).unwrap();
         let mut forged = first.clone();
         forged.identity_public = hex::encode(other.verifying_key().to_bytes());
@@ -6305,7 +6391,7 @@ mod tests {
         assert_eq!(shares.len(), 7);
         let total = shares
             .iter()
-            .map(|share| qomm_transport::resident_mpc::decimal_to_scalar(share).unwrap())
+            .map(|share| zkpi_committee::resident_mpc::decimal_to_scalar(share).unwrap())
             .sum::<Scalar>();
         assert_eq!(total, Scalar::from(4_900_u64));
     }
@@ -6343,19 +6429,34 @@ mod tests {
 
     #[test]
     fn maker_blindings_are_restart_stable_and_domain_separated() {
-        let approval = EntityApproval {
+        let mut approval = EntityApproval {
             participant_id: [1; 32],
             key_purpose: KeyPurpose::Quote,
             key_epoch: 1,
             statement: [2; 32],
-            signature: vec![3; 64],
+            signature: vec![3; 64 + zkfmi_crypto::suite::ML_DSA_65_SIG_BYTES],
         };
-        let first = participant_derived_u64(&approval, b"inventory-reserve");
+        let first = participant_derived_u64(&approval, b"inventory-reserve").unwrap();
         assert_eq!(
             first,
-            participant_derived_u64(&approval, b"inventory-reserve")
+            participant_derived_u64(&approval, b"inventory-reserve").unwrap()
         );
-        assert_ne!(first, participant_derived_u64(&approval, b"cash-reserve"));
+        assert_ne!(
+            first,
+            participant_derived_u64(&approval, b"cash-reserve").unwrap()
+        );
+        approval.signature[64..].fill(4);
+        assert_eq!(
+            first,
+            participant_derived_u64(&approval, b"inventory-reserve").unwrap()
+        );
+        approval.signature[0] ^= 1;
+        assert_ne!(
+            first,
+            participant_derived_u64(&approval, b"inventory-reserve").unwrap()
+        );
+        approval.signature.truncate(64);
+        assert!(participant_derived_u64(&approval, b"inventory-reserve").is_err());
     }
 
     #[test]

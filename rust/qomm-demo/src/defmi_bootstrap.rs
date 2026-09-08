@@ -5,11 +5,12 @@
 //! signing keys here deliberately match the public local-development genesis;
 //! they are never suitable for a production network.
 
-use crate::participant_client::{KybPresentationRequest, ParticipantClient, ParticipantSnapshot};
+use crate::participant_client::{
+    approval_derivation_signature, KybPresentationRequest, ParticipantClient, ParticipantSnapshot,
+};
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
-use ed25519_dalek::{Signature, SigningKey};
 use defmi::asset_link::prove as prove_asset_link;
 use defmi::avalanche::{
     AvalancheClient, AvalancheNoteBridge, AvalancheRpcClient, CanonicalCreditFacility,
@@ -40,24 +41,11 @@ use defmi::participant::{
 use defmi::product::{verify_note_reservation, verify_taker_reservation, IdentityEvidence};
 use defmi::product_evidence::{MpcNoFillEvidence, ProductSettlementEvidence};
 use defmi::settlement_verifier::SettlementVerifierConfig;
+use ed25519_dalek::{Signature, SigningKey};
 use qomm_mpc::program::{
     PRODUCT_QUOTE_ELIGIBILITY_BITS, PRODUCT_QUOTE_SPAN_BITS, PRODUCT_ZKPI_AMOUNT_BITS,
     PRODUCT_ZKPI_PRICE_BITS,
 };
-use qomm_proofs::kyb::{cohort_id, KybPresentation, SignedCohortRegistry};
-use qomm_transport::frost_cluster::{
-    sign_reserve_context, sign_reserve_payment, ReserveMandateRef,
-};
-use qomm_transport::mandate::{Direction, MakerPolicyMandate, TakerExecutionMandate};
-use qomm_transport::order::{
-    verify_admission_lane, CertifiedAdmissionLane, NodeAdmissionAttestation, OrderedAdmission,
-};
-use qomm_transport::proof_client::ProofPartyRpc;
-use zkfmi_zk::pedersen::Pedersen;
-use zkpi::typed::{
-    AuthorizationScope, ExecutionContext, OperationKind, TradeDirection, TypedInstruction,
-};
-use zkpi::{frost, typed_wire, Bounds, Issuer, Openings, Venue};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rand_core::OsRng;
@@ -68,7 +56,21 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi::typed::{
+    AuthorizationScope, ExecutionContext, OperationKind, TradeDirection, TypedInstruction,
+};
+use zkpi::{frost, typed_wire, Bounds, Issuer, Openings, Venue};
+use zkpi_committee::frost_cluster::{
+    sign_reserve_context, sign_reserve_payment, ReserveMandateRef,
+};
+use zkpi_committee::mandate::{Direction, MakerPolicyMandate, TakerExecutionMandate};
+use zkpi_committee::order::{
+    verify_admission_lane, CertifiedAdmissionLane, NodeAdmissionAttestation, OrderedAdmission,
+};
+use zkpi_committee::proof_client::ProofPartyRpc;
 use zkpi_defmi_sdk::finality::{CanonicalReadback, ReadbackKind};
+use zkpi_proofs::kyb::{cohort_id, KybPresentation, SignedCohortRegistry};
 
 const MAX_RPC_BYTES: usize = 1 << 20;
 const ACCEPTANCE_TIMEOUT: Duration = Duration::from_secs(180);
@@ -82,12 +84,12 @@ const AUTOMATIC_EXPIRY_RELEASE_VALID_UNTIL: u64 = i64::MAX as u64;
 /// Public-demo receipt authority shared by the local DeFMI container and the
 /// seven proof nodes.  This deterministic key is intentionally non-secret and
 /// must never be used outside the checked-in demonstration network.
-pub fn development_receipt_signing_key() -> qomm_transport::application_crypto::SigningKey {
+pub fn development_receipt_signing_key() -> zkpi_committee::application_crypto::SigningKey {
     // Public demo-only fixture: two explicitly distinct seed domains.
     let mut seeds = [0; 64];
     seeds[..32].copy_from_slice(&digest("QOMM:DEMO:DEFMI-RESERVATION-RECEIPT:ED:v2"));
     seeds[32..].copy_from_slice(&digest("QOMM:DEMO:DEFMI-RESERVATION-RECEIPT:PQ:v2"));
-    qomm_transport::application_crypto::SigningKey::from_bytes(&seeds)
+    zkpi_committee::application_crypto::SigningKey::from_bytes(&seeds)
 }
 
 pub fn development_receipt_public() -> [u8; 32] {
@@ -132,7 +134,7 @@ pub struct DefmiBootstrapReport {
 #[derive(Clone, Debug)]
 pub struct DefmiKybBundle {
     pub registry: SignedCohortRegistry,
-    pub trusted_issuer: qomm_proofs::kyb::KybIssuerKey,
+    pub trusted_issuer: zkpi_proofs::kyb::KybIssuerKey,
     pub scope: Vec<u8>,
     pub context: Vec<u8>,
     pub required_cohort: String,
@@ -692,8 +694,7 @@ impl DefmiMarketEpoch {
                     || existing.facility.rail_asset_id != asset_id
                     || existing.facility.cap_commitment != cap_commitment
                     || existing.facility.risk_policy_digest != guarantor.risk_policy_digest
-                    || existing.facility.status
-                        != defmi::facility::CreditFacilityStatus::Active
+                    || existing.facility.status != defmi::facility::CreditFacilityStatus::Active
                 {
                     return Err("canonical Taker facility differs from its aggregate cap".into());
                 }
@@ -767,7 +768,7 @@ impl DefmiMarketEpoch {
         admission_receipt: &DefmiAdmissionReceipt,
         presentation: &KybPresentation,
         registry: &SignedCohortRegistry,
-        trusted_issuer: &qomm_proofs::kyb::KybIssuerKey,
+        trusted_issuer: &zkpi_proofs::kyb::KybIssuerKey,
         identity_scope: &[u8],
         identity_context: &[u8],
         required_cohort: &str,
@@ -1312,7 +1313,9 @@ impl DefmiMarketEpoch {
         if opening.value != maximum_amount || opening.blinding != amount_blinding {
             return Err("Taker escrow note differs from the pre-RFQ reserve opening".into());
         }
-        let serial = (G * opening.serial).compress().to_bytes();
+        let serial = defmi::notes::note_nullifier(&opening.serial)
+            .compress()
+            .to_bytes();
         let serial_status = self.rpc.note_serial_snapshot(serial)?;
         if serial_status.state_root != proof_root || serial_status.spent {
             return Err("Taker escrow serial was already consumed".into());
@@ -1480,9 +1483,13 @@ impl DefmiMarketEpoch {
             || released_hold.status != "released"
             || released_hold.settlement_digest != ZERO
             || released_facility.facility.available_commitment
-                != released_facility.facility.cap_commitment
-            || released_facility.facility.held_commitment != ZERO
-            || released_facility.facility.sequence != facility.facility.sequence.saturating_add(1)
+                != order.release.transition.after_available_commitment
+            || released_facility.facility.held_commitment
+                != order.release.transition.after_held_commitment
+            || released_facility.facility.outstanding_commitment
+                != order.release.transition.after_outstanding_commitment
+            || released_facility.facility.sequence
+                != order.release.transition.before_sequence.saturating_add(1)
         {
             return Err("DeFMI accepted a different Taker no-fill refund".into());
         }
@@ -1637,7 +1644,9 @@ impl DefmiMarketEpoch {
         if opening.value != maximum_amount || opening.blinding != amount_blinding {
             return Err("expired escrow differs from the pre-RFQ reserve opening".into());
         }
-        let serial = (G * opening.serial).compress().to_bytes();
+        let serial = defmi::notes::note_nullifier(&opening.serial)
+            .compress()
+            .to_bytes();
         let serial_status = self.rpc.note_serial_snapshot(serial)?;
         if serial_status.state_root != proof_root || serial_status.spent {
             return Err("expired Taker escrow serial was already consumed".into());
@@ -1840,8 +1849,8 @@ impl DefmiMarketEpoch {
             return Err("Maker pool request differs from its signed participant scope".into());
         }
         let participant_capacity = match mandate.direction {
-            qomm_transport::mandate::Direction::TakerBuys => snapshot.inventory,
-            qomm_transport::mandate::Direction::TakerSells => snapshot.cash,
+            zkpi_committee::mandate::Direction::TakerBuys => snapshot.inventory,
+            zkpi_committee::mandate::Direction::TakerSells => snapshot.cash,
         };
         if maximum_amount > participant_capacity {
             return Err(
@@ -1892,7 +1901,7 @@ impl DefmiMarketEpoch {
             b"QOMM:DEMO:MAKER-FACILITY-BLINDING:v1",
             &facility_approval.participant_id,
             &facility_approval.statement,
-            &facility_approval.signature,
+            approval_derivation_signature(&facility_approval)?,
         ]));
         if facility_blinding == Scalar::ZERO {
             facility_blinding = Scalar::ONE;
@@ -1955,14 +1964,14 @@ impl DefmiMarketEpoch {
         let asset = AssetDefinition {
             asset_id: mandate.asset_id,
             code: match mandate.direction {
-                qomm_transport::mandate::Direction::TakerBuys => {
+                zkpi_committee::mandate::Direction::TakerBuys => {
                     format!("QOMM-DEMO-SEC-{}", &hex::encode(mandate.asset_id)[..8])
                 }
-                qomm_transport::mandate::Direction::TakerSells => "QOMM-DEMO-CASH".into(),
+                zkpi_committee::mandate::Direction::TakerSells => "QOMM-DEMO-CASH".into(),
             },
             kind: match mandate.direction {
-                qomm_transport::mandate::Direction::TakerBuys => AssetKind::Security,
-                qomm_transport::mandate::Direction::TakerSells => AssetKind::Cash,
+                zkpi_committee::mandate::Direction::TakerBuys => AssetKind::Security,
+                zkpi_committee::mandate::Direction::TakerSells => AssetKind::Cash,
             },
             decimals: 0,
             terms_digest: hash_parts(&[b"QOMM:DEMO:ASSET-TERMS:v1", &mandate.asset_id]),
@@ -2862,7 +2871,7 @@ impl DefmiMarketEpoch {
     pub fn register_admission(
         &mut self,
         attestations: &[NodeAdmissionAttestation],
-        node_keys: &[qomm_transport::application_crypto::VerifyingKey],
+        node_keys: &[zkpi_committee::application_crypto::VerifyingKey],
         expires_at: u64,
     ) -> Result<DefmiAdmissionReceipt, String> {
         if self.registry_digest.is_none() {
@@ -2871,7 +2880,7 @@ impl DefmiMarketEpoch {
         let certified = verify_admission_lane(attestations, node_keys)?;
         let raw_keys = node_keys
             .iter()
-            .map(qomm_transport::application_crypto::VerifyingKey::to_bytes)
+            .map(zkpi_committee::application_crypto::VerifyingKey::to_bytes)
             .collect::<Vec<_>>();
         let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
         if self.committee_keys.as_deref() != Some(raw_keys.as_slice()) {
@@ -2993,7 +3002,7 @@ pub fn bootstrap(config: DefmiBootstrapConfig) -> Result<DefmiBootstrapReport, S
     let kyb_signing = zkfmi_crypto::test_support::hybrid_signer(&digest(&format!(
         "QOMM:DEMO:KYB-ISSUER:{chain_id}:v2"
     )));
-    let trusted_issuer = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+    let trusted_issuer = zkpi_proofs::kyb::KybIssuerKey::from_bytes(
         &zkfmi_crypto::traits::Signer::public_key(kyb_signing.as_ref()),
     )?;
     let required_cohort = cohort_id("JP", "regulated-dealer", 2);
@@ -3417,8 +3426,7 @@ fn development_committee(
     ),
     String,
 > {
-    let keys =
-        defmi::governance::public_development_keys().map_err(|error| error.to_string())?;
+    let keys = defmi::governance::public_development_keys().map_err(|error| error.to_string())?;
     let nodes = keys
         .iter()
         .map(|(name, key)| (name.clone(), key.verifying_key()))

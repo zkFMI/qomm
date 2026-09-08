@@ -11,9 +11,6 @@ use qomm_audit::publication::{NodePublicationEvidence, NodeSignature};
 use qomm_audit::publication_ledger::{BudgetAllocation, PublicationLedger, PublicationRequest};
 use qomm_harness::local_mpc::LocalMpcRun;
 use qomm_harness::{unique_temp_dir, write_pretty_json, HarnessResult};
-use qomm_transport::proof_party::{
-    verify_peer_identity, FrostPeerEntry, ProofRequest, ProofResponse,
-};
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -25,6 +22,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::time::Instant;
 use zkfmi_crypto::{hybrid::signature::HybridSigner, key::KeyPurpose, traits::Signer};
+use zkpi_committee::proof_party::{
+    verify_peer_identity, FrostPeerEntry, ProofRequest, ProofResponse,
+};
 
 const PARTIES: usize = 7;
 const THRESHOLD: usize = 3;

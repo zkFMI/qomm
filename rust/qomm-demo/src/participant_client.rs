@@ -10,24 +10,39 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
-use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use defmi::facility::{
     CreditFacilityRelationProof, CreditFacilityTransition, CreditTransitionKind,
 };
 use defmi::note_chain::{ClaimOwnershipProof, NoteClaimMaterialization, NoteOutput};
 use defmi::notes::{decode_spend_proof, Address, SpendProof};
 use defmi::participant::{EntityApproval, KeyPurpose};
-use qomm_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
+use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 use qomm_transport::kyb_wire::{KybPresentationWire, KybRegistryWire};
-use qomm_transport::mandate::{MakerPolicyMandate, TakerExecutionMandate};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::{Read, Write};
 use std::net::{Shutdown, TcpStream, ToSocketAddrs};
 use std::time::Duration;
+use zkpi_committee::mandate::{MakerPolicyMandate, TakerExecutionMandate};
+use zkpi_proofs::kyb::{verify_presentation, KybPresentation, SignedCohortRegistry};
 
 const MAX_HTTP_BYTES: usize = 1 << 20;
+
+/// Stable derivation material from an already verified hybrid approval.
+///
+/// The Ed25519 component is deterministic; the ML-DSA component is randomized
+/// and must never be hashed into persistent facility/policy identifiers.
+/// This is not an authorization check: callers obtain the approval through
+/// `entity_approval`, which verifies BOTH enrolled keys against the same body.
+/// Retaining the classical component here preserves the legacy derivation,
+/// without changing the hybrid approval sent to or verified by DeFMI.
+pub(crate) fn approval_derivation_signature(approval: &EntityApproval) -> Result<&[u8], String> {
+    if approval.signature.len() != 64 + zkfmi_crypto::suite::ML_DSA_65_SIG_BYTES {
+        return Err("derivation requires a complete hybrid entity approval".into());
+    }
+    Ok(&approval.signature[..64])
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ParticipantSnapshot {
@@ -37,8 +52,8 @@ pub struct ParticipantSnapshot {
     pub sequence: u64,
     pub public_keys: BTreeMap<String, [u8; 32]>,
     pub pq_public_keys: BTreeMap<String, Vec<u8>>,
-    pub quote_application_key: qomm_transport::application_crypto::VerifyingKey,
-    pub settlement_application_key: qomm_transport::application_crypto::VerifyingKey,
+    pub quote_application_key: zkpi_committee::application_crypto::VerifyingKey,
+    pub settlement_application_key: zkpi_committee::application_crypto::VerifyingKey,
     pub kyb_public_point: [u8; 32],
     pub note_view_public: [u8; 32],
     pub note_opening_public: [u8; zkfmi_crypto::sealed::RECIPIENT_PUBLIC_BYTES],
@@ -59,7 +74,7 @@ pub struct ParticipantClient {
 pub struct KybPresentationRequest<'a> {
     pub snapshot: &'a ParticipantSnapshot,
     pub registry: &'a SignedCohortRegistry,
-    pub trusted_issuer: &'a qomm_proofs::kyb::KybIssuerKey,
+    pub trusted_issuer: &'a zkpi_proofs::kyb::KybIssuerKey,
     pub scope: &'a [u8],
     pub context: &'a [u8],
     pub required_cohort: &'a str,
@@ -294,7 +309,7 @@ impl ParticipantClient {
                 let public: [u8; zkfmi_crypto::sealed::RECIPIENT_PUBLIC_BYTES] = decoded
                     .try_into()
                     .map_err(|_| "participant hybrid note key has wrong length")?;
-                qomm_transport::selective_disclosure::WinnerPublicKey::from_raw(&public)?;
+                zkpi_committee::selective_disclosure::WinnerPublicKey::from_raw(&public)?;
                 note_opening_public = Some(public);
                 continue;
             }
@@ -309,7 +324,7 @@ impl ParticipantClient {
                     || application_keys
                         .insert(
                             purpose.clone(),
-                            qomm_transport::application_crypto::VerifyingKey::from_bytes(&public)
+                            zkpi_committee::application_crypto::VerifyingKey::from_bytes(&public)
                                 .map_err(|error| error.to_string())?,
                         )
                         .is_some()
@@ -1558,7 +1573,7 @@ impl ParticipantClient {
         let public_key = fixed_hex(&required_string(&value, "public_key")?, "public key")?;
         let signature = hex::decode(required_string(&value, "signature")?)
             .map_err(|_| "participant signature is not hex".to_string())?;
-        qomm_transport::application_crypto::Signature::try_from(signature.as_slice())
+        zkpi_committee::application_crypto::Signature::try_from(signature.as_slice())
             .map_err(|error| error.to_string())?;
         Ok(SignedBody {
             participant_id,
@@ -1570,7 +1585,7 @@ impl ParticipantClient {
     fn verify_application_signature(
         &self,
         snapshot: &ParticipantSnapshot,
-        expected: &qomm_transport::application_crypto::VerifyingKey,
+        expected: &zkpi_committee::application_crypto::VerifyingKey,
         body: &[u8],
         signed: &SignedBody,
     ) -> Result<(), String> {
@@ -1580,7 +1595,7 @@ impl ParticipantClient {
             return Err("application signature differs from the enrolled entity or purpose".into());
         }
         let signature =
-            qomm_transport::application_crypto::Signature::try_from(signed.signature.as_slice())
+            zkpi_committee::application_crypto::Signature::try_from(signed.signature.as_slice())
                 .map_err(|error| error.to_string())?;
         expected
             .verify_strict(body, &signature)
@@ -1800,6 +1815,56 @@ fn purpose_name(purpose: KeyPurpose) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn approval_derivation_is_stable_across_real_randomized_pq_signatures() {
+        use ed25519_dalek::Signer as _;
+        use zkfmi_crypto::traits::{Signer, Verifier};
+
+        let classical = ed25519_dalek::SigningKey::from_bytes(&[41; 32]);
+        let pq = zkfmi_crypto::backend::MlDsa65Signer::from_seed(&[42; 32]);
+        let body = EntityApproval::signing_body(&[43; 32], KeyPurpose::Quote, 1, &[44; 32]);
+        let make_approval = || {
+            let mut signature = classical.sign(&body).to_bytes().to_vec();
+            signature.extend(
+                pq.sign(zkfmi_crypto::key::KeyPurpose::Attestation, &body)
+                    .unwrap(),
+            );
+            classical
+                .verifying_key()
+                .verify_strict(&body, &Signature::from_slice(&signature[..64]).unwrap())
+                .unwrap();
+            zkfmi_crypto::backend::MlDsa65Verifier
+                .verify(
+                    zkfmi_crypto::key::KeyPurpose::Attestation,
+                    &pq.public_key(),
+                    &body,
+                    &signature[64..],
+                )
+                .unwrap();
+            EntityApproval {
+                participant_id: [43; 32],
+                key_purpose: KeyPurpose::Quote,
+                key_epoch: 1,
+                statement: [44; 32],
+                signature,
+            }
+        };
+        let first = make_approval();
+        let second = make_approval();
+        // Reproduce the migrated bug using the actual randomized signer.
+        assert_ne!(
+            Sha256::digest(&first.signature),
+            Sha256::digest(&second.signature)
+        );
+        assert_eq!(
+            approval_derivation_signature(&first).unwrap(),
+            approval_derivation_signature(&second).unwrap()
+        );
+        let mut truncated = first;
+        truncated.signature.truncate(64);
+        assert!(approval_derivation_signature(&truncated).is_err());
+    }
 
     #[test]
     fn endpoints_and_fixed_encodings_fail_closed() {

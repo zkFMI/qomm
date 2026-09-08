@@ -170,7 +170,7 @@ impl Session {
             values.extend(policy.fields().map(i128::from));
         }
         let signing_key =
-            qomm_transport::application_crypto::SigningKey::generate(&mut rand_core::OsRng);
+            zkpi_committee::application_crypto::SigningKey::generate(&mut rand_core::OsRng);
         let party = InputParty {
             name: "demo".into(),
             n_nodes: self.n,

@@ -14,18 +14,6 @@ use merlin::Transcript;
 use qomm_harness::{
     median, parse_value, repo_root, unique_temp_dir, write_pretty_json, HarnessResult,
 };
-use qomm_proofs::threshold_gadgets::{
-    audit_recorded_product_partials, coefficient_commitments_from_evaluations,
-    CommittedContributions, DealerCoefficientCommitments, ProductAssemblyTranscript,
-};
-use qomm_proofs::threshold_sigma::{combine_commitments, share_commitment, PartyId};
-use qomm_transport::selective_disclosure::{
-    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey,
-    WinnerSenderAuth, AUTH_SUITE, KEM_SUITE, VERSION,
-};
-use zkfmi_zk::pedersen::Pedersen;
-use zkfmi_zk::shamir;
-use zkfmi_zk::sigma::{product_challenge, verify_product};
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -42,6 +30,18 @@ use zkfmi_crypto::{
     key::{KeyId, KeyPurpose, KeyRecord, ParticipantId},
     traits::Signer as _,
 };
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
+use zkfmi_zk::sigma::{product_challenge, verify_product};
+use zkpi_committee::selective_disclosure::{
+    open_if_winner, seal_for_winner, WinnerEnvelope, WinnerPrivateKey, WinnerPublicKey,
+    WinnerSenderAuth, AUTH_SUITE, KEM_SUITE, VERSION,
+};
+use zkpi_proofs::threshold_gadgets::{
+    audit_recorded_product_partials, coefficient_commitments_from_evaluations,
+    CommittedContributions, DealerCoefficientCommitments, ProductAssemblyTranscript,
+};
+use zkpi_proofs::threshold_sigma::{combine_commitments, share_commitment, PartyId};
 
 const PRIVATE_SLOTS: usize = 5;
 

@@ -82,20 +82,19 @@ tree.
 
 Rust crates:
 
-- `rust/qomm-dsl`
 - `rust/qomm-law`
 - `rust/qomm-proofs`
-- `rust/qomm-sim`
-- `rust/qomm-mpc`
 - `rust/qomm-transport`
-- `rust/qomm-audit`
 - `rust/qomm-demo`
-- `rust/zkfmi-zk`
-- `rust/zkpi`
-- `rust/zkfmi-measure`
-- `rust/defmi`
-- `rust/zkpi-defmi-sdk`
 - `rust/qomm-harness`
+
+`qomm-proofs` contains only venue rule, policy, state and liquidity audits.
+`qomm-transport` contains venue ingress, corporate KYB adapters and deployment
+tools. Shared threshold proofs and committee services are `zkpi-proofs` and
+`zkpi-committee` in [zkPI](https://github.com/zkFMI/zkpi); the historical
+`qomm-{dsl,sim,mpc,audit}` crates and `zkfmi-{zk,measure}` also live there.
+The ledger and settlement SDK live in [DeFMI](https://github.com/zkFMI/defmi).
+Dependencies are pinned to Git revisions; no shared crate is copied here.
 
 Measurement binaries carried by `qomm-harness`:
 

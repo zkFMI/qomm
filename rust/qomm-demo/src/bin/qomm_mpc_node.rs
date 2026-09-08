@@ -34,6 +34,11 @@ fn run() -> Result<(), String> {
         .map(str::to_string)
         .collect::<Vec<_>>();
     serve_mpc_node(MpcNodeConfig {
+        recipient_participants: std::env::var("QOMM_RECIPIENT_PARTICIPANTS")
+            .map_err(|_| "QOMM_RECIPIENT_PARTICIPANTS must enroll the corporate services")?
+            .split(',')
+            .map(str::to_string)
+            .collect(),
         node,
         n_parties: 7,
         threshold: 2,

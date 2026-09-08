@@ -14,7 +14,6 @@ use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT as G;
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
-use ed25519_dalek::Signer;
 use defmi::avalanche::{AvalancheClient, CanonicalNoteClaim};
 use defmi::facility::{
     CreditFacilityRelationProof, CreditFacilityTransition, CreditTransitionKind, ZERO,
@@ -24,14 +23,9 @@ use defmi::note_chain::{
     NoteSpend,
 };
 use defmi::notes::{encode_spend_proof, Address, NoteLedger, Wallet};
+use ed25519_dalek::Signer;
 use qomm_mpc::program::PRODUCT_DVP_REMAINDER_BITS;
-use qomm_proofs::kyb::{
-    present, verify_presentation, verify_registry, BusinessAttributes, KybCredential,
-};
-use qomm_transport::key_management::{EncryptedKeyStore, KeyKind};
 use qomm_transport::kyb_wire::{KybPresentationWire, KybRegistryWire};
-use qomm_transport::mandate::{decode_taker_mandate, Direction, TakerExecutionMandate};
-use zkfmi_zk::pedersen::Pedersen;
 use rand_core::{OsRng, RngCore};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -45,9 +39,15 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi_committee::key_management::{EncryptedKeyStore, KeyKind};
+use zkpi_committee::mandate::{decode_taker_mandate, Direction, TakerExecutionMandate};
 use zkpi_defmi_sdk::corporate::{
     CanonicalReceipt, CorporateOutbox, CoverAction, EnqueueOutcome, MpcAdmissionReceipt,
     OutboxState,
+};
+use zkpi_proofs::kyb::{
+    present, verify_presentation, verify_registry, BusinessAttributes, KybCredential,
 };
 
 const MAX_HTTP_BYTES: usize = 1 << 20;
@@ -460,7 +460,7 @@ impl ParticipantService {
             .map_err(|_| format!("participant {purpose} key is not base64"))?
             .try_into()
             .map_err(|_| format!("participant {purpose} fingerprint is not 32 bytes"))?;
-        qomm_transport::application_crypto::VerifyingKey::from_bytes(&fingerprint)
+        zkpi_committee::application_crypto::VerifyingKey::from_bytes(&fingerprint)
             .map_err(|_| format!("participant {purpose} fingerprint is invalid"))?;
         Ok(fingerprint)
     }
@@ -1807,10 +1807,52 @@ impl ParticipantService {
             let signing = key
                 .hybrid_signature()
                 .ok_or("participant application key requires explicit hybrid enrollment")?;
-            (
-                signing.verifying_key().to_bytes(),
-                signing.try_sign(&body)?.to_bytes(),
-            )
+            // A Maker mandate's digest includes its complete hybrid signature.
+            // ML-DSA is randomized, so re-signing an identical policy after a
+            // gateway/participant restart would name a different standing pool.
+            // Persist the first signature, not the private key or the body, and
+            // verify BOTH components before returning an idempotent retry.
+            let signed = if operation == "policy-mandate" {
+                let _guard = self
+                    .state
+                    .lock()
+                    .map_err(|_| "participant state lock poisoned")?;
+                let cache_id = Sha256::new()
+                    .chain_update(b"QOMM:PARTICIPANT:POLICY-SIGNATURE:v1")
+                    .chain_update((key_id.len() as u64).to_be_bytes())
+                    .chain_update(key_id.as_bytes())
+                    .chain_update(&body)
+                    .finalize();
+                let path = self
+                    .config
+                    .state_root
+                    .join(format!("policy-signature-{}.bin", hex::encode(cache_id)));
+                match fs::read(&path) {
+                    Ok(bytes) => {
+                        let signature = zkpi_committee::application_crypto::Signature::try_from(
+                            bytes.as_slice(),
+                        )
+                        .map_err(|_| "stored Maker policy signature is malformed")?;
+                        signing
+                            .verifying_key()
+                            .verify(&body, &signature)
+                            .map_err(|_| "stored Maker policy signature does not verify")?;
+                        signature
+                    }
+                    Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                        let signature = signing.try_sign(&body)?;
+                        atomic_private_write(&path, &signature.to_bytes())?;
+                        fs::File::open(&self.config.state_root)
+                            .and_then(|directory| directory.sync_all())
+                            .map_err(|error| error.to_string())?;
+                        signature
+                    }
+                    Err(error) => return Err(error.to_string()),
+                }
+            } else {
+                signing.try_sign(&body)?
+            };
+            (signing.verifying_key().to_bytes(), signed.to_bytes())
         };
         if operation == "entity-approval" {
             use zkfmi_crypto::traits::Signer as _;
@@ -1859,7 +1901,7 @@ impl ParticipantService {
     }
 
     fn present_kyb(&self, request: KybPresentRequest) -> Result<Value, String> {
-        let trusted = qomm_proofs::kyb::KybIssuerKey::from_bytes(
+        let trusted = zkpi_proofs::kyb::KybIssuerKey::from_bytes(
             &hex::decode(&request.trusted_issuer)
                 .map_err(|_| "malformed hybrid issuer key".to_string())?,
         )
@@ -2195,7 +2237,9 @@ impl ParticipantService {
             {
                 continue;
             }
-            let serial = (G * opening.serial).compress().to_bytes();
+            let serial = defmi::notes::note_nullifier(&opening.serial)
+                .compress()
+                .to_bytes();
             let status = rpc.note_serial_snapshot(serial)?;
             if status.state_root != state_root {
                 return Err("DeFMI changed while checking consolidation inputs".into());
@@ -2422,7 +2466,9 @@ impl ParticipantService {
         owned.sort_by_key(|(index, opening)| (opening.value, canonical[*index].note_id));
         let mut source = None;
         for (index, opening) in owned {
-            let serial_point = (G * opening.serial).compress().to_bytes();
+            let serial_point = defmi::notes::note_nullifier(&opening.serial)
+                .compress()
+                .to_bytes();
             let status = rpc.note_serial_snapshot(serial_point)?;
             if status.state_root != state_root {
                 return Err("DeFMI changed while checking the source-note serial".into());
@@ -2914,8 +2960,8 @@ fn bounded_hex(value: &str, name: &str, maximum: usize) -> Result<Vec<u8>, Strin
 #[cfg(test)]
 mod tests {
     use super::*;
-    use qomm_transport::mandate::{encode_taker_mandate, TakerExecutionMandate};
     use tempfile::tempdir;
+    use zkpi_committee::mandate::{encode_taker_mandate, TakerExecutionMandate};
 
     fn config(role: ParticipantRole, root: &Path) -> ParticipantNodeConfig {
         ParticipantNodeConfig {
@@ -2975,7 +3021,7 @@ mod tests {
             allow_partial: false,
             auto_settle: true,
             taker_public: signing.verifying_key().to_bytes(),
-            signature: qomm_transport::application_crypto::Signature::from_bytes(&[]),
+            signature: zkpi_committee::application_crypto::Signature::from_bytes(&[]),
         }
         .sign(signing)
         .unwrap();
@@ -3039,6 +3085,53 @@ mod tests {
             "active",
             ZERO,
         ));
+    }
+
+    #[test]
+    fn maker_policy_signature_is_identical_after_retry_and_participant_restart() {
+        let root = tempdir().unwrap();
+        let service =
+            ParticipantService::initialize(config(ParticipantRole::Maker, root.path())).unwrap();
+        let body = [MAKER_DOMAIN, b":idempotent-policy-test"].concat();
+        let request = || SignRequest {
+            body: BASE64.encode(&body),
+            purpose: None,
+        };
+        let first = service.sign("policy-mandate", request()).unwrap();
+        let second = service.sign("policy-mandate", request()).unwrap();
+        assert_eq!(first["signature"], second["signature"]);
+        drop(service);
+        let reopened =
+            ParticipantService::initialize(config(ParticipantRole::Maker, root.path())).unwrap();
+        let after_restart = reopened.sign("policy-mandate", request()).unwrap();
+        assert_eq!(first["signature"], after_restart["signature"]);
+        let cache = fs::read_dir(root.path())
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .find(|path| {
+                path.file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .starts_with("policy-signature-")
+            })
+            .unwrap();
+        let mut corrupted = fs::read(&cache).unwrap();
+        *corrupted.last_mut().unwrap() ^= 1;
+        fs::write(&cache, corrupted).unwrap();
+        assert!(reopened
+            .sign("policy-mandate", request())
+            .unwrap_err()
+            .contains("does not verify"));
+        let changed = reopened
+            .sign(
+                "policy-mandate",
+                SignRequest {
+                    body: BASE64.encode([body.as_slice(), b":changed"].concat()),
+                    purpose: None,
+                },
+            )
+            .unwrap();
+        assert_ne!(first["signature"], changed["signature"]);
     }
 
     #[test]

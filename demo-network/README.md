@@ -185,6 +185,22 @@ The gateway obtains public keys and forwards only registrations signed by the
 corporate containers to DeFMI; production replaces the same signing boundary
 with an HSM/KMS.
 
+Each MPC node requires `QOMM_RECIPIENT_PARTICIPANTS`, the operator-selected
+corporate service endpoints (four Makers and one Taker here). On first start
+it independently reads their public snapshots, binds each claim handle to
+that participant's hybrid opening key, and persists the public directory in
+`recipient-opening-directory.json` under its state root. Subsequent starts
+reject a changed or corrupted directory. Compose waits for these corporate
+services before starting the MPC nodes. This initial enrollment trusts the
+isolated demo network; it is not an independent enterprise enrollment service.
+
+The participant volume also retains the first complete hybrid signature of
+each Maker policy. Retries and restarts reuse that verified signature so that
+randomized PQ signatures cannot silently change standing-pool identities.
+Retain both corporate and MPC volumes together. Older proof-party state with
+an empty recipient directory is not silently migrated: use a separate demo
+project and retain the old state, or perform an explicitly reviewed migration.
+
 ## UI source
 
 `qomm_demo/static/` is served as committed: `index.html`, `demo.js`,

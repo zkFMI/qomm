@@ -6,13 +6,13 @@ use qomm_sim::deterministic_random::DeterministicRng;
 use qomm_sim::market::round_half_even;
 use qomm_transport::client::{Client, N_REQUEST_VALUES};
 use qomm_transport::relay::{NodeInbox, Relay};
-use qomm_transport::wire::{reconstruct, FRAME_BYTES};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
+use zkpi_committee::wire::{reconstruct, FRAME_BYTES};
 
 struct Options {
     out: PathBuf,

@@ -10,15 +10,15 @@ use qomm_mpc::program::{
 };
 use qomm_proofs::policy_audit::PolicyBounds;
 use qomm_transport::binding::{check_all, BindingDealer, BoundInputs};
-use zkfmi_zk::bitrange::{prove_bounded, verify_bounded, BoundedProof};
-use zkfmi_zk::pedersen::Pedersen;
-use zkfmi_zk::shamir;
 use rand_core::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
 use std::fs;
 use std::path::PathBuf;
 use std::time::Instant;
+use zkfmi_zk::bitrange::{prove_bounded, verify_bounded, BoundedProof};
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
 
 struct Options {
     mp_spdz_root: Option<PathBuf>,
@@ -568,8 +568,8 @@ fn value(raw: &[OsString], index: &mut usize, name: &str) -> HarnessResult<OsStr
 #[cfg(test)]
 mod tests {
     use super::*;
-    use qomm_proofs::threshold_quote::RISTRETTO_SCALAR_ORDER_LE;
     use qomm_transport::binding::check_share;
+    use zkpi_proofs::threshold_quote::RISTRETTO_SCALAR_ORDER_LE;
 
     fn options(n_mm: usize) -> Options {
         Options {

@@ -6,12 +6,13 @@ license.workspace = true
 
 [dependencies]
 zkfmi-crypto = { workspace = true, features = ["test-support"] }
+zkpi-committee.workspace = true
 qomm-transport.workspace = true
 zkpi-defmi-sdk.workspace = true
 qomm-audit.workspace = true
 qomm-mpc.workspace = true
 defmi.workspace = true
-qomm-proofs.workspace = true
+zkpi-proofs.workspace = true
 zkfmi-zk.workspace = true
 zkpi.workspace = true
 curve25519-dalek.workspace = true

@@ -1,14 +1,14 @@
 use curve25519_dalek::ristretto::RistrettoPoint;
 use curve25519_dalek::scalar::Scalar;
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
-use qomm_transport::application_crypto::SigningKey;
 use qomm_transport::roles::{check_field_width, dealt_body, split, ComputingNode, InputParty};
-use zkfmi_zk::pedersen::Pedersen;
 use rand::rngs::OsRng;
 use serde_json::{json, Value};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::time::Instant;
+use zkfmi_zk::pedersen::Pedersen;
+use zkpi_committee::application_crypto::SigningKey;
 
 struct Options {
     out: PathBuf,

@@ -1,6 +1,5 @@
 use qomm_audit::receipts::{digest, sign_receipt, AuditLedger, SlotSpec, GENESIS};
 use qomm_harness::{parse_value, timing_summary, write_pretty_json, HarnessResult};
-use qomm_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
 use qomm_sim::deterministic_random::DeterministicRng;
 use serde_json::{json, Value};
 use std::collections::BTreeMap;
@@ -9,6 +8,7 @@ use std::path::PathBuf;
 use std::process::Command;
 use std::time::Instant;
 use zkfmi_crypto::{hybrid::signature::HybridSigner, traits::Signer};
+use zkpi_proofs::quote_proof::{MakerWitness, QuoteCircuit, Registered};
 
 const SENTINEL: i64 = 1 << 20;
 

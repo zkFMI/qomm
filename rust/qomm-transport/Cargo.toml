@@ -1,0 +1,39 @@
+[package]
+name = "qomm-transport"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "QOMM venue ingress, corporate KYB adapters and deployment tooling."
+
+[features]
+test-support = ["zkfmi-crypto/test-support"]
+
+[dependencies]
+zkpi-committee.workspace = true
+zkpi-proofs.workspace = true
+zkfmi-crypto = { workspace = true, features = ["tls"] }
+qomm-dsl.workspace = true
+qomm-mpc.workspace = true
+zkfmi-zk.workspace = true
+zkpi.workspace = true
+curve25519-dalek.workspace = true
+sha2.workspace = true
+rand_core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+hex.workspace = true
+thiserror.workspace = true
+rand.workspace = true
+openssl.workspace = true
+merlin.workspace = true
+libc.workspace = true
+
+[dev-dependencies]
+zkfmi-crypto = { workspace = true, features = ["test-support"] }
+tempfile = "3"
+
+[[bin]]
+name = "seven_node_cluster"
+path = "src/bin/seven_node_cluster.rs"
+required-features = ["test-support"]

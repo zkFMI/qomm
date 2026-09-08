@@ -12,10 +12,10 @@ ARG RUST_VERSION=1.97.1
 ARG MP_SPDZ_COMMIT=9d809599ea6ce627216a389ca7d984fbb75d0cb9
 # zkpi carries the MP-SPDZ patches, including the mandatory hybrid TLS one.
 # Must equal the zkpi `rev` in rust/Cargo.toml.
-ARG ZKPI_COMMIT=cc9cfa9c65ff3e065b926abdb08d0b7bfebb666c
+ARG ZKPI_COMMIT=fc9579070484859aff9110a927be79c1ffe22b70
 # defmi provides `qomm-avalanche-vm` and the `defmi_network` launcher.
 # Must equal the defmi `rev` in rust/Cargo.toml.
-ARG DEFMI_COMMIT=bc543696c7504b332735c14ed2e5c33267848e78
+ARG DEFMI_COMMIT=15243a7d70169f0c83382139b2db5e2778d51258
 # Empty means `nproc` of the build host.
 ARG BUILD_JOBS=
 # OpenSSL 3.5 is the first release with X25519MLKEM768 and ML-DSA. MP-SPDZ and
@@ -108,9 +108,9 @@ COPY rust ./rust
 COPY qomm_demo/static ./qomm_demo/static
 # MP_SPDZ_ROOT stays unset: qomm-mpc then builds without the in-process engine,
 # which the distributed deployment does not use (each MPC node spawns the
-# stock `malicious-shamir-party.x` from the mpc-runtime image).  The targets
-# are named one by one because src/bin/qomm_live_acceptance_report.rs is a
-# `#[path]` module of qomm_live_acceptance, not a standalone binary.
+# stock `malicious-shamir-party.x` from the mpc-runtime image). Only the five
+# runtime binaries below are installed; measurement harnesses stay outside
+# the deployable image.
 RUN --mount=type=cache,id=qomm-cargo-registry,target=/usr/local/cargo/registry \
     --mount=type=cache,id=qomm-cargo-git,target=/usr/local/cargo/git \
     --mount=type=cache,id=qomm-rust-target,target=/source/rust/target \

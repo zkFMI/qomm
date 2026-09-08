@@ -12,9 +12,11 @@ qomm-audit.workspace = true
 qomm-dsl.workspace = true
 zkfmi-measure.workspace = true
 qomm-mpc.workspace = true
-qomm-proofs.workspace = true
+zkpi-proofs.workspace = true
 qomm-sim.workspace = true
+zkpi-committee.workspace = true
 qomm-transport.workspace = true
+qomm-proofs.workspace = true
 zkfmi-zk.workspace = true
 curve25519-dalek.workspace = true
 ed25519-dalek.workspace = true
@@ -218,3 +220,7 @@ path = "src/bin/sweep.rs"
 [[bin]]
 name = "tcp_rtt"
 path = "src/bin/tcp_rtt.rs"
+
+[[bin]]
+name = "run_state_audit"
+path = "src/bin/run_state_audit.rs"

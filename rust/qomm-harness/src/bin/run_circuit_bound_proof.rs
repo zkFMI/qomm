@@ -8,20 +8,20 @@ use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
 use qomm_harness::{parse_value, repo_root, write_pretty_json, HarnessResult};
 use qomm_mpc::persistence::{read_wires, FieldElement, Wires, WIRE_NAMES};
-use qomm_proofs::threshold_gadgets::{
-    coefficient_commitments_from_evaluations, commitment_from_shares,
-    joint_prove_product_from_contributions, verify_square_bit, ProductNodeContribution, Shared,
-};
-use qomm_proofs::threshold_quote::RISTRETTO_SCALAR_ORDER_LE;
-use qomm_proofs::threshold_sigma::{PartyId, ScalarShares};
-use zkfmi_zk::pedersen::Pedersen;
-use zkfmi_zk::shamir;
-use zkfmi_zk::sigma::verify_product;
 use rand::rngs::OsRng;
 use serde_json::{json, Map};
 use std::collections::BTreeMap;
 use std::ffi::OsString;
 use std::path::PathBuf;
+use zkfmi_zk::pedersen::Pedersen;
+use zkfmi_zk::shamir;
+use zkfmi_zk::sigma::verify_product;
+use zkpi_proofs::threshold_gadgets::{
+    coefficient_commitments_from_evaluations, commitment_from_shares,
+    joint_prove_product_from_contributions, verify_square_bit, ProductNodeContribution, Shared,
+};
+use zkpi_proofs::threshold_quote::RISTRETTO_SCALAR_ORDER_LE;
+use zkpi_proofs::threshold_sigma::{PartyId, ScalarShares};
 
 struct Options {
     persistence: PathBuf,

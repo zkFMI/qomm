@@ -13,7 +13,6 @@
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use qomm_demo::distributed_mpc::remainder_note_id_of_execution;
-use qomm_transport::resident_mpc::{combine_partial_commitments, InputSharing};
 use rand_core::{OsRng, RngCore};
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
@@ -24,6 +23,7 @@ use std::net::{Shutdown, TcpStream, ToSocketAddrs};
 use std::process::ExitCode;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use zkpi_committee::resident_mpc::{combine_partial_commitments, InputSharing};
 
 #[path = "qomm_live_acceptance/report.rs"]
 mod report;
@@ -1252,9 +1252,7 @@ fn transition_json(t: &defmi::facility::CreditFacilityTransition) -> Value {
     })
 }
 
-fn parse_authorization(
-    dto: &Value,
-) -> Result<defmi::facility::ReservationAuthorization, String> {
+fn parse_authorization(dto: &Value) -> Result<defmi::facility::ReservationAuthorization, String> {
     Ok(defmi::facility::ReservationAuthorization {
         role: defmi::facility::ReservationRole::Maker,
         entity_commitment: h32(dto, "entityCommitment")?,
@@ -1334,9 +1332,7 @@ fn note_json(n: &defmi::note_chain::NoteOutput) -> Value {
     })
 }
 
-fn parse_allocation(
-    dto: &Value,
-) -> Result<defmi::note_chain::StandingNotePoolAllocation, String> {
+fn parse_allocation(dto: &Value) -> Result<defmi::note_chain::StandingNotePoolAllocation, String> {
     Ok(defmi::note_chain::StandingNotePoolAllocation {
         pq_authorization: Some(
             serde_json::from_value(
@@ -1511,7 +1507,7 @@ fn cmd_pool_cas_probe(args: &Args) -> Result<Value, String> {
     // guard and reach the compare-and-swap), and it must be re-derived here or
     // the VM rejects the reservation metadata before the pointer is even read.
     let transition_statement = transition.statement()?;
-    let metadata = qomm_transport::standing_pool::standing_pool_reservation_metadata(
+    let metadata = zkpi_committee::standing_pool::standing_pool_reservation_metadata(
         allocation.pool_id,
         allocation.delegation_digest,
         allocation.expected_pool_sequence,

@@ -11,6 +11,14 @@ x-build: &app-build
 
 x-mpc-common: &mpc-common
   image: qomm-demo-mpc:local
+  environment:
+    QOMM_RECIPIENT_PARTICIPANTS: http://maker-0:9200,http://maker-1:9200,http://maker-2:9200,http://maker-3:9200,http://taker:9200
+  depends_on:
+    maker-0: {condition: service_healthy}
+    maker-1: {condition: service_healthy}
+    maker-2: {condition: service_healthy}
+    maker-3: {condition: service_healthy}
+    taker: {condition: service_healthy}
   restart: unless-stopped
   expose:
     - "5000"
