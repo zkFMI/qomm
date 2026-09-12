@@ -10,5 +10,6 @@ pub mod participant_client;
 pub mod participant_node;
 pub mod portfolio;
 pub mod protocol;
+pub mod progress;
 pub mod room;
 pub mod web;

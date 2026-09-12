@@ -555,6 +555,13 @@ services:
       # params, verbatim); the acceptance run re-presents an accepted
       # allocation from it to show the L1 refuses a second application.
       QOMM_DEFMI_JOURNAL_DIR: /home/qomm/defmi-journal
+      QOMM_ASSURANCE_STATE: /home/qomm/control/assurance.json
+      ZKPI_ASSURANCE_MODE: ${ZKPI_ASSURANCE_MODE:-joint_proof}
+      ZKPI_OPTIMISTIC_POLICY_ID: ${ZKPI_OPTIMISTIC_POLICY_ID:-}
+      ZKPI_OPTIMISTIC_PROPOSER_PARTY: ${ZKPI_OPTIMISTIC_PROPOSER_PARTY:-1}
+      QOMM_PUBLIC_DEVELOPMENT_CHALLENGE: ${QOMM_PUBLIC_DEVELOPMENT_CHALLENGE:-0}
+    volumes:
+      - gateway-control:/home/qomm/control
     command:
       - qomm-demo
       - --host
@@ -666,6 +673,7 @@ networks:
     internal: false
 
 volumes:
+  gateway-control:
   defmi-state:
   mpc-0-state:
   mpc-1-state:

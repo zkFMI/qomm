@@ -172,6 +172,7 @@ impl Default for DemoConfig {
 }
 
 pub struct Room {
+    pub progress: crate::progress::ExecutionProgress,
     pub assets: Vec<Asset>,
     pub n_makers: usize,
     pub n_nodes: usize,
@@ -189,6 +190,9 @@ pub struct Room {
     pub request: Request,
     pub seats: BTreeMap<String, Seat>,
     pub sessions: BTreeMap<String, String>,
+    /// Immutable receipts remain visible only to the session that submitted.
+    pub completed_takers: BTreeMap<String, Value>,
+    active_taker_session: Option<String>,
     pub last: Option<RoundResult>,
     pub history: Vec<RoundResult>,
     pub notices: BTreeMap<String, Vec<Notice>>,
@@ -295,10 +299,13 @@ impl Room {
             request: Request::default(),
             seats,
             sessions: BTreeMap::new(),
+            completed_takers: BTreeMap::new(),
+            active_taker_session: None,
             last: None,
             history: Vec::new(),
             notices: BTreeMap::new(),
             engine: None,
+            progress: crate::progress::ExecutionProgress::default(),
             phase: "idle".into(),
             phase_note: String::new(),
             phase_fields: Map::new(),
@@ -461,10 +468,13 @@ impl Room {
     }
 
     pub fn new_session(&mut self) -> String {
+        // Browser identities must not repeat after a seeded room restarts or
+        // consume the RNG used to generate the demo's trading inputs.
+        let mut rng = rand::rngs::OsRng;
         format!(
             "{:016x}{:08x}",
-            self.rng.gen::<u64>(),
-            self.rng.gen::<u32>()
+            rng.gen::<u64>(),
+            rng.gen::<u32>()
         )
     }
 
@@ -504,6 +514,7 @@ impl Room {
             seat.label.clone()
         };
         self.sessions.insert(session.into(), seat_id.into());
+        self.completed_takers.remove(session);
         self.note(
             seat_id,
             "claimed",
@@ -1943,15 +1954,27 @@ impl Room {
         if self.busy {
             return Err("a round is already in progress".into());
         }
-        self.step_bots()?;
-        self.prepare_taker_reservation()?;
+        self.progress.start(self.n_nodes);
+        self.active_taker_session = self.seats.get(TAKER).and_then(|seat| seat.holder.clone());
+        if let Err(error) = self.step_bots() {
+            self.progress.finish(false);
+            return Err(error);
+        }
+        self.progress.stage("reserve");
+        if let Err(error) = self.prepare_taker_reservation() {
+            self.progress.finish(false);
+            return Err(error);
+        }
+        self.progress.stage("admission");
         let result = match self.run_round() {
             Ok(result) => result,
             Err(error) => {
                 let _ = self.release_taker_reservation();
+                self.progress.finish(false);
                 return Err(error);
             }
         };
+        self.progress.stage("display");
         let phases = self.phases_of(&result);
         self.busy = true;
         if let Some(first) = phases.first() {
@@ -1962,6 +1985,7 @@ impl Room {
 
     /// Settle the computed round and stand at the `settle` phase.
     pub fn finish_round(&mut self) -> Result<(), String> {
+        self.progress.stage("reconcile");
         let settled = self.settle_last();
         match &settled {
             Ok(()) => {
@@ -1969,6 +1993,7 @@ impl Room {
                 self.set_phase(&phase);
             }
             Err(error) => {
+                self.progress.finish(false);
                 self.set_phase(&Phase::new("done", error.clone(), json!({"error": error})));
                 self.busy = false;
             }
@@ -1978,6 +2003,7 @@ impl Room {
 
     /// Leave the round: phase `done`, the room free for the next one.
     pub fn end_round(&mut self) {
+        self.progress.finish(true);
         let (number, ms) = self
             .last
             .as_ref()
@@ -1989,6 +2015,16 @@ impl Room {
             json!({"number": number, "ms": ms}),
         ));
         self.busy = false;
+        // A queued/unresolved transaction still owns its seat. Completion
+        // releases only the original holder, never a replacement participant.
+        if self.taker_reservation.is_none() {
+            if let Some(session) = self.active_taker_session.take() {
+                self.completed_takers.insert(session.clone(), self.taker_view(self.last.as_ref()));
+                if self.seats.get(TAKER).and_then(|seat| seat.holder.as_deref()) == Some(session.as_str()) {
+                    self.release(&session);
+                }
+            }
+        }
     }
 
     /// One whole round with no pause between its phases.
@@ -2034,6 +2070,7 @@ impl Room {
                     "auto_rounds": config.auto_rounds,
                     "engine": engine,
                     "engine_note": engine_note,
+                    "assurance": self.engine.as_ref().map(|engine|engine.assurance()),
                     "robust": robust,
                     "robust_reason": robust_reason,
                 }),
@@ -2098,6 +2135,10 @@ impl Room {
         }
         if watching {
             payload.insert("observer".into(), self.observer_view(result));
+        }
+        payload.insert("progress".into(), self.progress.snapshot());
+        if let Some(completed) = self.completed_takers.get(session) {
+            payload.insert("completed_taker".into(), completed.clone());
         }
         Value::Object(payload)
     }

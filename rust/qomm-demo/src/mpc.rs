@@ -220,7 +220,12 @@ impl MpcSettlementInputs {
 /// installs an implementation that sends only one party's share to each
 /// independently running node service.  Both implementations return the same
 /// fail-closed round receipt to the UI and settlement layer.
+pub type ChallengeHandler = std::sync::Arc<dyn Fn([u8;32]) -> Result<serde_json::Value, String> + Send + Sync>;
 pub trait MpcQuoteEngine: Send {
+    fn assurance(&self) -> serde_json::Value { serde_json::Value::Null }
+    fn set_assurance(&mut self, _mode: &str) -> Result<(), String> { Err("assurance selection requires the native distributed engine".into()) }
+    fn challenge_handler(&self) -> Option<ChallengeHandler> { None }
+    fn set_progress(&mut self, _progress: crate::progress::ExecutionProgress) {}
     fn name(&self) -> &'static str;
     fn note(&self) -> String;
     fn robust(&self) -> bool;

@@ -12,10 +12,10 @@ ARG RUST_VERSION=1.97.1
 ARG MP_SPDZ_COMMIT=9d809599ea6ce627216a389ca7d984fbb75d0cb9
 # zkpi carries the MP-SPDZ patches, including the mandatory hybrid TLS one.
 # Must equal the zkpi `rev` in rust/Cargo.toml.
-ARG ZKPI_COMMIT=fc9579070484859aff9110a927be79c1ffe22b70
+ARG ZKPI_COMMIT=6218468eaee792d66399b46d9eadae8be9229922
 # defmi provides `qomm-avalanche-vm` and the `defmi_network` launcher.
-# Must equal the defmi `rev` in rust/Cargo.toml.
-ARG DEFMI_COMMIT=15243a7d70169f0c83382139b2db5e2778d51258
+# Includes the same VM implementation as the SDK pin, plus its portable build dependency and lockfile.
+ARG DEFMI_COMMIT=7f8b031fdcd41da76301c72046b48971562b0372
 # Empty means `nproc` of the build host.
 ARG BUILD_JOBS=
 # OpenSSL 3.5 is the first release with X25519MLKEM768 and ML-DSA. MP-SPDZ and
@@ -196,7 +196,7 @@ RUN apt-get -o Acquire::ForceIPv4=true -o Acquire::Retries=5 update \
        ca-certificates curl libssl3 libsqlite3-0 \
     && rm -rf /var/lib/apt/lists/* \
     && useradd --create-home --uid 10001 qomm \
-    && install -d -o qomm -g qomm -m 0700 /var/lib/qomm-participant
+    && install -d -o qomm -g qomm -m 0700 /var/lib/qomm-participant /home/qomm/control
 COPY --from=mp-spdz-builder /opt/pqc-openssl /opt/pqc-openssl
 COPY --from=rust-builder /out/qomm-demo /usr/local/bin/qomm-demo
 COPY --from=rust-builder /out/qomm_frontend /usr/local/bin/qomm-frontend

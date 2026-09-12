@@ -16,6 +16,27 @@ struct ReplayOnce {
 
 struct QueueUnavailable;
 
+#[test]
+fn completed_order_releases_only_taker_and_keeps_private_frozen_receipt() {
+    let mut room = Room::new(4, 7, 2, true, 42).unwrap();
+    let config = DemoConfig::default();
+    assert!(room.claim("first", "taker", "First").0);
+    assert!(room.claim("maker", "maker:0", "Maker").0);
+    room.set_request(&json!({"asset":0,"qty":1,"direction":0,"is_real":1,"limit_price":16000})).unwrap();
+    room.begin_round().unwrap();
+    room.finish_round().unwrap();
+    assert!(room.seat_of("first").is_some());
+    room.end_round();
+    assert!(room.seat_of("first").is_none());
+    assert!(room.seat_of("maker").is_some());
+    let receipt = room.view("first", &config, 0.0)["completed_taker"].clone();
+    assert!(receipt.is_object());
+    assert!(room.view("unrelated", &config, 0.0)["completed_taker"].is_null());
+    assert!(room.claim("next", "taker", "Next").0);
+    room.play_round().unwrap();
+    assert_eq!(room.view("first", &config, 0.0)["completed_taker"], receipt);
+}
+
 impl MpcQuoteEngine for QueueUnavailable {
     fn name(&self) -> &'static str {
         "mpc"

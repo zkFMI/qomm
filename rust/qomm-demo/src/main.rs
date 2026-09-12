@@ -328,6 +328,11 @@ fn run() -> Result<(), String> {
         };
     }
     println!("QOMM demo --- {makers} makers, {nodes} nodes, threshold {threshold}, Rust {engine}");
+    let history_dir = std::env::var_os("QOMM_EXECUTION_HISTORY_DIR")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| std::path::PathBuf::from(home).join(".qomm/execution-history")))
+        .ok_or("set QOMM_EXECUTION_HISTORY_DIR to persist execution history")?;
+    room.progress.load_history(&history_dir)?;
     DemoServer::new(room, config).serve(&host, port)
 }
 

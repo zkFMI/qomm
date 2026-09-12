@@ -1481,7 +1481,7 @@ impl LiveProofEvidence {
             instruction: self.instruction,
             frost_public,
             quote_digest: self.quote_digest,
-            quote_verification: self.quote_verification,
+            quote_verification: self.quote_verification.into(),
             limit_direction: self.limit_direction,
             limit_commitment: self.limit_commitment_point,
             limit_context: self.limit_context,

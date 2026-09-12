@@ -73,7 +73,6 @@ use zkpi_defmi_sdk::finality::{CanonicalReadback, ReadbackKind};
 use zkpi_proofs::kyb::{cohort_id, KybPresentation, SignedCohortRegistry};
 
 const MAX_RPC_BYTES: usize = 1 << 20;
-const ACCEPTANCE_TIMEOUT: Duration = Duration::from_secs(180);
 const ACCEPTANCE_POLL: Duration = Duration::from_millis(200);
 const DEMO_INFRASTRUCTURE_VALID_UNTIL: u64 = 4_102_444_800;
 // Once a signed Taker mandate expires, the refund right must survive an
@@ -145,7 +144,7 @@ pub struct DefmiKybBundle {
 /// entity registry.  It registers the governance-pinned proof key and each
 /// fixed admission population before any private MPC input is executed.
 pub struct DefmiMarketEpoch {
-    rpc: AvalancheRpcClient,
+    rpc: std::sync::Arc<AvalancheRpcClient>,
     authorizer: QuorumAuthorizer,
     governance_keys: BTreeMap<String, defmi::governance::GovernanceSigner>,
     venue_id: [u8; 32],
@@ -227,7 +226,7 @@ impl DefmiMarketEpoch {
         if chain_id.is_empty() || venue_id == [0; 32] || defmi_id == [0; 32] {
             return Err("DeFMI market epoch lacks its chain, venue, or domain".into());
         }
-        let rpc = docker_rpc_client(rpc_endpoint, Duration::from_secs(30))?;
+        let rpc = std::sync::Arc::new(docker_rpc_client(rpc_endpoint, Duration::from_secs(30))?);
         let (authorizer, governance_keys) = development_committee(chain_id)?;
         Ok(Self {
             rpc,
@@ -260,6 +259,38 @@ impl DefmiMarketEpoch {
         self.rpc.state_root()
     }
 
+    pub fn shared_rpc(&self) -> std::sync::Arc<AvalancheRpcClient> { self.rpc.clone() }
+
+    pub fn optimistic_client(&self) -> zkpi_defmi_sdk::optimistic::OptimisticClient<'_> {
+        zkpi_defmi_sdk::optimistic::OptimisticClient { rpc: self.rpc.as_ref() }
+    }
+
+    pub fn admit_optimistic_quote(
+        &self, policy_id: [u8;32], request: &zkpi_committee::product_proof_coordinator::CompleteQuoteRequest,
+        now: u64,
+    ) -> Result<zkpi_committee::optimistic::NodeExecutionAdmission, String> {
+        use zkpi_committee::optimistic::{command_digest, quote_input_root, ExecutionContext, NodeExecutionAdmission, RegisteredExecution};
+        let client = self.optimistic_client();
+        let policy = client.policy(policy_id)?;
+        if policy.network != self.defmi_id || policy.application != self.venue_id {
+            return Err("optimistic policy belongs to another DeFMI domain or venue".into());
+        }
+        let before = self.state_root()?;
+        let context = zkpi_committee::order::complete_quote_context(request.job_id, request.request_context);
+        let execution = RegisteredExecution {
+            policy: policy_id,
+            context: ExecutionContext { network:self.defmi_id, application:self.venue_id, verifier:policy.verifier,
+                job:request.job_id, before_state:before,
+                input_root:quote_input_root(&request.public, context, request.eligibility_bits - 2, request.span_bits)?,
+            },
+            valid_until:now.checked_add(3_590).ok_or("optimistic admission deadline overflow")?,
+        };
+        let approval = approve(&self.authorizer, &self.governance_keys, command_digest("register", &execution)?, before)?;
+        let accepted = client.register(&execution, &approval)?;
+        NodeExecutionAdmission { policy, execution, accepted_state:accepted.after_root, accepted_height:accepted.height, signature:Vec::new() }
+            .sign(&development_receipt_signing_key())
+    }
+
     /// Read the consensus-owned admission cursor immediately before a fresh
     /// RFQ is signed. Corporate queue sequence numbers and cover slots are
     /// deliberately separate namespaces and must never be used as a DeFMI
@@ -278,26 +309,26 @@ impl DefmiMarketEpoch {
         &self,
         pool_id: [u8; 32],
     ) -> Result<CanonicalStandingNotePool, String> {
-        AvalancheNoteBridge::new(&self.authorizer, &self.rpc).standing_note_pool(pool_id)
+        AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref()).standing_note_pool(pool_id)
     }
 
     pub fn credit_facility(
         &self,
         facility_id: [u8; 32],
     ) -> Result<CanonicalCreditFacility, String> {
-        AvalancheNoteBridge::new(&self.authorizer, &self.rpc).credit_facility(facility_id)
+        AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref()).credit_facility(facility_id)
     }
 
     pub fn credit_hold(&self, hold_id: [u8; 32]) -> Result<CanonicalCreditHold, String> {
-        AvalancheNoteBridge::new(&self.authorizer, &self.rpc).credit_hold(hold_id)
+        AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref()).credit_hold(hold_id)
     }
 
     pub fn note_reservation(&self, hold_id: [u8; 32]) -> Result<CanonicalNoteReservation, String> {
-        AvalancheNoteBridge::new(&self.authorizer, &self.rpc).note_reservation(hold_id)
+        AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref()).note_reservation(hold_id)
     }
 
     pub fn note_output(&self, note_id: [u8; 32]) -> Result<NoteOutput, String> {
-        Ok(AvalancheNoteBridge::new(&self.authorizer, &self.rpc)
+        Ok(AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref())
             .note(note_id)?
             .output)
     }
@@ -436,7 +467,7 @@ impl DefmiMarketEpoch {
             }
             return Ok(0);
         }
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let mut materialized = 0_usize;
         for (index, evidence) in evidence.into_iter().enumerate() {
             let canonical = bridge.note_claim(evidence.materialization.claim_id)?;
@@ -508,7 +539,7 @@ impl DefmiMarketEpoch {
             return Err("note consolidation returned another participant or scope".into());
         }
         let key = Pedersen::new(b"qomm:defmi:v1");
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let (proof_root, ledger, canonical) = bridge.note_ledger(asset_id, key, 64, 16_384)?;
         if evidence.state_root != proof_root || self.rpc.state_root()? != proof_root {
             return Err("note consolidation proof was built over a stale DeFMI root".into());
@@ -668,7 +699,7 @@ impl DefmiMarketEpoch {
                 }
             }
             Err(error) if not_found(&error) => {
-                let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+                let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
                 let before = self.rpc.state_root()?;
                 let approval = approve(
                     &self.authorizer,
@@ -686,7 +717,7 @@ impl DefmiMarketEpoch {
             .commit_u64(cap_amount, &cap_blinding)
             .compress()
             .to_bytes();
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let facility = match bridge.credit_facility(facility_id) {
             Ok(existing) => {
                 if existing.facility.guarantor_id != guarantor.guarantor_id
@@ -830,7 +861,7 @@ impl DefmiMarketEpoch {
             asset_kind,
         )?;
         let facility_id = facility.facility.facility_id;
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         match bridge.note_reservation(mandate.reserve_id) {
             Ok(existing) => {
                 let hold = bridge.credit_hold(mandate.reserve_id)?;
@@ -1202,7 +1233,7 @@ impl DefmiMarketEpoch {
                 "no-fill release differs from its participant, reserve, or admission".into(),
             );
         }
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let canonical_reservation = bridge.note_reservation(mandate.reserve_id)?;
         if canonical_reservation.status == "released" {
             return Ok(canonical_reservation);
@@ -1551,7 +1582,7 @@ impl DefmiMarketEpoch {
             &mandate.entity_commitment,
             &mandate.reserve_asset_id,
         ]);
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let canonical_reservation = bridge.note_reservation(mandate.reserve_id)?;
         if canonical_reservation.status == "released" {
             return Ok(canonical_reservation);
@@ -2046,7 +2077,7 @@ impl DefmiMarketEpoch {
             pool_id,
             expected_maximum,
         )?;
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let (proof_root, ledger, canonical) =
             bridge.note_ledger(mandate.asset_id, key, 64, 16_384)?;
         if evidence.state_root != proof_root {
@@ -2138,7 +2169,7 @@ impl DefmiMarketEpoch {
                 Ok(())
             }
             Err(error) if not_found(&error) => {
-                let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+                let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
                 let before = self.rpc.state_root()?;
                 let approval = approve(
                     &self.authorizer,
@@ -2158,7 +2189,7 @@ impl DefmiMarketEpoch {
     }
 
     fn verify_or_register_csd(&self, issuer: &CsdIssuerDefinition) -> Result<(), String> {
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         match bridge.csd_issuer(issuer.issuer_id) {
             Ok(existing) => {
                 if existing.definition != *issuer || existing.status != "active" {
@@ -2232,7 +2263,7 @@ impl DefmiMarketEpoch {
                     .into(),
             ),
             Err(error) if not_found(&error) => {
-                let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+                let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
                 let before = self.rpc.state_root()?;
                 let approval = approve(
                     &self.authorizer,
@@ -2248,7 +2279,7 @@ impl DefmiMarketEpoch {
             .commit_u64(maximum_amount, &maximum_blinding)
             .compress()
             .to_bytes();
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         match bridge.credit_facility(facility_id) {
             Ok(existing) => {
                 let facility = &existing.facility;
@@ -2428,7 +2459,7 @@ impl DefmiMarketEpoch {
             &zkfmi_crypto::test_support::entity_pq_signer(&issuer_key.to_bytes()),
         )?;
         issuance.verify_issuer(issuer, now)?;
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let before = self.rpc.state_root()?;
         let approval = approve(
             &self.authorizer,
@@ -2454,7 +2485,7 @@ impl DefmiMarketEpoch {
         authorization: &ReservationAuthorization,
         allocation: &StandingNotePoolAllocation,
     ) -> Result<CanonicalStandingNotePool, String> {
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let before = self.rpc.state_root()?;
         let statement = authorization.statement(transition)?;
         let approval = approve(&self.authorizer, &self.governance_keys, statement, before)?;
@@ -2480,7 +2511,7 @@ impl DefmiMarketEpoch {
         authorization: &ReservationAuthorization,
         allocation: &StandingNotePoolAllocation,
     ) -> Result<DefmiStandingPoolAllocationPreview, String> {
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let before = self.rpc.state_root()?;
         let statement = authorization.statement(transition)?;
         let allocation_approval =
@@ -2525,7 +2556,7 @@ impl DefmiMarketEpoch {
             .iter()
             .find(|reservation| reservation.role == ReservationRole::Taker)
             .ok_or_else(|| "product settlement has no Taker reservation".to_string())?;
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let before = self.rpc.state_root()?;
         let statement = order.statement()?;
         let approval = approve(&self.authorizer, &self.governance_keys, statement, before)?;
@@ -2653,7 +2684,7 @@ impl DefmiMarketEpoch {
             statement,
             current_root,
         )?;
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let accepted = bridge.settle_standing_pool_product(
             StandingPoolProductSettlementRequest {
                 allocation_transition: transition,
@@ -2855,7 +2886,7 @@ impl DefmiMarketEpoch {
             Err(error) if not_found(&error) => {}
             Err(error) => return Err(error),
         }
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         let before = self.rpc.state_root()?;
         let approval = approve(
             &self.authorizer,
@@ -2882,7 +2913,7 @@ impl DefmiMarketEpoch {
             .iter()
             .map(zkpi_committee::application_crypto::VerifyingKey::to_bytes)
             .collect::<Vec<_>>();
-        let bridge = AvalancheNoteBridge::new(&self.authorizer, &self.rpc);
+        let bridge = AvalancheNoteBridge::new(&self.authorizer, self.rpc.as_ref());
         if self.committee_keys.as_deref() != Some(raw_keys.as_slice()) {
             if self.committee_keys.is_some() {
                 return Err("DeFMI admission node keys changed inside one market epoch".into());
@@ -3449,7 +3480,7 @@ fn approve(
 }
 
 fn wait(client: &AvalancheRpcClient, transaction: &str) -> Result<(), String> {
-    let accepted = client.wait_accepted(transaction, ACCEPTANCE_TIMEOUT, ACCEPTANCE_POLL)?;
+    let accepted = client.wait_accepted(transaction, Duration::MAX, ACCEPTANCE_POLL)?;
     let actual = client.state_root()?;
     if accepted.after_root != actual {
         return Err("accepted DeFMI root differs from the canonical state root".into());

@@ -11,32 +11,59 @@
 /* ========================================================================= */
 const S = {
 ja: {
-  title:"QOMM", subtitle:"注文の中身を隠したまま、いちばん良い気配の相手と取引を成立させるデモ",
+  title:"QOMM", subtitle:"注文の中身を伏せたまま、いちばん良い気配を出した相手と約定させる仕組みのデモです。",
   engineSim:"試作エンジン（比較は平文）", engineSimShort:"試作", engineSimNote:"値の分割は実装どおりですが、価格の比較は暗号化せずに行います。",
-  engineMpc:"秘密計算で価格照合", engineMpcShort:"秘密計算", engineMpcNote:"価格の比較を秘密計算（MP-SPDZ）で行い、証明済みの zkPI を DeFMI へ送ります。",
+  engineMpc:"秘密計算で価格照合", engineMpcShort:"秘密計算", engineMpcNote:"価格の比較を秘密計算（MP-SPDZ）で行い、検証済みの zkPI を DeFMI へ渡します。",
   leave:"離席", langOther:"EN",
   connecting:"サーバーに接続しています…",
   reconnecting:"接続が切れました。再接続しています…",
-  lobbyTitle:"参加する席を選ぶ",
-  lobbyWhy:"席によって見える情報が違います。それがこの仕組みの核心です。誰も座っていない席は自動で動きます。",
-  yourName:"表示名（任意）", watch:"全体表示で観る（デモ専用）",
-  theSeats:"空席は自動で動き、名前が出ている席は人が操作しています",
+  // top bar, guidance, and the drawer that opens from a card in the diagram
+  viewLabel:"視点", viewPublic:"未参加（公開情報のみ）", viewHelp:"席を選ぶ・替える",
+  myControls:"操作", close:"閉じる", more:"詳しく", less:"たたむ",
+  selectHint:"Enter で開きます",
+  hintSeatless:"図の席（注文者・値付け・計算ノード）を選ぶと参加できます。処理の札を選ぶと公開情報が見られます。",
+  hintSeated:"枠の付いた札があなたの席です。札を選ぶと操作できます。",
+  hintObserver:"全体表示はデモ専用の全情報です。札を選ぶと各席の中身が見られ、上の「設定」で部屋を操作できます。",
+  hintKeys:"Tab で札を移動、Enter で開く、Esc で閉じる。",
+  paneJoinKicker:"参加", paneSwitchTitle:"席を替える・参加状況",
+  paneSwitchWhy:"別の席を選ぶと、今の席を離れてその席に移ります。",
+  paneMine:"あなたの席", paneProcess:"処理",
+  seatAuto:"この席はいま自動で動いています。",
+  seatHeldBy:(f)=>`${f.who} が操作中です。`,
+  seatPrivate:"この席に届く情報（注文・方針・分割した値）は、席に着いた人の画面にだけ送られます。",
+  claimHere:"この席で参加する", claimSwitch:"この席に移る",
+  observerSeatWhy:"実運用では、この席の中身は他の席から見えません。まとめて見ているのは全体表示だけです。",
+  obsPolicy:"登録済みの方針", obsQuote:"この席の気配", obsBehaviour:"動作設定", obsBalances:"在庫と資金",
+  eligibleShort:"条件を満たす",
+  paneMatcherWhy:"全社の気配と注文を照合し、価格条件に合ういちばん良い相手を選びます。",
+  paneMatcherWhySim:"全社の気配と注文を照合し、価格条件に合ういちばん良い相手を選びます。この試作エンジンでは比較は平文で行います。",
+  paneZkpiWhy:"照合の結果が正しく計算されたことを示す証明を作り、台帳側がそれを確かめます。",
+  paneLedgerWhy:"検証に合格した取引だけを、予約済みの在庫と資金の同時受け渡しとして記録します。",
+  paneObserverTitle:"設定と全参加者の状況",
+  techNotes:"技術的な補足", publicRecord:"台帳の記録",
+  zkpiTech:"設計では、zkPI は秘密計算の結果が正しい入力から計算されたことを、入力を明かさずに示す証明です。台帳はこれを確かめてから予約済みの資産を動かします。この部屋での実際の記録先は下の注記のとおりです。",
+  legendHeading:"凡例", legendMore:"注記と技術的な制約",
+  lobbyTitle:"席を選んで参加する",
+  lobbyWhy:"席ごとに見える情報が違います。それがこの仕組みの要点です。空いている席は自動で動いています。",
+  yourName:"表示名（任意）", watch:"全体表示で見る（デモ専用・全席の情報）",
+  theSeats:"空席は自動で動き、名前の付いた席は人が操作しています",
   roleTaker:"注文を出す側（Taker）", roleTakerWhy:"取引したい注文を出します。約定価格を受け取るのはこの席だけです。",
   roleMaker:"気配を出す側（Maker）", roleMakerWhy:"売り買いの気配と最大数量を先に登録し、注文の相手になります。注文の中身は見えません。",
   roleNode:"計算ノード", roleNodeWhy:"分割された値だけで計算します。在庫も資金も持ちません。",
   roleNodeWhySim:"設計では分割された値だけで計算します。この試作エンジンでは、価格の比較は部屋（サーバー）が平文で行います。在庫も資金も持ちません。",
   // Shown wherever the design is described while the room runs the
   // simulation engine: the share layer is real, the comparison is not hidden.
+  engineNoticeSimShort:"この部屋は試作エンジンで動いています。価格の比較は暗号化せず平文で行います。",
   engineNoticeSim:"この部屋は試作エンジンで動いています。注文と方針を分けて配る処理、不正の訂正、確保と決済の流れは実装どおりですが、価格の比較は暗号化せず平文で行います。席ごとに見える情報を絞っているのは画面上の投影で、秘密計算による保証ではありません。以下の「分割された値だけ」という説明は設計の説明です。",
   engineNoticeMpc:"この部屋は秘密計算（MP-SPDZ）で価格を比較しています。席ごとの表示の絞り込みは画面上の投影で、秘匿の保証は計算側の設計によります。",
   designNote:"設計の説明",
   engineNodeSim:"試作エンジン：このノードが持つ分割した値は実装どおりですが、価格の比較は部屋側が平文で行います。",
   legendSim:"試作エンジン：価格の比較は平文です。分割・訂正・確保・決済の流れは実装どおりです。",
   whatIsThis:"このデモについて",
-  publicTitle:"公開情報", publicWhy:"ラウンド終了後に全員が確認できる情報です。",
+  publicTitle:"公開情報", publicWhy:"ラウンドの終了後に、どの席からも確認できる情報です。",
   historyTitle:"最近のラウンド",
-  seatsTitle:"参加者", seatsWhy:"各席の動作状態です。",
-  noticesTitle:"通知", footer:"QOMM demo — ",
+  seatsTitle:"参加者", seatsWhy:"各席の状態です。",
+  noticesTitle:"通知",
   taken:"使用中", auto:"自動", manual:"操作中",
   seatTaker:"注文者", seatMaker:"値付け", seatNode:"計算ノード", seatObserver:"全体表示",
   // phases
@@ -68,6 +95,8 @@ ja: {
   gZkpi:"決済の証明（zkPI）", gLedger:"DeFMI 台帳", you:"あなた",
   productBoundary:"設計では、受付の順番、各社の確保枠、証明済みの zkPI、同時決済（DvP）の記録を Avalanche 上の DeFMI に記録します。計算ノードは資産を持ちません。",
   ledgerLocal:"この部屋の台帳はプロセス内の試験用台帳です。表示する台帳の識別値はその値で、Avalanche 上の DeFMI への記録ではありません。",
+  ledgerNetwork:"今回の決済には、接続先 DeFMI ネットワークの確定記録が返っています。画面の在庫・資金の識別値と、ネットワークの記録識別子は別の値です。",
+  ledgerUnknown:"台帳の記録先は接続先サーバーの構成に従います。この画面の接続ポートだけでは、記録先を判定できません。",
   ledgerGateway:"台帳の記録先はゲートウェイ側の構成に従います（DeFMI ネットワーク構成では Avalanche 上の DeFMI）。",
   candidate:"最良気配の候補（未約定）", candidatePrice:"比較で選ばれた価格（未約定）",
   ledgerDvp:"同時引き渡し", ledgerReleased:"確保分を解放", ledgerHeld:"保留", ledgerUnchanged:"変更なし", ledgerNone:"—",
@@ -93,8 +122,8 @@ ja: {
   pfMine:"あなたの在庫と資金",
   // chat
   chatTitle:"チャットで指示",
-  chatWhyTaker:"日本語の指示を、下の操作パネルと同じ「注文の設定」と「送信」に変換します。送る前に内容を確認できます。",
-  chatWhyMaker:"日本語の指示を、下の操作パネルと同じ「価格方針の更新」に変換します。最大数量や稼働を変えると予約枠も変わります。送る前に内容を確認できます。",
+  chatWhyTaker:"日本語の指示を、上の入力欄と同じ「注文の設定」と「送信」に変換します。送る前に内容を確認できます。",
+  chatWhyMaker:"日本語の指示を、上の設定と同じ「気配の方針の更新」に変換します。最大数量や稼働を変えると予約枠も変わります。送る前に内容を確認できます。",
   chatPlaceholder:"例: USD/JPY を100単位 買いたい",
   chatPlaceholderTaker:"例: USD/JPY を100単位 買いたい",
   chatPlaceholderMaker:"例: 最大数量を300にして",
@@ -116,10 +145,10 @@ ja: {
   hintsTaker:["USD/JPY を100単位 買いたい","上限を 158.5 にして","ダミー通信に切り替え","実注文に戻して","この内容で送信"],
   hintsMaker:["スプレッドを30に","最大数量を300に","一時停止","再開","対象を EUR/USD に"],
   // taker
-  takerTitle:"注文の設定",
-  takerWhy:"送信すると資金または在庫を予約し、注文を分割して各ノードへ送ります。",
+  takerTitle:"注文を入力する",
+  takerWhy:"送信すると資金または在庫を予約し、注文を分割して各計算ノードへ送ります。",
   asset:"銘柄", side:"売買", buy:"買い", sell:"売り", qty:"数量",
-  limitPrice:"価格条件", limitPriceBuy:"支払う最高価格", limitPriceSell:"受け取る最低価格",
+  limitPrice:"価格条件", limitPriceBuy:"買う上限の価格", limitPriceSell:"売る下限の価格",
   limitBuy:"この価格以下なら自動決済", limitSell:"この価格以上なら自動決済",
   kind:"種別", real:"実注文", cover:"ダミー通信",
   coverWhy:"ダミー通信は実注文と同じ計算・通信量・時間で走ります。外からは区別できません。",
@@ -143,9 +172,9 @@ ja: {
   sr_automatic_dvp:"予約済みの在庫と資金を台帳が同時に更新しました。",
   price:"価格",
   // maker
-  makerTitle:"気配の方針",
+  makerTitle:"気配の方針（値付けの設定）",
   makerWhy:"注文は見えません。気配の方針と最大数量を先に登録しておくと、見えない注文に対して自動で評価されます。",
-  ask_level:"基準価格への上乗せ", spread:"売値と買値の差", slope:"数量が増えた時の調整", invcoef:"在庫に応じた調整の強さ",
+  ask_level:"基準価格からのずらし幅", spread:"売値と買値の差（スプレッド）", slope:"数量が増えたときの上乗せ", invcoef:"在庫に応じた調整の強さ",
   inv:"現在の在庫調整", maxqty:"最大数量", active:"稼働", assetLabel:"対象銘柄",
   invWhy:"＋で両方の気配を上げ（買い戻したい）、−で下げます（売りたい）。",
   reserveTitle:"予約枠（方針から自動計算）",
@@ -181,7 +210,10 @@ ja: {
   protocolMs:"計算時間", engRounds:"通信ラウンド数", engMb:"通信量 (MB)", compiledOnce:"初回コンパイル",
   // observer
   observerTitle:"全体表示（デモ専用）",
-  observerWhy:"実運用にこの画面はありません。デモのための全情報表示です。",
+  observerWhy:"実運用にはない画面です。デモのために全席の情報をまとめて表示しています。",
+  observerPanes:"気配の一覧は「価格照合」の札、決済の記録は「DeFMI 台帳」の札、各席の中身はその席の札から見られます。",
+  settingsWhy:"部屋の進み方を変えます。全体表示の席だけが操作できます。",
+  behavioursWhy:"各計算ノードが選んでいる動作です。実運用ではそのノードにしか見えません。",
   allQuotes:"全参加者の気配", maker:"値付け", node:"ノード",
   reason:"理由", request:"注文", behaviours:"ノードの動作", settings:"設定",
   roundEvery:"自動ラウンド間隔（秒）", stepMs:"段階ごとの表示時間（ミリ秒）",
@@ -221,30 +253,56 @@ ja: {
   ]
 },
 en: {
-  title:"QOMM", subtitle:"a trade is matched with the best quote without revealing the order",
+  title:"QOMM", subtitle:"A demo of matching a trade with the best quote while the order itself stays hidden.",
   engineSim:"simulation (cleartext compare)", engineSimShort:"sim", engineSimNote:"real share layer; the price comparison is in the clear",
-  engineMpc:"secure computation (MPC)", engineMpcShort:"MPC", engineMpcNote:"the quote circuit runs under secure computation (MP-SPDZ) and sends a proved zkPI to DeFMI",
+  engineMpc:"secure computation (MPC)", engineMpcShort:"MPC", engineMpcNote:"the quote circuit runs under secure computation (MP-SPDZ) and hands a verified zkPI to DeFMI",
   leave:"leave", langOther:"JA",
   connecting:"connecting to the server…",
   reconnecting:"connection lost — reconnecting…",
+  viewLabel:"view", viewPublic:"not seated (public information only)", viewHelp:"pick or switch a seat",
+  myControls:"controls", close:"close", more:"more", less:"less",
+  selectHint:"Enter opens",
+  hintSeatless:"Pick a seat card in the diagram (taker, maker, node) to join. Pick a process card to see its public information.",
+  hintSeated:"The outlined card is your seat. Pick a card to operate it.",
+  hintObserver:"The observer view is demo-only full information. Pick a card to see a seat's contents; the settings are under \"settings\" above.",
+  hintKeys:"Tab moves between cards, Enter opens, Esc closes.",
+  paneJoinKicker:"join", paneSwitchTitle:"Switch seat · who is here",
+  paneSwitchWhy:"Picking another seat leaves the current one and moves you there.",
+  paneMine:"your seat", paneProcess:"process",
+  seatAuto:"This seat is running automatically right now.",
+  seatHeldBy:(f)=>`Held by ${f.who}.`,
+  seatPrivate:"What this seat receives (order, policy, split values) is sent only to the screen of the person in it.",
+  claimHere:"Take this seat", claimSwitch:"Move to this seat",
+  observerSeatWhy:"In production the contents of this seat are not visible from any other seat. Only the observer view collects them.",
+  obsPolicy:"registered policy", obsQuote:"this seat's quote", obsBehaviour:"behaviour", obsBalances:"inventory and cash",
+  eligibleShort:"eligible",
+  paneMatcherWhy:"Compares every quote with the order and picks the best counterparty that meets the price condition.",
+  paneMatcherWhySim:"Compares every quote with the order and picks the best counterparty that meets the price condition. In this simulation engine the comparison runs in the clear.",
+  paneZkpiWhy:"Produces the proof that the match was computed correctly; the ledger checks it.",
+  paneLedgerWhy:"Records only verified trades, as a simultaneous delivery of the pre-reserved inventory and cash.",
+  paneObserverTitle:"Settings and every participant",
+  techNotes:"Technical notes", publicRecord:"ledger record",
+  zkpiTech:"By design, a zkPI is a proof that the secure computation's result was computed from the right inputs, without revealing them. The ledger checks it before moving the reserved assets. Where this room actually records is stated in the notes below.",
+  legendHeading:"legend", legendMore:"notes and technical limits",
   lobbyTitle:"Take a seat",
-  lobbyWhy:"Each seat sees different information. That difference is the core argument. Empty seats run automatically.",
-  yourName:"your name (optional)", watch:"watch everything (demo only)",
+  lobbyWhy:"Each seat sees different information. That difference is the point. Empty seats run automatically.",
+  yourName:"your name (optional)", watch:"watch everything (demo only, all seats)",
   theSeats:"empty seats run automatically; named ones have a person",
   roleTaker:"Requests a trade (Taker)", roleTakerWhy:"Sends the order. Only this seat receives the matched price.",
   roleMaker:"Provides quotes (Maker)", roleMakerWhy:"Registers a quoting policy and a maximum size up front; never sees the order.",
   roleNode:"Compute nodes", roleNodeWhy:"Compute on split values only. Hold no inventory or cash.",
   roleNodeWhySim:"By design they compute on split values only. In this simulation engine the price comparison is done by the room (server) in the clear. They hold no inventory or cash.",
+  engineNoticeSimShort:"This room runs the simulation engine. The price comparison runs in the clear.",
   engineNoticeSim:"This room runs the simulation engine. Splitting and dealing, error correction, reserves and settlement work as implemented, but the price comparison runs in the clear, not under secure computation. Per-seat views are a screen projection, not a guarantee from secure computation. Statements below about \"split values only\" describe the design.",
   engineNoticeMpc:"This room compares prices under secure computation (MP-SPDZ). Per-seat views are a screen projection; the confidentiality guarantee comes from the computation design.",
   designNote:"Design description",
   engineNodeSim:"Simulation engine: the split values this node holds are real, but the price comparison is done by the room in the clear.",
   legendSim:"Simulation engine: the price comparison is in the clear. Splitting, correction, reserves and settlement work as implemented.",
   whatIsThis:"About this demo",
-  publicTitle:"Public information", publicWhy:"What everyone can see after a round.",
+  publicTitle:"Public information", publicWhy:"What every seat can see after a round.",
   historyTitle:"Recent rounds",
-  seatsTitle:"Participants", seatsWhy:"Activity status of each seat.",
-  noticesTitle:"Notices", footer:"QOMM demo — ",
+  seatsTitle:"Participants", seatsWhy:"State of each seat.",
+  noticesTitle:"Notices",
   taken:"taken", auto:"auto", manual:"held",
   seatTaker:"taker", seatMaker:"maker", seatNode:"node", seatObserver:"observer",
   phaseDeal:"split & deal", phaseCheck:"check inputs", phaseReduce:"price & match",
@@ -274,6 +332,8 @@ en: {
   gZkpi:"Settlement proof (zkPI)", gLedger:"DeFMI ledger", you:"you",
   productBoundary:"By design, request order, corporate reserve limits, proved zkPI instructions and DvP settlement are recorded by the DeFMI custom VM on Avalanche. MPC nodes never custody assets.",
   ledgerLocal:"This room's ledger is an in-process demo ledger; the ledger hash shown is its value, not a record on DeFMI on Avalanche.",
+  ledgerNetwork:"This settlement includes a finality record from the connected DeFMI network. The portfolio state identifier and the network record identifier are separate values.",
+  ledgerUnknown:"The connected server determines where the ledger is recorded. The browser connection port alone does not identify that destination.",
   ledgerGateway:"Where the ledger is recorded follows the gateway's configuration (DeFMI on Avalanche in the DeFMI network setup).",
   candidate:"best-quote candidate (not filled)", candidatePrice:"price picked by the comparison (not filled)",
   ledgerDvp:"DvP", ledgerReleased:"reserve released", ledgerHeld:"held", ledgerUnchanged:"unchanged", ledgerNone:"—",
@@ -297,8 +357,8 @@ en: {
   pfObserverTitle:"Every participant's balances (demo-only view)",
   pfMine:"Your inventory and cash",
   chatTitle:"Chat control",
-  chatWhyTaker:"Plain sentences become the same order settings and send command as the panel below. You confirm before anything is sent.",
-  chatWhyMaker:"Plain sentences become the same policy updates as the panel below. Max size and on/off also change your reserve. You confirm before anything is sent.",
+  chatWhyTaker:"Plain sentences become the same order settings and send command as the form above. You confirm before anything is sent.",
+  chatWhyMaker:"Plain sentences become the same policy updates as the settings above. Max size and on/off also change your reserve. You confirm before anything is sent.",
   chatPlaceholder:"e.g. buy 100 units of USD/JPY",
   chatPlaceholderTaker:"e.g. buy 100 units of USD/JPY",
   chatPlaceholderMaker:"e.g. set maximum size to 300",
@@ -381,7 +441,10 @@ en: {
   verifiedYes:"matches reference", verifiedNo:"does NOT match reference",
   protocolMs:"compute time", engRounds:"rounds", engMb:"traffic (MB)", compiledOnce:"compiled once",
   observerTitle:"Full view (demo only)",
-  observerWhy:"Not present in production. Full-information demo display.",
+  observerWhy:"Not present in production. Every seat's information collected for the demo.",
+  observerPanes:"All quotes are on the \"Match\" card, settlement records on the \"DeFMI ledger\" card, and each seat's contents on that seat's card.",
+  settingsWhy:"Changes how the room runs. Only the observer seat can change them.",
+  behavioursWhy:"The behaviour each node has chosen. In production only that node can see it.",
   allQuotes:"all quotes", maker:"maker", node:"node",
   reason:"reason", request:"order", behaviours:"node behaviour", settings:"settings",
   roundEvery:"auto round interval (s)", stepMs:"time per phase (ms)",
@@ -427,7 +490,11 @@ function gatewayConfigured(){
   return typeof document !== 'undefined'
     && !!(document.querySelector('meta[name="qomm-gateway-port"]')?.content || '').trim();
 }
-function ledgerNote(){ return t(gatewayConfigured() ? 'ledgerGateway' : 'ledgerLocal'); }
+function ledgerNote(){
+  const record = V && V.public && V.public.engine_stats && V.public.engine_stats.defmi_product_settlement;
+  if (record && record.block_id && record.transaction_id) return t('ledgerNetwork');
+  return t(gatewayConfigured() ? 'ledgerGateway' : 'ledgerUnknown');
+}
 function ledgerOutcome(status){
   return status === 'settled' ? t('ledgerDvp') : status === 'released' ? t('ledgerReleased')
     : status === 'queued' ? t('ledgerHeld') : status === 'cover' ? t('ledgerUnchanged') : t('ledgerNone');
@@ -502,6 +569,8 @@ function isQueuePending(pub){
 function translateRefusal(reason){
   const r = String(reason || '');
   let m;
+  if (/Avalanche transaction \S+ was not accepted in time/.test(r))
+    return lang === 'ja' ? '台帳の確定待ちがタイムアウトしました。注文の成立はまだ確認できていません。' : 'Ledger finality timed out. Order completion is not yet confirmed.';
   if (/already in progress/.test(r)) return t('r_busy');
   if ((m = /Taker has (\d+) cash units available but the signed limit needs (\d+)/.exec(r)))
     return tf('r_taker_cash', {have: showCash(m[1]), need: showCash(m[2])});
@@ -529,13 +598,25 @@ const ASSET_ALIASES = {
   'BTC/USD': ['btc/usd','btcusd','btc-usd','ビットコイン','btc','ビット']
 };
 
-let ws = null, V = null, built = '', lastDraw = '', lastError = '', lastErrorTone = 'bad';
+let ws = null, V = null, P = null, built = '', lastDraw = '', lastError = '', lastErrorTone = 'bad';
 let session = '';
 if (hasDom){ try { session = localStorage.getItem('qomm.session') || ''; } catch (e) { session = ''; } }
 let chatHistory = [], chatPending = null, chatAwaitingReply = false;
+// Keep edits visible until the server echoes them; an older periodic view can
+// arrive after blur and must not replace the value the user is about to submit.
+let takerEdits = {};
 let pfPrev = null, pfPrevRound = null, pfRoundBaseline = null;
 let pfDelta = {}, pfDeltaPhase = '', pfDeltaKind = '';
 let reducedMotion = false, lastGraphWidth = -1;
+// Graph-first frame state. The drawer shows one pane: 'seats' (pick or switch
+// a seat, who is here, notices), 'me' (the observer's controls), or the id of
+// the card selected in the diagram ('taker', 'maker:3', 'node:0', 'matcher',
+// 'zkpi', 'ledger'). null keeps it closed; undefined means the first view has
+// not decided yet.
+let drawerPane;
+let lastSeatId = null, seatsSig = '', lastModel = null, lastInset = 0, techOpen = false;
+let guided = false, hintClosed = false;
+if (hasDom){ try { guided = localStorage.getItem('qomm.guided') === '1'; } catch (e) { guided = false; } }
 if (hasDom && window.matchMedia){
   const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
   reducedMotion = mq.matches;
@@ -552,7 +633,18 @@ const svgEl = (tag, attrs) => { const e = document.createElementNS(NS, tag);
   Object.keys(attrs || {}).forEach(k => e.setAttribute(k, attrs[k])); return e; };
 
 function send(message){
-  if (ws && ws.readyState === 1){ ws.send(JSON.stringify(message)); return true; }
+  if (ws && ws.readyState === 1){
+    if (message.type === 'request' && V && V.kind === 'taker') {
+      if (message.values && Object.hasOwn(message.values, 'asset')) takerEdits = {};
+      Object.assign(takerEdits, message.values || {});
+    }
+    if (message.type === 'submit' || message.type === 'submit_any') {
+      P = {active:true, local:true, status:'running', stage:'sending', elapsed_ms:0, stage_ms:0, nodes:[]};
+      setError('', 'bad');
+      drawExecutionProgress();
+    }
+    ws.send(JSON.stringify(message)); return true;
+  }
   return false;
 }
 function setError(text, tone){
@@ -579,10 +671,26 @@ function connect(){
     let m; try { m = JSON.parse(e.data); } catch (err) { return; }
     if (m.type === 'view'){
       V = m; session = m.session;
+      if (m.kind !== 'taker') takerEdits = {};
+      else for (const key of Object.keys(takerEdits)) {
+        if (m.taker && m.taker.pending && m.taker.pending[key] === takerEdits[key]) delete takerEdits[key];
+      }
+      if (m.progress && (!P || !P.local || m.progress.active)) P = m.progress;
       try { localStorage.setItem('qomm.session', session); } catch (err) { /* private mode */ }
       if (lastErrorTone === 'warn') setError('', 'bad');
       render();
+    } else if (m.type === 'progress'){
+      P = m;
+      drawExecutionProgress();
+    } else if (m.type === 'challenge_receipt'){
+      $('challenge-claim').disabled = true;
+      setError(lang === 'ja' ? 'challengeを台帳で受理しました。元の証明による応答を待っています。' : 'Challenge accepted on the ledger. Waiting for proof.', 'warn');
+    } else if (m.type === 'action_error'){
+      setError(m.reason || 'Action refused', 'bad');
+      drawAssurance();
     } else if (m.type === 'refused'){
+      takerEdits = {};
+      if (P && P.active) P = {...P, active:false, status:'failed'};
       const text = translateRefusal(m.reason || 'request refused');
       setError(text, 'bad');
       if (chatAwaitingReply){ addChatMessage(tf('chatRefused', text), 'error'); chatAwaitingReply = false; }
@@ -594,6 +702,8 @@ function connect(){
     }
   };
   ws.onclose = () => {
+    if (P && P.active) P = {...P, active:false, status:'disconnected'};
+    drawExecutionProgress();
     $('conn').textContent = t('reconnecting');
     setError(t('reconnecting'), 'warn');
     setTimeout(connect, 1200);
@@ -698,7 +808,147 @@ function setVal(node, value){
   if (node && document.activeElement !== node) node.value = value;
 }
 function phaseIndex(phase){ return PHASE_ORDER.indexOf(phase); }
-function isBusy(){ return !!(V && (V.busy || (V.phase !== 'idle' && V.phase !== 'done'))); }
+function isBusy(){ return !!(P && P.active) || !!(V && (V.busy || (V.phase !== 'idle' && V.phase !== 'done'))); }
+
+const EXECUTION_LABELS = {
+  sending: ['送信済み・サーバーの受付待ち', 'Sent · awaiting server'],
+  policy: ['Maker方針の準備・台帳への登録', 'Preparing Maker policies and ledger registration'],
+  reserve: ['注文の資金・在庫を予約', 'Reserving order funds or inventory'],
+  admission: ['受付・入力の準備', 'Admission and input preparation'],
+  mpc: ['7ノードで秘密計算', 'MPC on seven nodes'],
+  proof: ['決済の証明を生成・検証', 'Generating and checking settlement proofs'],
+  settlement: ['DeFMIへ送信・台帳の確定待ち', 'Submitted to DeFMI · awaiting finality'],
+  reconcile: ['結果・残高の照合と保存', 'Reconciling and saving results and balances'],
+  display: ['計算結果を画面に反映', 'Updating the displayed result'],
+  waiting: ['待機', 'Waiting'], signature: ['署名処理', 'Signing'],
+  input: ['入力の準備', 'Preparing inputs'], save: ['状態を保存', 'Saving state'],
+  prepare: ['準備・照合', 'Preparing / reconciling'], public_keys:['公開鍵を確認','Checking public keys'],
+};
+function executionLabel(stage){
+  const proofLabels = {
+    quote_proof:['価格比較の証明','Quote proof'], zkpi_proof:['決済認可の証明','Settlement authorization proof'],
+    limit_proof:['指値条件の証明','Price-limit proof'], pool_proof:['予約残高の証明','Reserve balance proof'],
+    dvp_proof:['資金・在庫の同時移転の証明','Delivery-versus-payment proof'],
+  };
+  if (proofLabels[stage]) return proofLabels[stage][lang === 'ja' ? 0 : 1];
+  return (EXECUTION_LABELS[stage] || EXECUTION_LABELS.waiting)[lang === 'ja' ? 0 : 1];
+}
+function executionState(status){
+  const labels = {
+    running:['実行中','Running'], done:['応答済み','Responded'], failed:['通信失敗','Call failed'], rejected:['否認応答','Request rejected'],
+    interrupted:['中断','Interrupted'], disconnected:['接続切断・結果未確認','Disconnected · result unknown'], waiting:['待機','Waiting'],
+  };
+  return (labels[status] || labels.waiting)[lang === 'ja' ? 0 : 1];
+}
+function hasExecutionProgress(){ return !!(P && (P.started_at_ms || P.local)); }
+let selectedExecution = null, executionHistory = null, executionHistoryError = '';
+async function selectExecution(run){
+  selectedExecution = run; executionHistory = null; executionHistoryError = '';
+  fillDrawer();
+  if (run === null) return;
+  try {
+    const port = (document.querySelector('meta[name="qomm-gateway-port"]')?.content || '').trim();
+    const base = port ? location.protocol + '//' + location.hostname + ':' + port : location.origin;
+    const response = await fetch(base + '/execution-history?run=' + encodeURIComponent(run), {cache:'no-store'});
+    if (!response.ok) throw new Error('history unavailable');
+    const detail = await response.json();
+    if (selectedExecution !== run) return;
+    executionHistory = detail;
+  } catch (error) {
+    if (selectedExecution !== run) return;
+    executionHistoryError = lang === 'ja' ? '履歴を読み込めませんでした。もう一度選んでください。' : 'Could not load this run. Select it again to retry.';
+  }
+  if (drawerPane === 'gateway') fillDrawer();
+}
+function transferText(event){
+  const node = (lang === 'ja' ? '計算ノード ' : 'Node ') + (event.nodes ? event.nodes.join(', ') : event.node);
+  const responded = event.status === 'received' || event.status === 'rejected';
+  const route = responded ? node + ' → Gateway' : 'Gateway → ' + node;
+  const status = event.status === 'sent' ? (lang === 'ja' ? '送信開始' : 'Request started')
+    : event.status === 'received' ? (lang === 'ja' ? '応答受信' : 'Response received')
+    : event.status === 'rejected' ? (lang === 'ja' ? '否認応答を受信' : 'Rejection received')
+    : (lang === 'ja' ? '通信失敗・応答未確認' : 'Call failed');
+  const content = {
+    public_keys:['公開鍵の照会','公開鍵'], prepare:['初期設定の要求','設定結果'],
+    admission:['注文受付の要求','受付結果'], input:['秘密分散した入力','入力の読込結果'],
+    mpc:['秘密計算の開始指示','秘密計算の結果'], proof:['証明生成の要求','証明の応答'],
+    signature:['署名の要求','署名の応答'], save:['状態保存の要求','保存結果'],
+  };
+  const what = lang === 'ja' && content[event.step] ? content[event.step][event.status === 'received' ? 1 : 0]
+    : executionLabel(event.step) + (event.status === 'received' ? (lang === 'ja' ? 'の応答' : ' response') : (lang === 'ja' ? 'の要求' : ' request'));
+  return `${route} · ${what} · ${status}`;
+}
+function drawTransferSummary(){
+  let button = $('transfer-summary');
+  if (!button) {
+    button = el('button', 'transfer-summary'); button.id = 'transfer-summary';
+    button.type = 'button'; button.onclick = () => openPane('gateway');
+    $('phase-caption').after(button);
+  }
+  const events = P && P.events || [], last = events[events.length - 1];
+  const runs = P && P.runs || [];
+  button.classList.toggle('hide', !last && !runs.length);
+  if (last) button.textContent = (lang === 'ja' ? '直前の通信: ' : 'Latest: ') + transferText(last)
+    + (lang === 'ja' ? '  › 履歴' : '  › History');
+  else if (runs.length) button.textContent = (lang === 'ja' ? '実行履歴を開く · ' : 'Execution history · ') + runs.length + (lang === 'ja' ? '件' : ' runs');
+  button.dataset.compactLabel = lang === 'ja' ? '通信・実行履歴' : 'Execution history';
+}
+function drawTransferHistory(box){
+    const live = selectedExecution === null;
+  const data = live ? P : executionHistory;
+  if (!live) setDrawerHeading(lang === 'ja' ? '保存された実行' : 'Saved execution',
+    (lang === 'ja' ? '実行 #' : 'Run #') + selectedExecution,
+    data ? new Date(data.started_at_ms).toLocaleString(lang === 'ja' ? 'ja-JP' : 'en-US') : '');
+  box.appendChild(el('h3', '', lang === 'ja' ? '実行履歴' : 'Execution history'));
+  const follow = el('button', 'history-follow', lang === 'ja' ? '現在の実行をリアルタイムで見る' : 'Follow the current run');
+  follow.type = 'button'; follow.disabled = live; follow.onclick = () => selectExecution(null);
+  box.appendChild(follow);
+  const runs = el('ol', 'execution-runs');
+  for (const run of P && P.runs || []) {
+    const row = el('li'), button = el('button', selectedExecution === run.run ? 'selected' : '');
+    const state = run.status === 'done' ? (lang === 'ja' ? '完了' : 'Complete') : executionState(run.status);
+    button.type = 'button'; button.setAttribute('aria-pressed', String(selectedExecution === run.run));
+    button.textContent = (lang === 'ja' ? '実行 #' : 'Run #') + run.run + ' · ' + new Date(run.started_at_ms).toLocaleString(lang === 'ja' ? 'ja-JP' : 'en-US') + ' · ' + state + ' · ' + formatDuration(run.elapsed_ms, lang);
+    button.onclick = () => selectExecution(P && P.active && P.run === run.run ? null : run.run);
+    row.appendChild(button); runs.appendChild(row);
+  }
+  box.appendChild(runs);
+  if (P && P.history_error) box.appendChild(el('p', 'transfer-failed', lang === 'ja' ? '履歴の保存に失敗しました。この実行は再起動後に残らない可能性があります。' : 'History could not be saved. This run may not survive a restart.'));
+  if (!live && !data) {
+    box.appendChild(el('p', '', executionHistoryError || (lang === 'ja' ? '履歴を読み込んでいます…' : 'Loading history…')));
+    return;
+  }
+  if (!live) box.appendChild(el('h3', '', (lang === 'ja' ? '選択した実行 #' : 'Selected run #') + selectedExecution));
+  box.appendChild(el('p', 'why', lang === 'ja'
+    ? '青い流れは現在の工程、黄色は通信の応答待ち、緑は応答受信を表します。この履歴には実際のGateway通信を記録しています。台帳内や計算ノード間の通信は計測していません。'
+    : 'Blue flows show the current operation, amber shows calls awaiting replies, and green shows received replies. This history records actual Gateway calls; ledger-internal and node-to-node traffic is not measured.'));
+  const running = (data && data.nodes || []).filter(node => data.active && node.status === 'running');
+  box.appendChild(el('h3', '', live ? (lang === 'ja' ? '現在' : 'Now') : (lang === 'ja' ? '終了時の状態' : 'Final state')));
+  box.appendChild(el('p', '', running.length ? running.map(node => `${lang === 'ja' ? '計算ノード' : 'Node'} ${node.node}: ${executionLabel(node.step)}`).join(' / ')
+    : data && data.active ? executionLabel(data.stage) : lang === 'ja' ? '処理中の通信はありません' : 'No active calls'));
+  box.appendChild(el('h3', '', lang === 'ja' ? '直前の通信（新しい順）' : 'Recent calls (newest first)'));
+  const list = el('ol', 'transfer-history');
+  box.appendChild(el('p', 'why', lang === 'ja' ? '同じ工程・種類・方向の通信をまとめています。時刻は処理開始からの経過です。' : 'Grouped by stage, operation and direction. Times are elapsed since this run began.'));
+  for (const event of [...(data && data.transfers || [])].sort((a,b) => b.last_ms - a.last_ms)) {
+    const row = el('li', ['failed','rejected'].includes(event.status) ? 'transfer-failed' : '');
+    row.appendChild(el('time', '', formatDuration(event.first_ms, lang) + (event.last_ms !== event.first_ms ? '–' + formatDuration(event.last_ms, lang) : '')));
+    row.appendChild(el('span', '', transferText(event) + ` · ${event.count}${lang === 'ja' ? '件' : ' calls'}`));
+    list.appendChild(row);
+  }
+  box.appendChild(list);
+}
+function drawExecutionProgress(){
+  drawAssurance();
+  if (!V) return;
+  drawPhaseStrip();
+  drawNetworkGraph();
+  drawTransferSummary();
+  if (drawerPane === 'gateway') fillDrawer();
+  if (typeof takerEls !== 'undefined' && takerEls && takerEls.go) {
+    takerEls.go.disabled = isBusy();
+    takerEls.go.textContent = isBusy() ? t('waiting') : t('submit');
+  }
+}
 /* Where an aborted round stopped, from the public abort code. */
 function stoppedAt(pub){
   if (!pub || !pub.aborted) return null;
@@ -746,6 +996,26 @@ function phaseCaption(){
 }
 function drawPhaseStrip(){
   const strip = $('phase-strip'); strip.textContent = '';
+  if (hasExecutionProgress()) {
+    const stages = ['policy','reserve','admission','mpc','proof','settlement','reconcile'];
+    const at = stages.indexOf(P.stage);
+    stages.forEach((stage, index) => {
+      const current = stage === P.stage;
+      const cls = 'phase-step' + (current ? (P.status === 'failed' ? ' stopped' : ' on') : index < at ? ' done' : '');
+      const step = el('span', cls, executionLabel(stage));
+      step.setAttribute('role','listitem');
+      if (current) step.setAttribute('aria-current','step');
+      strip.appendChild(step);
+    });
+    const caption = $('phase-caption');
+    const state = P.status === 'done' ? (lang === 'ja' ? '処理完了' : 'Complete') : executionState(P.status);
+    caption.textContent = `${state} · ${executionLabel(P.stage)} · ${formatDuration(P.elapsed_ms || 0, lang)}`;
+    if (P.active && !P.local) caption.appendChild(el('span','execution-stage-time',
+      lang === 'ja' ? `（この工程 ${formatDuration(P.stage_ms || 0, lang)}）` : ` (stage ${formatDuration(P.stage_ms || 0, lang)})`));
+    caption.classList.toggle('execution-failed', P.status === 'failed');
+    return;
+  }
+  $('phase-caption').classList.remove('execution-failed');
   const pub = V.public || {};
   const queuePending = isQueuePending(pub);
   const at = phaseIndex(V.phase);
@@ -767,7 +1037,9 @@ function drawPhaseStrip(){
   const done = el('span', terminalClass, t(terminalLabel));
   done.setAttribute('role', 'listitem');
   strip.appendChild(done);
-  const caption = $('phase-caption'); caption.textContent = phaseCaption();
+  const caption = $('phase-caption');
+  const noRound = !pub.number && V.phase === 'idle';
+  caption.textContent = (noRound ? t('noRoundYet') + ' ' : '') + phaseCaption();
   if ((V.phase === 'done' || V.phase === 'settle') && pub.ms !== undefined){
     caption.appendChild(document.createTextNode(' '));
     caption.appendChild(el('span', 'ms', tf('computeMs', pub.ms)));
@@ -818,9 +1090,9 @@ function graphModel(W){
   //    label illegible on a phone even when no node was technically clipped.
   const rowA = 88;
   const tw = compact ? Math.min(224, W - 2 * padX) : 170;
-  const th = compact ? 138 : 160;
+  const th = 194;
   const takerX = compact ? W / 2 : padX + tw / 2;
-  let mh = compact ? 138 : 160;
+  let mh = 194;
   const makerPositions = [];
   let mw, participantBottom, slim = false;
   if (compact){
@@ -858,12 +1130,12 @@ function graphModel(W){
   const nodeRows = Math.max(1, Math.ceil(nNodes / perRow));
   const nPerRow = Math.min(perRow, nNodes);
   const nw = Math.max(80, Math.min(compact ? 138 : 170, (W - 2 * padX - gap * (nPerRow - 1)) / nPerRow));
-  const nh = compact ? 106 : 118;
-  const rowB = participantBottom + 52 + nh / 2;
+  const nh = 166;
+  const rowB = participantBottom + 154 + nh / 2;
   const rowBBottom = rowB + (nodeRows - 1) * (nh + 10) + nh / 2;
   // ── row C: matcher → verify → ledger ──
-  const cw = compact ? 126 : 166, ch = compact ? 108 : 120;
-  const lw = compact ? 156 : 214;
+  const cw = compact ? 174 : 200, ch = 170;
+  const lw = compact ? 210 : 246;
   let rowC, rowD, rowE;
   if (wide){ rowC = rowD = rowE = rowBBottom + 50 + ch / 2; }
   else { rowC = rowBBottom + 58 + ch / 2; rowD = rowC + ch + 30; rowE = rowD + ch + 30; }
@@ -883,6 +1155,7 @@ function graphModel(W){
   const matcher = add({id: 'matcher', type: 'matcher', x: wide ? W * 0.22 : W / 2, y: rowC, w: cw, h: ch});
   const zkpi = add({id: 'zkpi', type: 'zkpi', x: wide ? W * 0.5 : W / 2, y: rowD, w: cw, h: ch});
   const ledger = add({id: 'ledger', type: 'ledger', x: wide ? W * 0.78 : W / 2, y: rowE, w: lw, h: ch});
+  const gateway = add({id:'gateway', type:'gateway', x:W/2, y:participantBottom+70, w:compact ? 240 : 270, h:96});
   const byId = {}; nodes.forEach(n => { byId[n.id] = n; });
   const top = (n) => ({x: n.x, y: n.y - n.h / 2}), bottom = (n) => ({x: n.x, y: n.y + n.h / 2});
   const left = (n) => ({x: n.x - n.w / 2, y: n.y}), right = (n) => ({x: n.x + n.w / 2, y: n.y});
@@ -984,12 +1257,16 @@ function graphModel(W){
   }
 
   // ── what each node says ──
-  const orderText = (o) => o ? `${(V.assets[o.asset] || {}).name || '--'} ${o.direction ? t('sell') : t('buy')} ${o.qty}${o.is_real ? '' : ' · ' + t('cover')}` : '';
+  const orderText = describeOrder;
   nodes.forEach(n => {
     n.classes = []; n.title = ''; n.sub = ''; n.badge = '';
     const isMe = n.id === me;
     if (isMe) n.classes.push('is-me');
-    if (n.type === 'taker'){
+    if (n.type === 'gateway'){
+      n.title = lang === 'ja' ? '進行役（Gateway）' : 'Coordinator (Gateway)';
+      n.sub = hasExecutionProgress() ? executionLabel(P.stage) : executionLabel('waiting');
+      if (P && P.active) n.classes.push('is-active');
+    } else if (n.type === 'taker'){
       n.title = t('gTaker') + (isMe && !compact ? ' · ' + t('you') : '');
       if (knowsOrder){
         const shown = (phase === 'idle' || phase === 'done') && pendingOrder && kind === 'taker' && !busy ? pendingOrder : (lastOrder || pendingOrder);
@@ -1113,7 +1390,95 @@ function graphModel(W){
         {label: lang === 'ja' ? '台帳の識別値' : 'ledger hash', value: root ? shortRoot(root) : '--'},
       ];
     }
+    if (hasExecutionProgress()) {
+      const statusLabel = lang === 'ja' ? '状況' : 'status';
+      const timeLabel = lang === 'ja' ? '経過' : 'elapsed';
+      if (n.type === 'node') {
+        const current = (P.nodes || []).find(entry => entry.node === n.index);
+        const state = current ? current.status : 'waiting';
+        n.sub = executionLabel(current ? current.step : 'waiting');
+        n.classes = n.classes.filter(cls => !['is-active','is-stopped'].includes(cls));
+        if (state === 'running' && P.active) n.classes.push('is-active');
+        if (state === 'failed' || state === 'interrupted') n.classes.push('is-stopped');
+        n.metrics = [
+          {label:statusLabel, value:executionState(state)},
+          {label:timeLabel, value:current && current.step !== 'waiting' ? formatDuration(current.elapsed_ms, lang) : '—'},
+        ];
+      } else {
+        const targets = {
+          sending:['taker'], policy:['ledger'], reserve:['taker'],
+          admission:['matcher'], mpc:['matcher'], proof:['zkpi'],
+          settlement:['ledger'], reconcile:['ledger','taker'], display:['matcher'],
+        };
+        const current = (targets[P.stage] || []).includes(n.type);
+        if (current) {
+          n.sub = executionLabel(P.stage);
+          n.classes = n.classes.filter(cls => !['is-active','is-stopped'].includes(cls));
+          if (P.active) n.classes.push('is-active');
+          if (P.status === 'failed') n.classes.push('is-stopped');
+          // Custody cards retain their real available/reserved balances.
+          if (['matcher','zkpi','ledger'].includes(n.type)) n.metrics = [
+            {label:statusLabel, value:P.status === 'done' ? (lang === 'ja' ? '完了' : 'Complete') : executionState(P.status)},
+            {label:timeLabel, value:formatDuration(P.stage_ms || 0, lang)},
+          ];
+        } else if (P.active && ['matcher','zkpi','ledger'].includes(n.type)) {
+          const completed = ({
+            matcher:['proof','settlement','reconcile'],
+            zkpi:['settlement','reconcile'],
+          }[n.type] || []).includes(P.stage);
+          n.sub = completed ? (lang === 'ja' ? 'この工程は完了' : 'Stage complete')
+            : (lang === 'ja' ? '前の工程を待っています' : 'Waiting for earlier stages');
+          n.classes = n.classes.filter(cls => cls !== 'is-active');
+          n.metrics = [{label:statusLabel, value:completed ? (lang === 'ja' ? '完了' : 'Complete') : executionState('waiting')}];
+        }
+      }
+    }
   });
+  if (hasExecutionProgress()) {
+    // Use the real execution stage, never the later phase replay. Blue flows
+    // show the operation in progress; Gateway RPC edges show observed calls.
+    edges.forEach(edge => { edge.state = 'idle'; edge.particle = false; });
+    labels.length = 0;
+    if (P.active) {
+      const stageLinks = {
+        mpc: edges.filter(edge => edge.target === 'matcher').map(edge => edge.id),
+        proof: [edgeId('matcher', 'zkpi')],
+        settlement: [edgeId('zkpi', 'ledger')],
+        reconcile: edges.filter(edge => edge.source === 'ledger').map(edge => edge.id),
+      };
+      for (const edge of edges) {
+        if ((stageLinks[P.stage] || []).includes(edge.id)) {
+          edge.state = 'flow'; edge.particle = true; edge.own = true; edge.color = 'blue';
+        }
+      }
+      if (['policy','reserve'].includes(P.stage)) {
+        edges.push({id:'stage-gateway-ledger',source:'gateway',target:'ledger',
+          state:'flow',own:true,particle:true,color:'blue',
+          d:orthoPath([right(gateway),{x:laneR,y:gateway.y},{x:laneR,y:ledger.y},right(ledger)])});
+      } else if (['sending','admission'].includes(P.stage)) {
+        edges.push({id:'stage-taker-gateway',source:'taker',target:'gateway',
+          state:'flow',own:true,particle:true,color:'blue',
+          d:orthoPath([bottom(takerN),{x:takerN.x,y:gateway.y},left(gateway)])});
+      }
+    }
+    const events = P.events || [];
+    for (let i = 0; i < nNodes; i++) {
+      const current = (P.nodes || []).find(entry => entry.node === i);
+      const latest = [...events].reverse().find(event => event.node === i);
+      if (!latest) continue;
+      const running = P.active && current && current.status === 'running';
+      const isReply = ['received','rejected'].includes(latest.status);
+      const recentReply = isReply && P.active && P.elapsed_ms - latest.at_ms < 1500;
+      const from = running || !isReply ? gateway : byId['node:' + i];
+      const to = from === gateway ? byId['node:' + i] : gateway;
+      edges.push({id:'rpc-' + i, source:from.id, target:to.id,
+        state:running || recentReply ? 'flow' : latest.status === 'failed' ? 'cut' : 'done',
+        own:true, particle:running || recentReply, color:running || latest.status === 'rejected' ? 'amber' : 'teal',
+        d:orthoPath([from === gateway ? bottom(from) : top(from),
+          {x:from.x,y:participantBottom+126}, {x:to.x,y:participantBottom+126},
+          to === gateway ? bottom(to) : top(to)])});
+    }
+  }
   return {nodes, edges, labels, W, H, compact};
 }
 
@@ -1122,15 +1487,22 @@ function drawNetworkGraph(){
   if (!container || !V) return;
   // Use the real canvas width. graphModel has a dedicated narrow layout; the
   // old 980px floor forced a desktop graph to be miniaturised inside phones.
+  // The container is the viewport under the top bar, minus the drawer while
+  // one is open on a desktop, so the diagram is laid out for what is visible.
   const W = container.clientWidth > 0 ? Math.max(320, container.clientWidth) : 980;
   lastGraphWidth = container.clientWidth;
   const model = graphModel(W);
+  lastModel = model;
   container.setAttribute('aria-label', t('graphAria'));
   const noRound = !(V.public && V.public.number) && V.phase === 'idle';
   if (!window.QommNetworkGraph || typeof window.QommNetworkGraph.render !== 'function'){
+    container.classList.add('graph-fallback');
     container.textContent = lang === 'ja' ? 'ネットワーク図を読み込めませんでした。' : 'The network graph could not be loaded.';
     return;
   }
+  // On a phone the bottom sheet covers the lower part of the canvas; the
+  // bundle pans the selected card into the strip that stays visible.
+  lastInset = model.compact && drawerPane ? (Number($('drawer').offsetHeight) || 0) : 0;
   window.QommNetworkGraph.render(container, model, {
     ariaLabel: t('graphAria'),
     phase: V.phase,
@@ -1138,8 +1510,13 @@ function drawNetworkGraph(){
     noRoundText: noRound ? t('noRoundYet') + ' ' + phaseCaption() : '',
     legend: [['taker','gTaker'],['maker','gMaker'],['node','gNode'],['matcher','gMatcher'],['zkpi','gZkpi'],['ledger','gLedger']]
       .map(([type, key]) => ({type, label: t(key)})),
-    legendNotes: (isSim() ? [t('legendSim')] : []).concat([t('legendNoCustody'), t('legendLines'), t('productBoundary'), ledgerNote()]),
+    legendNotes: legendNotesList(),
     reducedMotion,
+    compact: !!model.compact,
+    selectedId: isCardPane(drawerPane) ? drawerPane : null,
+    insetBottom: lastInset,
+    selectHint: t('selectHint'),
+    onNodeSelect: onGraphNodeSelect,
   });
 }
 
@@ -1465,26 +1842,20 @@ function drawChat(){
 /*  Render frame                                                              */
 /* ========================================================================= */
 function render(){
+  drawAssurance();
   if (!V) return;
   $('countdown').textContent =
     (V.config.auto_rounds && V.next_round_in !== null && V.next_round_in !== undefined)
       ? '⟳ ' + V.next_round_in.toFixed(0) + 's' : '';
-  const signature = JSON.stringify(V, (k, v) => k === 'next_round_in' ? 0 : v);
+  const signature = JSON.stringify(V, (k, v) => k === 'next_round_in' ? 0 : v) + JSON.stringify(P);
   if (signature === lastDraw) return;
   lastDraw = signature;
   document.documentElement.lang = lang;
-  document.querySelectorAll('[data-s]').forEach(n => {
-    const v = t(n.dataset.s); if (typeof v === 'string') n.textContent = v; });
-  document.querySelectorAll('[data-s-placeholder]').forEach(n => {
-    const v = t(n.dataset.sPlaceholder); if (typeof v === 'string') n.placeholder = v; });
-  $('btn-lang').textContent = t('langOther');
+  applyStrings();
   const c = V.config;
-  // Engine notice in the body, not only the header badge: what the room
+  // Engine notice on the diagram, not only the header badge: what the room
   // actually guarantees right now, before any design description.
-  const banner = $('engine-banner');
-  banner.textContent = t(c.engine === 'sim' ? 'engineNoticeSim' : 'engineNoticeMpc');
-  banner.classList.toggle('sim', c.engine === 'sim');
-  banner.classList.remove('hide');
+  drawEngineNotice(c);
   const eng = $('engineBadge');
   eng.textContent = c.engine === 'sim' ? t('engineSim') : t('engineMpc');
   eng.dataset.short = c.engine === 'sim' ? t('engineSimShort') : t('engineMpcShort');
@@ -1494,18 +1865,18 @@ function render(){
   $('roundNum').textContent = (V.public && V.public.number)
     ? '#' + V.public.number + ' · ' + (lang === 'ja' ? '処理時間 ' : '')
       + formatDuration(V.public.ms, lang) : '#--';
-  const badge = $('seatBadge');
-  const seatName = V.kind === 'taker' ? t('seatTaker') : V.kind === 'maker' ? t('seatMaker') + ' ' + V.index
-    : V.kind === 'node' ? t('seatNode') + ' ' + V.index : V.kind === 'observer' ? t('seatObserver') : '';
-  badge.textContent = seatName + (V.label ? ' · ' + V.label : '');
-  badge.classList.toggle('hide', !V.seat);
-  $('btn-leave').classList.toggle('hide', !V.seat);
-  $('lobby').classList.toggle('hide', !!V.seat);
-  $('stage').classList.toggle('hide', !V.seat);
-  if (!V.seat){ buildLobby(); return; }
+  // The diagram is on screen from the first view, seat or no seat: a seatless
+  // browser sees the public projection and joins from a seat card.
+  $('stage').classList.remove('hide');
+  seatTransition();
+  drawTopbar();
+  layoutDrawer();
+  const seatsNow = JSON.stringify(V.seats) + ':' + lang + ':' + (c.engine || '');
+  if (seatsNow !== seatsSig){ seatsSig = seatsNow; buildLobby(); }
   drawPhaseStrip();
   drawNetworkGraph();
   drawPortfolioStrip();
+  drawTransferSummary();
   drawChat();
   const want = V.kind + ':' + V.index + ':' + lang;
   if (built !== want){ buildPanel(); built = want; }
@@ -1514,6 +1885,15 @@ function render(){
   drawHistory();
   drawSeatMap();
   drawNotices();
+  drawLegend();
+  // The balance strip and the chat decide their own visibility from the seat;
+  // the pane decides whether they are on screen at all.
+  layoutDrawer();
+  fillDrawer();
+  drawHint();
+  // A phone's bottom sheet is only as tall as its content; the diagram keeps
+  // the selected card above it, so redraw once that height is known.
+  if (isCompact() && drawerPane && (Number($('drawer').offsetHeight) || 0) !== lastInset) drawNetworkGraph();
 }
 
 function drawPublic(){
@@ -1601,8 +1981,353 @@ function drawSeatMap(){
 function drawNotices(){
   const box = $('notices'); box.textContent = '';
   const rows = (V.notices || []).slice().reverse();
+  // The newest notice also sits on the diagram: a maker learns about a fill
+  // without opening any pane.
+  const latest = $('notice-latest');
+  if (latest){
+    if (rows.length){ latest.textContent = msg(rows[0].code, rows[0].fields); latest.className = 'notice-latest ' + (rows[0].tone || 'info'); }
+    else latest.className = 'notice-latest hide';
+  }
   if (!rows.length){ box.appendChild(el('p', 'empty', '--')); return; }
   rows.forEach(n => box.appendChild(el('div', n.tone, msg(n.code, n.fields))));
+}
+
+/* ========================================================================= */
+/*  Graph-first frame: top bar, status overlay, legend, drawer                */
+/* ========================================================================= */
+function applyStrings(){
+  document.querySelectorAll('[data-s]').forEach(n => {
+    const v = t(n.dataset.s); if (typeof v === 'string') n.textContent = v; });
+  document.querySelectorAll('[data-s-placeholder]').forEach(n => {
+    const v = t(n.dataset.sPlaceholder); if (typeof v === 'string') n.placeholder = v; });
+  document.querySelectorAll('[data-s-aria]').forEach(n => {
+    const v = t(n.dataset.sAria); if (typeof v === 'string') n.setAttribute('aria-label', v); });
+  $('btn-lang').textContent = t('langOther');
+}
+function show(id, on){ const n = $(id); if (n) n.classList.toggle('hide', !on); }
+function isCompact(){ const g = $('network-graph'); return !!g && g.clientWidth > 0 && g.clientWidth < 560; }
+function isCardPane(pane){ return !!pane && pane !== 'seats' && pane !== 'me'; }
+/* The pane that holds this browser's own controls: the seat's card, or 'me'
+   for the observer, who has no card in the diagram. */
+function myPaneId(){
+  if (!V || !V.seat) return null;
+  if (V.kind === 'observer') return 'me';
+  return V.kind === 'taker' ? 'taker' : V.kind + ':' + V.index;
+}
+function legendNotesList(){
+  return (isSim() ? [t('legendSim')] : []).concat([t('legendNoCustody'), t('legendLines'), t('productBoundary'), ledgerNote()]);
+}
+function describeOrder(o){
+  return o ? `${(V.assets[o.asset] || {}).name || '--'} ${o.direction ? t('sell') : t('buy')} ${o.qty}${o.is_real ? '' : ' · ' + t('cover')}` : '';
+}
+function resetSeatState(){
+  built = ''; chatHistory = []; chatPending = null;
+  pfPrev = null; pfPrevRound = null; pfRoundBaseline = null; pfDelta = {}; pfDeltaKind = '';
+}
+/* Seatless → seated opens the seat's own controls; seated → seatless returns
+   to the seat picker; a switch between seats follows the new seat. Anything
+   the person opened or closed themselves stays until the seat changes. */
+function seatTransition(){
+  const seatId = V.seat || null;
+  if (drawerPane === undefined) drawerPane = seatId ? myPaneId() : V.completed_taker ? 'taker' : 'seats';
+  else if (seatId !== lastSeatId){
+    if (lastSeatId !== null) resetSeatState();
+    const readingHistory = !seatId && V.completed_taker && drawerPane === 'gateway' && selectedExecution !== null;
+    if (!readingHistory) drawerPane = seatId ? myPaneId() : V.completed_taker ? 'taker' : 'seats';
+    hintClosed = false;
+  }
+  lastSeatId = seatId;
+}
+let detailsHidden = false;
+if (hasDom) { try { detailsHidden = localStorage.getItem('qomm.detailsHidden') === '1'; } catch (_) {} }
+function drawDetailsToggle(){
+  document.body.classList.toggle('details-hidden', detailsHidden);
+  const button = $('btn-details');
+  button.textContent = lang === 'ja' ? (detailsHidden ? '説明を表示' : '説明を隠す') : (detailsHidden ? 'Show details' : 'Hide details');
+  button.setAttribute('aria-expanded', String(!detailsHidden));
+}
+function drawTopbar(){
+  drawDetailsToggle();
+  const badge = $('seatBadge');
+  const seatLabel = V.kind === 'taker' ? t('seatTaker') : V.kind === 'maker' ? t('seatMaker') + ' ' + V.index
+    : V.kind === 'node' ? t('seatNode') + ' ' + V.index : V.kind === 'observer' ? t('seatObserver') : '';
+  badge.textContent = seatLabel + (V.label ? ' · ' + V.label : '');
+  badge.classList.toggle('hide', !V.seat);
+  $('view-current').textContent = V.seat ? '' : t('viewPublic');
+  $('btn-view').title = t('viewHelp');
+  $('btn-leave').classList.toggle('hide', !V.seat);
+  const me = $('btn-me');
+  me.classList.toggle('hide', !V.seat);
+  me.textContent = V.kind === 'observer' ? t('settings') : t('myControls');
+}
+/* One line on the diagram saying what the engine guarantees; the simulation's
+   longer explanation unfolds on request. */
+function drawEngineNotice(c){
+  const banner = $('engine-banner');
+  const sim = c.engine === 'sim';
+  $('engine-short').textContent = sim ? t('engineNoticeSimShort') : t('engineNoticeMpc');
+  $('engine-full').textContent = sim ? t('engineNoticeSim') : '';
+  $('engine-more').classList.toggle('hide', !sim);
+  banner.classList.toggle('sim', sim);
+  banner.classList.remove('hide');
+}
+function drawLegend(){
+  const chips = $('legend-chips'); chips.textContent = '';
+  [['taker','gTaker'],['maker','gMaker'],['node','gNode'],['matcher','gMatcher'],['zkpi','gZkpi'],['ledger','gLedger']]
+    .forEach(([type, key]) => chips.appendChild(el('span', 'legend-chip ' + type, t(key))));
+  const notes = $('legend-notes'); notes.textContent = '';
+  legendNotesList().forEach((note, i) => notes.appendChild(el('div', isSim() && i === 0 ? 'legend-note sim' : 'legend-note', note)));
+}
+/* Where to click, for someone who has not clicked yet. */
+function drawHint(){
+  const box = $('stage-hint'); if (!box || !V) return;
+  let text = '';
+  if (!hintClosed){
+    if (!V.seat){ if (drawerPane !== 'seats') text = t('hintSeatless'); }
+    else if (!guided) text = t(V.kind === 'observer' ? 'hintObserver' : 'hintSeated') + (isCompact() ? '' : ' ' + t('hintKeys'));
+  }
+  $('stage-hint-text').textContent = text;
+  box.classList.toggle('hide', !text);
+}
+function markGuided(){
+  guided = true;
+  try { localStorage.setItem('qomm.guided', '1'); } catch (e) { /* private mode */ }
+}
+function openPane(pane){
+  drawerPane = pane;
+  if (isCardPane(pane)) markGuided();
+  drawDrawer(); drawHint(); drawNetworkGraph();
+  $('drawer-body').scrollTop = 0;
+  const title = $('drawer-title'); if (title && drawerPane) title.focus();
+}
+function closeDrawer(){
+  const was = drawerPane;
+  drawerPane = null;
+  drawDrawer(); drawHint(); drawNetworkGraph();
+  const back = isCardPane(was) ? findNodeCard(was) : null;
+  (back || $(was === 'me' ? 'btn-me' : 'btn-view')).focus();
+}
+function findNodeCard(id){
+  const cards = document.querySelectorAll('#network-graph [data-node-id]');
+  for (const card of cards){ if (card.getAttribute('data-node-id') === id) return card; }
+  return null;
+}
+function onGraphNodeSelect(id){ if (V) openPane(id); }
+function setDrawerHeading(kicker, title, sub){
+  $('drawer-kicker').textContent = kicker || '';
+  $('drawer-title').textContent = title || '';
+  $('drawer-sub').textContent = sub || '';
+}
+function paneSeat(pane){ return isCardPane(pane) ? (V.seats || []).find(s => s.id === pane) || null : null; }
+/* Which of the static slots are on screen for the current pane. The slots
+   themselves are drawn on every view whether visible or not, so a pane opens
+   already filled. */
+function layoutDrawer(){
+  if (!V) return;
+  const pane = drawerPane || null;
+  const open = !!pane;
+  const mine = myPaneId();
+  const isSeats = pane === 'seats';
+  const isMine = open && pane === mine;
+  const card = isCardPane(pane) ? pane : null;
+  const seat = paneSeat(pane);
+  const process = card && !seat ? card : null;
+  const chatty = V.kind === 'taker' || V.kind === 'maker';
+  $('drawer').classList.toggle('hide', !open);
+  $('network-graph').classList.toggle('with-drawer', open);
+  $('btn-view').setAttribute('aria-expanded', isSeats ? 'true' : 'false');
+  $('btn-me').setAttribute('aria-expanded', isMine ? 'true' : 'false');
+  show('lobby', isSeats);
+  show('pane-seats', isSeats);
+  show('node-info', !!card);
+  show('panel', isMine);
+  show('portfolio-strip', isMine);
+  show('chat-panel', isMine && chatty);
+  show('pane-public', process === 'matcher');
+  show('pane-history', process === 'matcher' || process === 'ledger');
+}
+function fillDrawer(){
+  if (!V) return;
+  const pane = drawerPane || null;
+  if (!pane) return;
+  if (pane === 'seats') setDrawerHeading(t('paneJoinKicker'), V.seat ? t('paneSwitchTitle') : t('lobbyTitle'), V.seat ? t('paneSwitchWhy') : '');
+  else if (pane === 'me') setDrawerHeading(t('observerTitle'), t('paneObserverTitle'), t('observerWhy'));
+  else drawNodeInfo(pane, paneSeat(pane));
+}
+function drawDrawer(){ layoutDrawer(); fillDrawer(); }
+function nodeHeading(id){
+  const n = lastModel && lastModel.nodes.find(x => x.id === id);
+  return n ? {title: n.title, sub: n.sub || ''} : {title: id, sub: ''};
+}
+function roleWhy(kind){
+  return t(kind === 'taker' ? 'roleTakerWhy' : kind === 'maker' ? 'roleMakerWhy' : engineKey('roleNodeWhy'));
+}
+/* The selected card, explained for this seat: who holds it and how to take
+   it, or what the process is doing. What a seat may see is decided by the
+   view the server sent; nothing here reaches past it. */
+function drawNodeInfo(id, seat){
+  const box = $('node-info');
+  // Do not rebuild under someone typing a name into the claim form.
+  const active = document.activeElement;
+  if (active && active.classList.contains('claim-name') && seat && !seat.mine && !seat.held && typeof box.contains === 'function' && box.contains(active)) return;
+  box.textContent = '';
+  const {title, sub} = nodeHeading(id);
+  if (seat){
+    const kicker = seat.mine ? t('paneMine') : seat.kind === 'taker' ? t('roleTaker') : seat.kind === 'maker' ? t('roleMaker') : t('roleNode');
+    setDrawerHeading(kicker, title, sub);
+    if (seat.mine){
+      box.appendChild(el('p', 'why', roleWhy(seat.kind)));
+    } else {
+      box.appendChild(el('p', 'pane-lead', seat.held ? tf('seatHeldBy', {who: seat.label || t('taken')}) : t('seatAuto')));
+      box.appendChild(el('p', 'why', roleWhy(seat.kind)));
+      if (!seat.held) box.appendChild(claimForm(seat));
+      box.appendChild(el('p', 'why', t('seatPrivate')));
+    }
+    if (id === 'taker' && V.completed_taker) {
+      const receipt = V.completed_taker, last = receipt.last || {};
+      box.prepend(el('p', 'pane-lead', lang === 'ja' ? '注文が完了し、席を自動で空けました。' : 'Order complete. Your seat was released automatically.'));
+      box.appendChild(el('h3', '', (lang === 'ja' ? 'あなたの注文結果 #' : 'Your order #') + last.number));
+      box.appendChild(el('p', '', `${(V.assets[last.asset] || {}).name || ''} · ${last.qty} · ${showPrice(V.assets, last.asset, last.price)}`));
+      const result = el('div'); drawSettlement(result, receipt.settlement); box.appendChild(result);
+      box.appendChild(el('p', '', (lang === 'ja' ? '完了時の利用可能資金: ' : 'Available cash at completion: ') + showCash(receipt.portfolio.cash.available)));
+    }
+    if (V.kind === 'observer') box.appendChild(observerSeatDetail(seat));
+    return;
+  }
+  setDrawerHeading(t('paneProcess'), title, sub);
+  if (id === 'gateway'){
+    drawTransferHistory(box);
+  } else if (id === 'matcher'){
+    box.appendChild(el('p', 'why', t(engineKey('paneMatcherWhy'))));
+    if (V.kind === 'observer') observerQuotes(box);
+  } else if (id === 'zkpi'){
+    box.appendChild(el('p', 'why', t('paneZkpiWhy')));
+    verificationDetail(box);
+  } else if (id === 'ledger'){
+    box.appendChild(el('p', 'why', t('paneLedgerWhy')));
+    ledgerDetail(box);
+  }
+}
+function claimForm(seat){
+  const form = el('div', 'claim-form');
+  const label = el('label', 'field-label', t('yourName'));
+  const input = el('input', 'claim-name'); input.type = 'text'; input.maxLength = 24;
+  input.value = $('pname').value;
+  input.setAttribute('aria-label', t('yourName'));
+  input.oninput = () => { $('pname').value = input.value; };
+  const go = el('button', 'go', V.seat ? t('claimSwitch') : t('claimHere')); go.type = 'button';
+  go.onclick = () => send({type: 'claim', seat: seat.id, label: input.value});
+  form.appendChild(label); form.appendChild(input); form.appendChild(go);
+  return form;
+}
+function kv(pairs){
+  const list = el('dl', 'kv');
+  pairs.forEach(([k, v]) => { list.appendChild(el('dt', null, k)); list.appendChild(el('dd', null, v)); });
+  return list;
+}
+function balancesList(p){
+  const rows = [[t('pfCash') + ' · ' + t('pfAvailable'), showCash(p.cash.available)],
+                [t('pfCash') + ' · ' + t('pfReserved'), showCash(p.cash.reserved)]];
+  (p.inventory || []).forEach(r => {
+    rows.push([r.name + ' · ' + t('pfAvailable'), showCash(r.available)]);
+    if (r.reserved) rows.push([r.name + ' · ' + t('pfReserved'), showCash(r.reserved)]);
+  });
+  const box = el('div');
+  box.appendChild(el('div', 'tag', t('obsBalances')));
+  box.appendChild(kv(rows));
+  return box;
+}
+/* The observer's view of one seat: demo-only, and labelled as such so the
+   full view is not mistaken for what a participant can see. */
+function observerSeatDetail(seat){
+  const d = V.observer || {};
+  const wrap = el('div', 'observer-detail');
+  wrap.appendChild(el('div', 'tag leak', t('observerTitle')));
+  wrap.appendChild(el('p', 'why', t('observerSeatWhy')));
+  if (seat.kind === 'taker'){
+    if (d.request){
+      const settled = !!((d.settlements || [])[0] && d.settlements[0].status === 'settled');
+      wrap.appendChild(kv([
+        [t('request'), describeOrder(d.request)],
+        [settled ? t('winner') : t('candidate'), d.winner === null || d.winner === undefined ? '--' : t('gMaker') + ' ' + d.winner],
+        [t('price'), showPrice(V.assets, d.request.asset, d.price)],
+      ]));
+    } else wrap.appendChild(el('p', 'empty', t('noRoundYet')));
+    if (d.taker_portfolio) wrap.appendChild(balancesList(d.taker_portfolio));
+  } else if (seat.kind === 'maker'){
+    const pol = (d.policies || [])[seat.index];
+    if (pol){
+      wrap.appendChild(el('div', 'tag', t('obsPolicy')));
+      wrap.appendChild(kv([[t('assetLabel'), (V.assets[pol.asset] || {}).name || '--']]
+        .concat(Object.keys(POLICY_RANGE).map(name => [t(name), String(pol[name])]))
+        .concat([[t('active'), pol.active ? t('on') : t('off')]])));
+    }
+    const q = (d.quotes || []).find(x => x.maker === seat.index);
+    if (q){
+      const shownIn = d.request ? d.request.asset : q.asset;
+      wrap.appendChild(el('div', 'tag', t('obsQuote')));
+      wrap.appendChild(kv([[t('ask'), showPrice(V.assets, shownIn, q.ask)], [t('bid'), showPrice(V.assets, shownIn, q.bid)],
+        [t('reason'), showQuoteReason(q.reason) || (q.eligible ? t('eligibleShort') : '--')]]));
+    }
+    const p = (d.maker_portfolios || []).find(x => x.maker === seat.index);
+    if (p && p.portfolio) wrap.appendChild(balancesList(p.portfolio));
+  } else if (seat.kind === 'node'){
+    const b = (d.behaviours || {})[seat.index];
+    wrap.appendChild(kv([[t('obsBehaviour'), b ? t('b_' + b) : '--']]));
+  }
+  return wrap;
+}
+function verificationDetail(box){
+  const p = V.public || {};
+  if (!p.number){ box.appendChild(el('p', 'empty', t('noRoundYet'))); return; }
+  if (isQueuePending(p)){
+    const w = el('div', 'hidden-box'); w.appendChild(el('div', 'tag', t('queued')));
+    w.appendChild(el('div', null, abortText(p))); box.appendChild(w);
+  } else if (p.verified === true || p.verified === false){
+    const v = el('div', p.verified ? 'hidden-box' : 'bad-box');
+    v.appendChild(el('div', p.verified ? 'tag' : 'tag bad', p.verified ? t('verifiedYes') : t('verifiedNo')));
+    v.appendChild(el('div', 'why mono', verifiedDetailText(p.verified_detail)));
+    box.appendChild(v);
+  } else if (p.aborted){
+    const b = el('div', 'bad-box'); b.appendChild(el('div', 'tag bad', t('stopped')));
+    b.appendChild(el('div', null, abortText(p))); b.appendChild(el('div', 'why', p.abort_reason));
+    box.appendChild(b);
+  } else {
+    const ok = el('div', 'hidden-box'); ok.appendChild(el('div', 'tag', t('zDecoded')));
+    ok.appendChild(el('div', 'why', t('corrected') + ': ' + (p.corrections || 0) + ' / ' + (p.reductions || 0)));
+    box.appendChild(ok);
+  }
+  if (p.settlement && p.settlement.automatic){
+    const auto = el('div', 'hidden-box', t('automatic')); auto.style.marginTop = '.5rem'; box.appendChild(auto);
+  }
+  const tech = el('details', 'pane-details'); tech.open = techOpen;
+  tech.ontoggle = () => { techOpen = !!tech.open; };
+  tech.appendChild(el('summary', null, t('techNotes')));
+  tech.appendChild(el('p', 'why', t('zkpiTech')));
+  tech.appendChild(el('p', 'why', t('productBoundary')));
+  tech.appendChild(el('p', 'why', ledgerNote()));
+  if (lang === 'en' && V.config.engine_note) tech.appendChild(el('p', 'why', V.config.engine_note));
+  box.appendChild(tech);
+}
+/* The ledger card: this seat's own settlement when the server sent one, the
+   public record otherwise, and where that record actually lives. */
+function ledgerDetail(box){
+  const own = V.kind === 'taker' ? (V.taker && V.taker.settlement) : V.kind === 'maker' ? (V.maker && V.maker.settlement)
+    : V.kind === 'observer' ? ((V.observer && V.observer.settlements) || [])[0] : null;
+  const pub = (V.public && V.public.settlement) || null;
+  const wrap = el('div');
+  if (own) drawSettlement(wrap, own);
+  else if (pub){
+    wrap.appendChild(el('div', 'tag brand', t('publicRecord')));
+    wrap.appendChild(el('span', 'status-pill ' + pub.status, settlementName(pub.status)));
+    if (pub.state_root){
+      wrap.appendChild(el('div', 'tag', t(pub.status === 'queued' ? 'queueStateRoot' : 'stateRoot')));
+      wrap.appendChild(el('div', 'root', pub.state_root));
+    }
+  } else wrap.appendChild(el('p', 'empty', t('noSettlement')));
+  box.appendChild(wrap);
+  const note = el('p', 'why', ledgerNote()); note.style.marginTop = '.5rem';
+  box.appendChild(note);
 }
 
 /* ─── lobby ────────────────────────────────────────────────────────── */
@@ -1622,7 +2347,9 @@ function buildLobby(){
       const b = el('button'); b.type = 'button';
       const name = s.kind === 'taker' ? t('seatTaker') : (s.kind === 'maker' ? t('seatMaker') : t('seatNode')) + ' ' + s.index;
       b.appendChild(el('b', null, name));
-      b.appendChild(el('span', null, s.held ? (s.label || t('taken')) : t('auto')));
+      b.appendChild(el('span', null, s.mine ? t('you') + (s.label ? ' · ' + s.label : '')
+        : s.held ? (s.label || t('taken')) : t('auto')));
+      if (s.mine) b.classList.add('mine');
       b.disabled = s.held;
       b.onclick = () => send({type:'claim', seat:s.id, label:$('pname').value});
       grid.appendChild(b);
@@ -1761,7 +2488,7 @@ function buildTaker(root){
   takerEls = {sel, side, qty, limitLabel, limit, limitHint, kind, reserve, go, maskedKey, priceTag, price, winner, settlement};
 }
 function updateTaker(){
-  const d = V.taker || {}, p = d.pending || {}, last = d.last, e = takerEls;
+  const d = V.taker || {}, p = {...(d.pending || {}), ...takerEdits}, last = d.last, e = takerEls;
   setVal(e.sel, p.asset); pick(e.side, p.direction); pick(e.kind, p.is_real);
   setVal(e.qty, p.qty);
   if (e.qty && e.qty.parentElement) e.qty.parentElement.querySelector('.val').textContent = p.qty;
@@ -1967,19 +2694,13 @@ function updateNode(){
 }
 
 /* ─── observer ─────────────────────────────────────────────────────── */
+// The observer's own pane holds the room controls. Everything else it may
+// see hangs off the card it belongs to: all quotes on the matcher card,
+// settlements on the ledger card, a seat's policy, order or behaviour on that
+// seat's card (drawNodeInfo).
 let obsEls = {};
 function buildObserver(root){
-  const banner = el('div', 'note-box', t('observerWhy'));
-  banner.style.marginBottom = '.8rem'; root.appendChild(banner);
-
-  const c = card(t('allQuotes'), '');
-  const head = el('div', 'row'); c.appendChild(head);
-  const wrap = el('div', 'table-wrap'); const table = el('table'); wrap.appendChild(table); c.appendChild(wrap); root.appendChild(c);
-
-  const ledgerCard = card(t('gLedger'), '');
-  const ledger = el('div'); ledgerCard.appendChild(ledger); root.appendChild(ledgerCard);
-
-  const cfg = card(t('settings'), '');
+  const cfg = card(t('settings'), t('settingsWhy'));
   const rs = slider(cfg, t('roundEvery'), 'cfg_rs', 2, 60, (v) => send({type:'config', values:{round_seconds:v}}));
   const sm = slider(cfg, t('stepMs'), 'cfg_sm', 0, 2000, (v) => send({type:'config', values:{step_ms:v}}));
   const ar = segmented(cfg, t('autoRounds'), [{value:1, text:t('on')}, {value:0, text:t('off')}],
@@ -1993,29 +2714,33 @@ function buildObserver(root){
   cfg.appendChild(now);
   root.appendChild(cfg);
 
-  const b = card(t('behaviours'), '');
+  const b = card(t('behaviours'), t('behavioursWhy'));
   const behav = el('div', 'seatmap'); b.appendChild(behav); root.appendChild(b);
-  obsEls = {head, table, ledger, rs, sm, ar, ic, now, behav};
+  root.appendChild(el('p', 'why', t('observerPanes')));
+  obsEls = {rs, sm, ar, ic, now, behav};
 }
-function updateObserver(){
-  const d = V.observer || {}, e = obsEls;
-  e.head.textContent = '';
+function observerQuotes(box){
+  const d = V.observer || {};
   const latestSettlement = (d.settlements || [])[0];
   const roundSettled = !!(latestSettlement && latestSettlement.status === 'settled');
+  box.appendChild(el('div', 'tag leak', t('observerTitle')));
+  const head = el('div', 'row');
   if (d.request){
     const parts = [
-      [t('request'), V.assets[d.request.asset].name + ' ' + (d.request.direction ? t('sell') : t('buy')) + ' ' + d.request.qty + (d.request.is_real ? '' : ' · ' + t('cover'))],
+      [t('request'), describeOrder(d.request)],
       [roundSettled ? t('winner') : t('candidate'), d.winner === null || d.winner === undefined ? '--' : t('gMaker') + ' ' + d.winner],
       [t('price'), showPrice(V.assets, d.request.asset, d.price)],
     ];
-    parts.forEach(([k, v]) => { const box = el('div', 'hidden-box');
-      box.style.flex = '1'; box.appendChild(el('div', 'tag', k));
-      box.appendChild(el('div', null, v)); e.head.appendChild(box); });
-  } else e.head.appendChild(el('p', 'empty', t('noRoundYet')));
-  e.table.textContent = '';
+    parts.forEach(([k, v]) => { const item = el('div', 'hidden-box');
+      item.style.flex = '1'; item.appendChild(el('div', 'tag', k));
+      item.appendChild(el('div', null, v)); head.appendChild(item); });
+  } else head.appendChild(el('p', 'empty', t('noRoundYet')));
+  box.appendChild(head);
+  box.appendChild(el('h3', 'subhead', t('allQuotes')));
+  const wrap = el('div', 'table-wrap'); const table = el('table');
   const hr = el('tr');
   [t('maker'), t('assetLabel'), t('ask'), t('bid'), t('reason')].forEach(h => hr.appendChild(el('th', null, h)));
-  e.table.appendChild(hr);
+  table.appendChild(hr);
   // Every quote is anchored on the market that was asked for, so that is
   // the scale they are all shown at.
   const shownIn = d.request ? d.request.asset : 0;
@@ -2026,11 +2751,12 @@ function updateObserver(){
     tr.appendChild(el('td', 'mono', showPrice(V.assets, shownIn, q.ask)));
     tr.appendChild(el('td', 'mono', showPrice(V.assets, shownIn, q.bid)));
     tr.appendChild(el('td', null, showQuoteReason(q.reason)));
-    e.table.appendChild(tr);
+    table.appendChild(tr);
   });
-  e.ledger.textContent = '';
-  const latest = (d.settlements || [])[0];
-  if (latest) drawSettlement(e.ledger, latest); else e.ledger.appendChild(el('p', 'empty', t('noSettlement')));
+  wrap.appendChild(table); box.appendChild(wrap);
+}
+function updateObserver(){
+  const d = V.observer || {}, e = obsEls;
   const c = V.config;
   setVal(e.rs, c.round_seconds);
   e.rs.parentElement.querySelector('.val').textContent = c.round_seconds;
@@ -2051,29 +2777,83 @@ if (hasDom){
   $('btn-lang').onclick = () => { lang = lang === 'ja' ? 'en' : 'ja';
     try { localStorage.setItem('qomm.lang', lang); } catch (e) { /* private mode */ }
     built = ''; lastDraw = ''; chatHistory = []; chatPending = null; $('chat-preview').classList.add('hide');
-    document.querySelectorAll('[data-s]').forEach(n => { const v = t(n.dataset.s); if (typeof v === 'string') n.textContent = v; });
-    $('btn-lang').textContent = t('langOther');
+    applyStrings();
     render(); };
-  $('btn-leave').onclick = () => { send({type:'release'}); built = ''; chatHistory = []; chatPending = null; pfPrev = null; pfPrevRound = null; pfRoundBaseline = null; pfDelta = {}; pfDeltaKind = ''; };
+  $('btn-leave').onclick = () => { send({type:'release'}); resetSeatState(); };
   $('btn-watch').onclick = () => send({type:'claim', seat:'observer', label:$('pname').value});
+  // The drawer: the seat picker from the view switch, the seat's own controls
+  // from the controls button, a card from the diagram (mouse, touch, Enter),
+  // and Escape or the close button to put it away.
+  $('btn-details').onclick = () => { detailsHidden = !detailsHidden;
+    try { localStorage.setItem('qomm.detailsHidden', detailsHidden ? '1' : '0'); } catch (_) {}
+    drawDetailsToggle(); drawNetworkGraph();
+  };
+  $('btn-view').onclick = () => { if (drawerPane === 'seats') closeDrawer(); else openPane('seats'); };
+  $('btn-me').onclick = () => { const me = myPaneId(); if (!me) return; if (drawerPane === me) closeDrawer(); else openPane(me); };
+  $('drawer-close').onclick = closeDrawer;
+  $('hint-close').onclick = () => { hintClosed = true; markGuided(); drawHint(); };
+  $('engine-more').onclick = () => {
+    const full = $('engine-full'), more = $('engine-more');
+    const open = !full.classList.toggle('hide');
+    more.setAttribute('aria-expanded', open ? 'true' : 'false');
+    more.textContent = t(open ? 'less' : 'more');
+  };
+  window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && drawerPane){ e.preventDefault(); closeDrawer(); } });
   $('chat-input').addEventListener('keydown', e => { if (e.key === 'Enter'){ e.preventDefault(); handleChatInput(); } });
   $('chat-send').addEventListener('click', handleChatInput);
   let resizeTimer = null;
   const redrawIfWidthChanged = () => { clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => {
       const graph = $('network-graph');
-      if (V && V.seat && graph && graph.clientWidth !== lastGraphWidth) drawNetworkGraph();
+      // Seat or no seat: the diagram is on screen from the first view.
+      if (V && graph && graph.clientWidth !== lastGraphWidth) drawNetworkGraph();
     }, 120); };
   window.addEventListener('resize', redrawIfWidthChanged);
   // The diagram is laid out for the width it had when the first view arrived;
   // if the box changes width afterwards (stylesheet, fonts, orientation), it is
   // laid out again.  Height changes are the diagram's own and do not redraw.
   if (typeof ResizeObserver !== 'undefined') new ResizeObserver(redrawIfWidthChanged).observe($('network-graph'));
-  document.querySelectorAll('[data-s]').forEach(n => { const v = t(n.dataset.s); if (typeof v === 'string') n.textContent = v; });
-  $('btn-lang').textContent = t('langOther');
+  applyStrings();
   connect();
 }
 if (typeof module !== 'undefined' && module.exports){
   module.exports = {interpretTaker, interpretMaker, makerCashRequirement, translateRefusal, orthoPath,
     formatDuration, setLang: (l) => { lang = l; }, S};
 }
+
+// Assurance metadata is public; no provisional price or identity is broadcast.
+function drawAssurance(){
+  const a = V?.config?.assurance;
+  const control = $('assurance-mode');
+  if (!control) return;
+  control.parentElement.hidden = !a;
+  if (!a) return;
+  const ja = lang === 'ja';
+  $('assurance-label').textContent = ja ? '検証方式' : 'Assurance';
+  control.options[0].textContent = ja ? '共同証明' : 'Joint proof';
+  control.options[1].textContent = ja ? '暫定方式' : 'Optimistic';
+  control.options[1].disabled = !a.optimistic_available;
+  control.value = a.selection?.mode || 'joint_proof';
+  control.disabled = !!P?.active || !a.selectable;
+  const claim = P?.optimistic, status = claim?.status?.status;
+  const box = $('assurance-status'), button = $('challenge-claim');
+  box.hidden = !claim;
+  if (!claim) return;
+  const remaining = Math.max(0, Math.ceil(claim.challenge_deadline - Date.now()/1000));
+  const names = ja
+    ? {pending:'暫定結果を受理・未決済', challenged:'challenge中・元の証明を検証', proven:'証明を確認・確定期限待ち', finalized:P?.active ? '検証確定・DvP決済中' : P?.status === 'done' ? '台帳への決済確定を確認' : '検証確定・決済結果を要確認', rejected:'暫定結果を棄却・決済不可'}
+    : {pending:'Provisional · unsettled', challenged:'Challenged · verifying proof', proven:'Proven · waiting for deadline', finalized:P?.active ? 'Assurance finalized · settling DvP' : P?.status === 'done' ? 'Settlement confirmed on ledger' : 'Assurance finalized · check settlement', rejected:'Rejected · settlement forbidden'};
+  $('assurance-message').textContent = (names[status] || status || '') + (['pending','proven'].includes(status) ? (ja ? '（残り約' + remaining + '秒）' : ' (about '+remaining+'s)') : '');
+  if (P?.provisional && P.active) $('assurance-message').textContent += (ja ? ' · 暫定価格 ' : ' · Provisional price ') + showPrice(V.assets,P.provisional.asset,P.provisional.price) + ' × ' + P.provisional.quantity;
+  button.hidden = !a.challenge_available || status !== 'pending' || !P?.active || remaining === 0;
+  button.textContent = ja ? 'challengeを送信' : 'Submit challenge';
+  button.disabled = false;
+}
+$('assurance-mode').addEventListener('change', e => {
+  send({type:'config', values:{assurance_mode:e.target.value}});
+  e.target.disabled = true;
+});
+$('challenge-claim').addEventListener('click', e => {
+  const claim = P?.optimistic;
+  if (claim) { e.target.disabled = true; send({type:'challenge', claim_id:claim.claim_id}); }
+});

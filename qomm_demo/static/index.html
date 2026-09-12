@@ -2,106 +2,148 @@
 <html lang="ja">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' ws: wss:; img-src 'self' data:; script-src 'self'; style-src 'self'">
   <meta name="qomm-gateway-port" content="">
   <title>QOMM</title>
   <link rel="icon" href="data:,">
-  <link rel="stylesheet" href="/demo.css?v=20260906a">
-  <link rel="stylesheet" href="/react-flow.css?v=20260906a">
+  <link rel="stylesheet" href="/demo.css?v=20260912a">
+  <link rel="stylesheet" href="/react-flow.css?v=20260912a">
 </head>
 <body>
-<header>
+<!-- top bar: the app name, what the room is doing, and which seat this browser holds -->
+<header class="topbar">
   <h1 class="title" data-s="title">QOMM</h1>
-  <span class="sub" data-s="subtitle"></span>
   <span class="badge engine" id="engineBadge">--</span>
   <span class="badge" id="roundNum">#--</span>
   <span class="badge" id="countdown"></span>
+  <span class="conn" id="conn" aria-live="polite"></span>
   <span class="spacer"></span>
-  <span class="badge seat hide" id="seatBadge"></span>
+  <label class="assurance-control"><span id="assurance-label">検証方式</span><select id="assurance-mode" aria-labelledby="assurance-label"><option value="joint_proof">共同証明</option><option value="optimistic">暫定方式</option></select></label>
+  <button type="button" id="btn-view" class="view-switch" aria-haspopup="dialog" aria-expanded="false" aria-controls="drawer">
+    <span class="view-kicker" data-s="viewLabel"></span>
+    <span class="badge seat hide" id="seatBadge"></span>
+    <span class="view-current" id="view-current"></span>
+  </button>
+  <button type="button" id="btn-me" class="hide" aria-expanded="false" aria-controls="drawer"></button>
   <button type="button" id="btn-leave" class="hide" data-s="leave"></button>
+  <button type="button" id="btn-details" aria-expanded="true" aria-controls="stage-status graph-legend">説明を隠す</button>
   <button type="button" id="btn-lang" aria-label="language">EN</button>
 </header>
 
+<div id="assurance-status" class="assurance-status" role="status" aria-live="polite" hidden><span id="assurance-message"></span><button id="challenge-claim" type="button" hidden>challengeを送信</button></div>
 <div id="errorbar" class="error-banner hide" role="alert" aria-live="assertive"></div>
-<div id="engine-banner" class="engine-banner hide" role="note"></div>
 
-<main>
-  <!-- lobby ------------------------------------------------------------- -->
-  <section id="lobby" aria-labelledby="lobby-title">
-    <div class="card">
-      <h2 id="lobby-title" data-s="lobbyTitle"></h2>
-      <p class="why" data-s="lobbyWhy"></p>
-      <div class="row">
-        <label for="pname" data-s="yourName"></label>
-        <input type="text" id="pname" maxlength="24" placeholder="">
+<!-- the diagram fills everything under the top bar; every other element floats over it -->
+<main id="stage" class="stage hide">
+  <div id="network-graph" role="group" data-s-aria="graphAria"></div>
+
+  <!-- where the round is, what the engine guarantees, and the newest notice -->
+  <div class="stage-status" id="stage-status">
+    <div class="phase-strip" id="phase-strip" role="list" aria-label="phase"></div>
+    <p class="phase-caption" id="phase-caption" aria-live="polite"></p>
+    <div id="engine-banner" class="engine-banner hide" role="note">
+      <span id="engine-short"></span>
+      <button type="button" id="engine-more" class="link-btn hide" aria-expanded="false" aria-controls="engine-full" data-s="more"></button>
+      <div id="engine-full" class="engine-full hide"></div>
+    </div>
+    <div id="notice-latest" class="notice-latest hide" role="status" aria-live="polite"></div>
+    <div id="stage-hint" class="stage-hint hide" role="status">
+      <span id="stage-hint-text"></span>
+      <button type="button" id="hint-close" class="icon-btn small" data-s-aria="close">×</button>
+    </div>
+  </div>
+
+  <!-- legend, and the technical notes behind a toggle -->
+  <div class="stage-legend" id="graph-legend">
+    <div class="legend-chips" id="legend-chips" data-s-aria="legendHeading"></div>
+    <details class="legend-more">
+      <summary data-s="legendMore"></summary>
+      <div class="legend-notes" id="legend-notes"></div>
+    </details>
+  </div>
+
+  <!-- the drawer (a bottom sheet on a phone): one pane at a time, closable -->
+  <aside id="drawer" class="drawer hide" role="dialog" aria-labelledby="drawer-title">
+    <div class="drawer-grip" aria-hidden="true"></div>
+    <div class="drawer-head">
+      <div class="drawer-heading">
+        <div class="drawer-kicker" id="drawer-kicker"></div>
+        <h2 id="drawer-title" tabindex="-1"></h2>
+        <p class="drawer-sub" id="drawer-sub"></p>
+      </div>
+      <button type="button" id="drawer-close" class="icon-btn" data-s-aria="close">×</button>
+    </div>
+    <div class="drawer-body" id="drawer-body">
+      <!-- seat picker: who is here, take or switch a seat, what the demo is -->
+      <section id="lobby" class="pane hide" aria-labelledby="lobby-title">
+        <h2 id="lobby-title" class="sr-only" data-s="lobbyTitle"></h2>
+        <p class="pane-lead" data-s="subtitle"></p>
+        <p class="why" data-s="lobbyWhy"></p>
+        <div class="row">
+          <label for="pname" data-s="yourName"></label>
+          <input type="text" id="pname" maxlength="24" placeholder="">
+        </div>
         <button type="button" class="go ghost" id="btn-watch" data-s="watch"></button>
+        <h3 class="subhead" data-s="theSeats"></h3>
+        <div class="lobby-grid" id="lobby-grid" role="group" aria-labelledby="lobby-title" aria-busy="true">
+          <p class="empty" data-s="connecting"></p>
+        </div>
+        <details class="pane-details">
+          <summary data-s="whatIsThis"></summary>
+          <div id="explain"></div>
+        </details>
+      </section>
+
+      <!-- the selected card: who holds the seat, or what the process is doing -->
+      <div id="node-info" class="pane hide"></div>
+
+      <!-- the seat's own controls (order, policy, node behaviour, observer settings) -->
+      <div id="panel" class="hide"></div>
+
+      <!-- balances: what this seat owns -->
+      <div id="portfolio-strip" class="portfolio-strip hide" aria-live="polite"></div>
+
+      <!-- chat: plain-language control of the same messages the form sends -->
+      <div id="chat-panel" class="card chat-panel hide">
+        <h2 data-s="chatTitle"></h2>
+        <p class="why" id="chat-why"></p>
+        <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
+        <div id="chat-preview" class="chat-preview hide" aria-live="polite"></div>
+        <div class="chat-input-row">
+          <label for="chat-input" class="sr-only" data-s="chatTitle"></label>
+          <input type="text" id="chat-input" placeholder="" data-s-placeholder="chatPlaceholder">
+          <button type="button" id="chat-send" class="go" data-s="chatSend"></button>
+        </div>
+        <div id="chat-hints" class="chat-hints"></div>
       </div>
-      <h3 class="subhead" data-s="theSeats"></h3>
-      <div class="lobby-grid" id="lobby-grid" role="group" aria-labelledby="lobby-title" aria-busy="true">
-        <p class="empty" data-s="connecting"></p>
-      </div>
-    </div>
-    <div class="card">
-      <h2 data-s="whatIsThis"></h2>
-      <div id="explain"></div>
-    </div>
-  </section>
 
-  <!-- stage ------------------------------------------------------------- -->
-  <section id="stage" class="hide">
-    <!-- where the round is: a live diagram, not a list of steps -->
-    <div class="card graph-card">
-      <div class="phase-strip" id="phase-strip" role="list" aria-label="phase"></div>
-      <p class="phase-caption" id="phase-caption" aria-live="polite"></p>
-      <div id="network-graph" role="group" data-s-aria="graphAria"></div>
-    </div>
-
-    <!-- balances: what this seat owns, always on screen ------------------- -->
-    <div id="portfolio-strip" class="portfolio-strip hide" aria-live="polite"></div>
-
-    <!-- chat: plain-language control of the same messages the form sends -- -->
-    <div id="chat-panel" class="card chat-panel hide">
-      <h2 data-s="chatTitle"></h2>
-      <p class="why" id="chat-why"></p>
-      <div id="chat-messages" class="chat-messages" role="log" aria-live="polite"></div>
-      <div id="chat-preview" class="chat-preview hide" aria-live="polite"></div>
-      <div class="chat-input-row">
-        <label for="chat-input" class="sr-only" data-s="chatTitle"></label>
-        <input type="text" id="chat-input" placeholder="" data-s-placeholder="chatPlaceholder">
-        <button type="button" id="chat-send" class="go" data-s="chatSend"></button>
-      </div>
-      <div id="chat-hints" class="chat-hints"></div>
-    </div>
-
-    <!-- role panel ------------------------------------------------------- -->
-    <div id="panel"></div>
-
-    <div class="grid two">
-      <div class="card">
+      <!-- public information of the round (matcher card) -->
+      <section id="pane-public" class="pane hide">
         <h2 data-s="publicTitle"></h2>
         <p class="why" data-s="publicWhy"></p>
         <div id="publicbody"></div>
+      </section>
+
+      <!-- recent rounds (matcher and ledger cards) -->
+      <section id="pane-history" class="pane hide">
         <h3 class="subhead" data-s="historyTitle"></h3>
         <div id="history" class="history-list"></div>
-      </div>
-      <div class="card">
+      </section>
+
+      <!-- who is in which seat, and the notices for this seat (seat picker) -->
+      <section id="pane-seats" class="pane hide">
         <h2 data-s="seatsTitle"></h2>
         <p class="why" data-s="seatsWhy"></p>
         <div class="seatmap" id="seatmap"></div>
         <h3 class="subhead" data-s="noticesTitle"></h3>
         <div class="notices" id="notices" role="log" aria-live="polite"></div>
-      </div>
+      </section>
     </div>
-  </section>
+  </aside>
 </main>
 
-<footer>
-  <span data-s="footer"></span>
-  <span id="conn" aria-live="polite"></span>
-</footer>
-
-<script src="/react-flow.js?v=20260906a"></script>
-<script src="/demo.js?v=20260906a"></script>
+<script src="/react-flow.js?v=20260912a"></script>
+<script src="/demo.js?v=20260912a"></script>
 </body>
 </html>

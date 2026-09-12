@@ -87,7 +87,7 @@ use zkpi_committee::pretrade_authority::{
 };
 use zkpi_committee::proof_client::ProofPartyRpc;
 use zkpi_committee::proof_codec::{
-    encode_dvp_proofs, encode_quote_verification, encode_threshold_range,
+    encode_dvp_proofs,  encode_threshold_range,
 };
 use zkpi_committee::proof_party::{ProofParty, ProofPartyConfig, ProofRequest, ProofResponse};
 use zkpi_committee::resident_mpc::{
@@ -145,6 +145,7 @@ fn execution_lane_for_admission(sequence: u64) -> Result<usize, String> {
 #[derive(Clone, Debug)]
 struct Endpoint {
     authority: String,
+    progress: Option<(crate::progress::ExecutionProgress, usize)>,
 }
 
 impl Endpoint {
@@ -164,15 +165,29 @@ impl Endpoint {
         }
         Ok(Self {
             authority: authority.to_string(),
+            progress: None,
         })
     }
 
     fn post(&self, path: &str, value: &Value, timeout: Duration) -> Result<Value, String> {
-        self.request("POST", path, Some(value), timeout)
+        let revision = self.progress.as_ref().and_then(|(progress, node)| {
+            progress.node_started(*node, crate::progress::node_step(path, value))
+        });
+        let mut response_received = false;
+        let result = self.request("POST", path, Some(value), timeout, &mut response_received);
+        if let Some((progress, node)) = &self.progress {
+            let status = match &result {
+                Ok(value) if value.get("ok").and_then(Value::as_bool) != Some(false) => "done",
+                _ if response_received => "rejected",
+                _ => "failed",
+            };
+            progress.node_finished(*node, revision, status);
+        }
+        result
     }
 
     fn get(&self, path: &str, timeout: Duration) -> Result<Value, String> {
-        self.request("GET", path, None, timeout)
+        self.request("GET", path, None, timeout, &mut false)
     }
 
     fn request(
@@ -181,6 +196,7 @@ impl Endpoint {
         path: &str,
         value: Option<&Value>,
         timeout: Duration,
+        response_received: &mut bool,
     ) -> Result<Value, String> {
         let body = match value {
             Some(value) => serde_json::to_vec(value).map_err(|error| error.to_string())?,
@@ -231,6 +247,7 @@ impl Endpoint {
         let body = &response[split + 4..];
         let value: Value = serde_json::from_slice(body)
             .map_err(|error| format!("MPC node returned malformed JSON: {error}"))?;
+        *response_received = true;
         if !status.contains(" 200 ") {
             return Err(value
                 .get("error")
@@ -841,6 +858,8 @@ impl QueuedRfqEnvelope {
 }
 
 pub struct DistributedMpcEngine {
+    assurance: zkpi_committee::optimistic::AssuranceSelection,
+    progress: crate::progress::ExecutionProgress,
     endpoints: Vec<Endpoint>,
     n_parties: usize,
     threshold: usize,
@@ -957,6 +976,11 @@ impl DistributedMpcEngine {
         let source_sha256 = hex::encode(Sha256::digest(source.as_bytes()));
         Ok(Self {
             endpoints,
+            assurance: match std::env::var("QOMM_ASSURANCE_STATE") {
+                Ok(path) if std::path::Path::new(&path).exists() => serde_json::from_slice(&std::fs::read(path).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?,
+                _ => zkpi_committee::optimistic::AssuranceSelection::from_environment()?,
+            },
+            progress: crate::progress::ExecutionProgress::default(),
             n_parties,
             threshold,
             n_makers,
@@ -2371,6 +2395,56 @@ impl DistributedMpcEngine {
 }
 
 impl MpcQuoteEngine for DistributedMpcEngine {
+    fn assurance(&self) -> serde_json::Value {
+        serde_json::json!({"selection":self.assurance,"selectable":std::env::var_os("QOMM_ASSURANCE_STATE").is_some(),
+            "optimistic_available":std::env::var("ZKPI_OPTIMISTIC_POLICY_ID").is_ok_and(|id| hex::decode(id).is_ok_and(|bytes| bytes.len() == 32)),
+            "challenge_available":self.challenge_handler().is_some()})
+    }
+    fn set_assurance(&mut self, mode: &str) -> Result<(), String> {
+        use zkpi_committee::optimistic::AssuranceSelection;
+        if self.retained_corporate.is_some() || self.preclaimed_replay.is_some() {
+            return Err("finish or release the retained corporate request before changing assurance".into());
+        }
+        let path = std::env::var("QOMM_ASSURANCE_STATE").map_err(|_| "persistent assurance selection is not configured")?;
+        let selected = match mode {
+            "joint_proof" => AssuranceSelection::JointProof,
+            "optimistic" => {
+                let policy = hex::decode(std::env::var("ZKPI_OPTIMISTIC_POLICY_ID").map_err(|_| "optimistic policy is not enrolled")?).map_err(|e|e.to_string())?.try_into().map_err(|_| "invalid policy ID")?;
+                let proposer_party = std::env::var("ZKPI_OPTIMISTIC_PROPOSER_PARTY").unwrap_or_else(|_| "1".into()).parse::<usize>().map_err(|e| e.to_string())?;
+                if proposer_party == 0 || proposer_party > self.n_parties { return Err("invalid proposer party".into()); }
+                self.defmi_market.as_ref().ok_or("native DeFMI required")?.optimistic_client().policy(policy)?;
+                AssuranceSelection::Optimistic {policy, proposer_party}
+            },
+            _ => return Err("unknown assurance mode".into()),
+        };
+        let temporary = format!("{path}.tmp");
+        std::fs::write(&temporary, serde_json::to_vec(&selected).map_err(|e|e.to_string())?).map_err(|e|e.to_string())?;
+        std::fs::File::open(&temporary).and_then(|f|f.sync_all()).map_err(|e|e.to_string())?;
+        std::fs::rename(&temporary, &path).map_err(|e|e.to_string())?;
+        self.assurance = selected;
+        Ok(())
+    }
+    fn challenge_handler(&self) -> Option<crate::mpc::ChallengeHandler> {
+        if std::env::var("QOMM_PUBLIC_DEVELOPMENT_CHALLENGE").as_deref() != Ok("1") { return None; }
+        let rpc = self.defmi_market.as_ref()?.shared_rpc();
+        Some(std::sync::Arc::new(move |claim| {
+            use zkpi_committee::optimistic::{Challenge, ClaimStatus};
+            let client = zkpi_defmi_sdk::optimistic::OptimisticClient {rpc: &rpc};
+            let before = client.claim(claim)?;
+            if !matches!(before.status, ClaimStatus::Pending) { return Err("claim is not pending".into()); }
+            // Explicitly enabled public-development fixture, never an operator key.
+            let key = zkpi_committee::application_crypto::SigningKey::from_bytes(&[91;64]);
+            let receipt = client.challenge(&Challenge::signed(claim, &key)?)?;
+            Ok(serde_json::json!({"claim_id":hex::encode(claim),"tx_id":receipt.tx_id,"height":receipt.height,"after_root":hex::encode(receipt.after_root)}))
+        }))
+    }
+
+    fn set_progress(&mut self, progress: crate::progress::ExecutionProgress) {
+        for (node, endpoint) in self.endpoints.iter_mut().enumerate() {
+            endpoint.progress = Some((progress.clone(), node));
+        }
+        self.progress = progress;
+    }
     fn name(&self) -> &'static str {
         "mpc"
     }
@@ -3249,6 +3323,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 .as_ref()
                 .map(|(_, _, _, attempt)| *attempt)
                 .unwrap_or(1);
+            self.progress.stage("mpc");
             let receipts = thread::scope(|scope| {
                 let mut handles = Vec::with_capacity(self.n_parties);
                 for (node, ((endpoint, (input, admitted)), certified_admission)) in self
@@ -3545,7 +3620,40 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     eligibility_bits: self.config.quote_eligibility_bits,
                     span_bits: self.config.quote_span_bits,
                 })?;
-                let quote = prove_complete_quote(&mut proof_parties, &quote_request)?;
+                self.progress.stage("proof");
+                let (quote, mut optimistic_preparation) = match &self.assurance {
+                    zkpi_committee::optimistic::AssuranceSelection::JointProof =>
+                        (prove_complete_quote(&mut proof_parties, &quote_request)?.into(), None),
+                    zkpi_committee::optimistic::AssuranceSelection::Optimistic { policy, proposer_party } => {
+                        let market = self.defmi_market.as_ref().ok_or("optimistic execution requires canonical DeFMI")?;
+                        let admission = market.admit_optimistic_quote(*policy, &quote_request, wall_now)?;
+                        let (quote, prepared) = zkpi_committee::product_proof_coordinator::propose_optimistic_quote(
+                            &mut proof_parties, &quote_request, &admission, *proposer_party,
+                        )?;
+                        if let zkpi_committee::quote_authorization::QuoteAuthorization::Optimistic(q) = &quote {
+                            market.optimistic_client().propose(&q.proposal)?;
+                            self.progress.optimistic_claim(&market.optimistic_client().claim(q.proposal.id()?)?);
+                            if verified && filled {
+                                self.progress.provisional(json!({"asset":request.asset,"quantity":request.qty,"price":outcome.price,"settled":false}));
+                            }
+                        }
+                        (quote, Some(prepared))
+                    }
+                };
+                let optimistic_proposal = match &quote {
+                    zkpi_committee::quote_authorization::QuoteAuthorization::Optimistic(q) => Some(q.proposal.clone()),
+                    _ => None,
+                };
+                // Service challenges before beginning the financial proofs. Their
+                // duration must not consume the challenge response window.
+                if let Some(proposal) = &optimistic_proposal {
+                    let market = self.defmi_market.as_ref().ok_or("optimistic execution requires canonical DeFMI")?;
+                    market.optimistic_client().await_finality(proposal, || {
+                        let prepared = optimistic_preparation.take().ok_or("optimistic challenge proof was already consumed")?;
+                        let proof = zkpi_committee::product_proof_coordinator::prove_prepared_quote(&mut proof_parties, &quote_request, prepared)?;
+                        zkpi_committee::proof_codec::encode_quote_verification(&proof)
+                    }, |claim| self.progress.optimistic_claim(claim))?;
+                }
                 let quote_digest = quote.verify()?;
                 let settlement_key = Pedersen::new(b"qomm:defmi:v1");
                 let limit_blinding = Scalar::from(round_slot.saturating_add(101));
@@ -3947,7 +4055,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     maker_reserve_receipt_digest,
                     taker_reserve_receipt_digest: taker_reservation_receipt.reserve_receipt_digest,
                     quote_proof_digest: quote_digest,
-                    market_statement_digest: proof.handoff.quote_verification.public.market_digest,
+                    market_statement_digest: proof.handoff.quote_verification.public().market_digest,
                     before_state_root: settlement_root,
                 };
                 // All one-use proof outputs now exist. Consume every signer and
@@ -4072,7 +4180,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     securities_leg,
                     cash_leg,
                     openings,
-                    proof.handoff.quote_verification.public.market_digest,
+                    proof.handoff.quote_verification.public().market_digest,
                     wall_now,
                 )?;
                 let base_settlement_digest = projection.settlement.statement()?;
@@ -4173,7 +4281,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                 })?;
                 let evidence = ProductSettlementEvidence {
                     typed_instruction: typed_wire::encode(&typed),
-                    quote_verification: encode_quote_verification(
+                    quote_verification: zkpi_committee::quote_authorization::encode_quote_authorization(
                         &proof.handoff.quote_verification,
                     )?,
                     price_limit_proof: encode_threshold_range(&proof.handoff.price_limit_proof)?,
@@ -4188,6 +4296,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     &order,
                     evidence.digest()?,
                 )?;
+                self.progress.stage("settlement");
                 let settled = market.settle_product_with_standing_pool(
                     &transition,
                     &authorization,
@@ -4211,6 +4320,7 @@ impl MpcQuoteEngine for DistributedMpcEngine {
                     &settled.canonical_readbacks,
                 )
                 .map_err(|error| error.to_string())?;
+                self.progress.stage("reconcile");
                 // DeFMI has accepted the allocation.  Each node now commits its
                 // own remainder shares from this execution's persistence under a
                 // compare-and-swap on the generation it executed with.  A node

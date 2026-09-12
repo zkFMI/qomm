@@ -286,6 +286,16 @@ pub fn serve_static_frontend(
                         let method = fields.next().unwrap_or_default();
                         let target = fields.next().unwrap_or_default();
                         let path = target.split_once('?').map_or(target, |value| value.0);
+                        if method == "GET" && path == "/execution-history" {
+                            let mut gateway = TcpStream::connect((gateway_host.as_str(), gateway_port)).map_err(|error| error.to_string())?;
+                            gateway.set_read_timeout(Some(Duration::from_secs(15))).map_err(|error| error.to_string())?;
+                            gateway.write_all(&request).map_err(|error| error.to_string())?;
+                            let _ = gateway.shutdown(Shutdown::Write);
+                            let mut response = Vec::new();
+                            gateway.take((MAX_FRAME + 1) as u64).read_to_end(&mut response).map_err(|error| error.to_string())?;
+                            if response.len() > MAX_FRAME { return Err("execution history exceeded its response bound".into()); }
+                            return stream.write_all(&response).map_err(|error| error.to_string());
+                        }
                         if method == "GET" && path == "/ws" {
                             return proxy_websocket_connection(
                                 stream,
@@ -327,6 +337,10 @@ pub fn serve_static_frontend(
 type Connections = Arc<Mutex<BTreeMap<String, Arc<Mutex<TcpStream>>>>>;
 
 pub struct DemoServer {
+    challenge: Option<crate::mpc::ChallengeHandler>,
+    submitting: Arc<std::sync::atomic::AtomicBool>,
+    taker_sessions: Arc<Mutex<std::collections::BTreeSet<String>>>,
+    progress: crate::progress::ExecutionProgress,
     room: Arc<Mutex<Room>>,
     config: Arc<Mutex<DemoConfig>>,
     connections: Connections,
@@ -334,9 +348,16 @@ pub struct DemoServer {
 }
 
 impl DemoServer {
-    pub fn new(room: Room, config: DemoConfig) -> Self {
+    pub fn new(mut room: Room, config: DemoConfig) -> Self {
+        if let Some(engine) = room.engine.as_mut() {
+            engine.set_progress(room.progress.clone());
+        }
         let next = Instant::now() + Duration::from_secs_f64(config.round_seconds);
         Self {
+            taker_sessions: Arc::new(Mutex::new(std::collections::BTreeSet::new())),
+            submitting: Arc::new(std::sync::atomic::AtomicBool::new(false)),
+            challenge: room.engine.as_ref().and_then(|engine|engine.challenge_handler()),
+            progress: room.progress.clone(),
             room: Arc::new(Mutex::new(room)),
             config: Arc::new(Mutex::new(config)),
             connections: Arc::new(Mutex::new(BTreeMap::new())),
@@ -367,6 +388,7 @@ impl DemoServer {
     }
 
     fn start_ticker(&self) {
+        self.start_progress_ticker();
         let room = Arc::clone(&self.room);
         let config = Arc::clone(&self.config);
         let connections = Arc::clone(&self.connections);
@@ -413,6 +435,40 @@ impl DemoServer {
         });
     }
 
+    fn start_progress_ticker(&self) {
+        let progress = self.room.lock().expect("demo room lock").progress.clone();
+        let connections = Arc::clone(&self.connections);
+        let taker_sessions = self.taker_sessions.clone();
+        let room = self.room.clone();
+        thread::spawn(move || {
+            let mut previous_revision = 0;
+            loop {
+                thread::sleep(Duration::from_millis(300));
+                if let Ok(current)=room.try_lock() {
+                    taker_sessions.lock().expect("taker sessions lock").retain(|session|current.seat_of(session).is_some_and(|seat|seat.kind==TAKER));
+                }
+                let snapshot = progress.snapshot();
+                let revision = snapshot["revision"].as_u64().unwrap_or(0);
+                if revision == 0 || (snapshot["active"] != true && revision == previous_revision) {
+                    continue;
+                }
+                previous_revision = revision;
+                let Ok(payload) = serde_json::to_vec(&snapshot) else { continue; };
+                let frame = server_frame(TEXT, &payload);
+                let writers = connections.lock().expect("demo connections lock").iter().map(|(session,writer)|(session.clone(),writer.clone())).collect::<Vec<_>>();
+                for (session, writer) in writers {
+                    if let Ok(mut writer) = writer.try_lock() {
+                        if taker_sessions.lock().expect("taker sessions lock").contains(&session) {
+                            let mut private = snapshot.clone();
+                            private["provisional"] = json!(progress.private_provisional());
+                            if let Ok(payload) = serde_json::to_vec(&private) { let _ = writer.write_all(&server_frame(TEXT,&payload)); }
+                        } else { let _ = writer.write_all(&frame); }
+                    }
+                }
+            }
+        });
+    }
+
     fn reset_deadline(&self) {
         let seconds = self.config.lock().expect("demo config lock").round_seconds;
         *self.next_round.lock().expect("next round lock") =
@@ -443,6 +499,14 @@ impl DemoServer {
             return Ok(());
         }
         let (path, query) = target.split_once('?').unwrap_or((target, ""));
+        if path == "/execution-history" {
+            let history = parse_query(query).get("run").and_then(|run| run.parse::<u64>().ok())
+                .and_then(|run| self.progress.history(run));
+            let status = if history.is_some() { "200 OK" } else { "404 Not Found" };
+            let payload = serde_json::to_vec(&history.unwrap_or_else(|| json!({"error":"execution not found"}))).map_err(|error| error.to_string())?;
+            stream.write_all(&http_reply(status, &payload, "application/json")).map_err(|error| error.to_string())?;
+            return Ok(());
+        }
         if path != "/ws" {
             stream
                 .write_all(&static_response(path))
@@ -471,7 +535,7 @@ impl DemoServer {
             let mut room = self.room.lock().expect("demo room lock");
             let session = query
                 .get("session")
-                .filter(|value| !value.is_empty())
+                .filter(|value| room.sessions.contains_key(value.as_str()) || room.completed_takers.contains_key(value.as_str()))
                 .cloned()
                 .unwrap_or_else(|| room.new_session());
             if let Some(seat) = query.get("seat") {
@@ -481,6 +545,7 @@ impl DemoServer {
                     query.get("label").map(String::as_str).unwrap_or(""),
                 );
             }
+            if room.seat_of(&session).is_some_and(|seat|seat.kind==TAKER) {self.taker_sessions.lock().expect("taker sessions lock").insert(session.clone());}
             session
         };
         let writer = Arc::new(Mutex::new(
@@ -539,6 +604,27 @@ impl DemoServer {
 
     fn message(&self, session: &str, writer: &Arc<Mutex<TcpStream>>, message: &Value) {
         let kind = message.get("type").and_then(Value::as_str).unwrap_or("");
+        if kind == "challenge" {
+            let result = (|| -> Result<Value,String> {
+                let id = message["claim_id"].as_str().ok_or("claim ID required")?;
+                let progress = self.progress.snapshot();
+                if progress["optimistic"]["claim_id"] != id || progress["active"] != true { return Err("only the active claim can be challenged here".into()); }
+                let digest = hex::decode(id).map_err(|e|e.to_string())?.try_into().map_err(|_| "invalid claim ID")?;
+                self.challenge.as_ref().ok_or("public-development challenger is not configured")?(digest)
+            })();
+            let payload = match result { Ok(receipt) => json!({"type":"challenge_receipt","receipt":receipt}), Err(reason) => json!({"type":"action_error","reason":reason}) };
+            let _ = writer.lock().expect("demo writer lock").write_all(&server_frame(TEXT, &serde_json::to_vec(&payload).unwrap_or_default()));
+            return;
+        }
+        // A busy mode click must not queue behind MPC and change the next RFQ.
+        if kind == "config" && message["values"].get("assurance_mode").is_some() && self.progress.snapshot()["active"] == true {
+            let _ = writer.lock().expect("demo writer lock").write_all(&server_frame(TEXT, br#"{"type":"action_error","reason":"wait for the active settlement before changing assurance"}"#));
+            return;
+        }
+        if self.submitting.load(std::sync::atomic::Ordering::Acquire) {
+            let _ = writer.lock().expect("demo writer lock").write_all(&server_frame(TEXT, br#"{"type":"action_error","reason":"a round is in progress"}"#));
+            return;
+        }
         let mut room = self.room.lock().expect("demo room lock");
         let seat = room
             .seat_of(session)
@@ -624,6 +710,9 @@ impl DemoServer {
             {
                 let values = message.get("values").unwrap_or(&Value::Null);
                 let mut config = self.config.lock().expect("demo config lock");
+                if let Some(mode) = values.get("assurance_mode").and_then(Value::as_str) {
+                    if let Err(error) = room.engine.as_mut().ok_or_else(|| "native engine required".to_string()).and_then(|engine|engine.set_assurance(mode)) { action_error = Some(error); }
+                }
                 if let Some(value) = values.get("round_seconds").and_then(Value::as_f64) {
                     config.round_seconds = value.clamp(1.0, 120.0);
                 }
@@ -643,18 +732,30 @@ impl DemoServer {
             }
             _ => {}
         }
+        {
+            let mut takers=self.taker_sessions.lock().expect("taker sessions lock");
+            if room.seat_of(session).is_some_and(|seat|seat.kind==TAKER){takers.insert(session.to_string());}else{takers.remove(session);}
+        }
         drop(room);
         if wants_round {
-            // The round holds the room lock only while it computes and while
-            // it moves between phases, so every connection keeps being served
-            // the phase it is at.
-            if let Err(error) = play_round(
-                &self.room,
-                &self.config,
-                &self.connections,
-                &self.next_round,
-            ) {
-                action_error = Some(error);
+            if self.submitting.swap(true, std::sync::atomic::Ordering::AcqRel) {
+                action_error = Some("a round is already in progress".into());
+            } else {
+                let (room, config, connections, next_round, writer, submitting, taker_sessions) =
+                    (self.room.clone(), self.config.clone(), self.connections.clone(), self.next_round.clone(), writer.clone(), self.submitting.clone(), self.taker_sessions.clone());
+                thread::spawn(move || {
+                    if let Err(reason) = play_round(&room, &config, &connections, &next_round) {
+                        let payload = serde_json::to_vec(&json!({"type":"refused","reason":reason})).unwrap_or_default();
+                        let _ = writer.lock().expect("demo writer lock").write_all(&server_frame(TEXT, &payload));
+                    }
+                    {
+                        let current=room.lock().expect("demo room lock");
+                        taker_sessions.lock().expect("taker sessions lock").retain(|session|current.seat_of(session).is_some_and(|seat|seat.kind==TAKER));
+                    }
+                    submitting.store(false, std::sync::atomic::Ordering::Release);
+                    broadcast(&room, &config, &connections, &next_round);
+                });
+                return;
             }
         }
         if let Some(reason) = action_error {

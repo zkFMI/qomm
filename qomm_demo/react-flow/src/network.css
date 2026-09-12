@@ -1,0 +1,138 @@
+/* The canvas fills its container; the page draws every piece of chrome
+   (phase strip, legend, notes, drawer) around and over it. */
+.qrf-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  color: #e8eef8;
+  background: #070d18;
+}
+
+.qrf-canvas {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+#network-graph .react-flow {
+  --xy-edge-stroke: #506079;
+  --xy-edge-stroke-width: 1.4;
+  color: #e8eef8;
+  background: radial-gradient(circle at 48% 38%, rgba(36, 60, 92, .28), transparent 45%), #070d18;
+}
+
+#network-graph .react-flow__node-qommNode,
+#network-graph .react-flow__node-flowLabel {
+  border: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.qrf-node {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: inherit;
+  padding: 10px 11px;
+  overflow: hidden;
+  border: 1px solid #31415c;
+  border-radius: 13px;
+  background: linear-gradient(155deg, rgba(25, 36, 55, .98), rgba(12, 20, 34, .98));
+  color: #e9f0fb;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, .26), inset 0 1px rgba(255, 255, 255, .04);
+  transition: border-color .2s ease, box-shadow .2s ease, opacity .2s ease, transform .15s ease;
+}
+
+/* Every card opens a drawer: it is a button, and it looks like one under the
+   pointer and under keyboard focus. */
+.qrf-node.is-interactive { cursor: pointer; }
+.qrf-node.is-interactive:hover { border-color: #9bb7ff; transform: translateY(-1px); }
+.qrf-node:focus { outline: none; }
+.qrf-node:focus-visible { outline: 3px solid #7dd3fc; outline-offset: 3px; }
+.qrf-node.is-selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, .6), 0 12px 30px rgba(0, 0, 0, .32);
+}
+
+.qrf-node.is-me { border-color: #d7e2ff; box-shadow: 0 0 0 2px rgba(215, 226, 255, .15), 0 10px 24px rgba(0, 0, 0, .26); }
+.qrf-node.is-active { border-color: #45d7c8; box-shadow: 0 0 0 2px rgba(69, 215, 200, .15), 0 0 30px rgba(69, 215, 200, .13); }
+.qrf-node.is-winner { border-color: #ffd166; box-shadow: 0 0 0 2px rgba(255, 209, 102, .2), 0 0 30px rgba(255, 209, 102, .15); }
+.qrf-node.is-me.is-selected, .qrf-node.is-active.is-selected, .qrf-node.is-winner.is-selected {
+  border-color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, .6), 0 12px 30px rgba(0, 0, 0, .32);
+}
+.qrf-node.is-off, .qrf-node.is-silent { opacity: .52; }
+.qrf-node.is-rejected, .qrf-node.is-stopped { border-color: #ff6b7a; }
+.qrf-node.is-named { border-color: #ffb354; }
+.qrf-node.compact { padding: 8px 9px; }
+
+.qrf-node { border-top-color: #a7b2c8; }
+.qrf-taker { border-top: 3px solid #45d7c8; }
+.qrf-maker { border-top: 3px solid #8aa8ff; }
+.qrf-matcher { border-top: 3px solid #ffd166; }
+.qrf-zkpi { border-top: 3px solid #bd9cff; }
+.qrf-ledger { border-top: 3px solid #69a7ff; }
+
+.qrf-node-header { display: flex; align-items: center; justify-content: space-between; gap: 7px; }
+.qrf-node-kind { min-width: 0; flex: 1; font-size: 18px; font-weight: 780; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrf-node-status { margin-top: 4px; color: #aebbd0; font-size: 16px; line-height: 1.35; white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.qrf-badge { flex: none; padding: 2px 6px; border-radius: 999px; color: #07101b; background: #ffd166; font-size: 14px; font-weight: 800; }
+.qrf-node.has-badge .qrf-node-header { align-items: flex-start; flex-direction: column; gap: 4px; }
+.qrf-node.has-badge .qrf-node-kind { flex: none; width: 100%; overflow: visible; text-overflow: clip; }
+.qrf-node.has-badge .qrf-badge { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.qrf-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; margin: 8px 0 0; }
+/* Slim Maker cards (eight Makers in one desktop lane): one label/value row per
+   figure, so nothing is ellipsized or broken mid-number. */
+.qrf-node.is-slim { padding: 8px 8px; }
+.qrf-node.is-slim .qrf-node-status { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.qrf-node.is-slim .qrf-metrics { grid-template-columns: 1fr; gap: 3px; margin-top: 6px; }
+.qrf-node.is-slim .qrf-metric { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 2px 5px; }
+.qrf-node.is-slim .qrf-metric dt { overflow: visible; text-overflow: clip; }
+.qrf-node.is-slim .qrf-metric dd { margin: 0; white-space: nowrap; }
+.qrf-metric { min-width: 0; padding: 5px 6px; border: 1px solid rgba(130, 151, 184, .16); border-radius: 7px; background: rgba(255, 255, 255, .025); }
+.qrf-metric dt { color: #7f8fa9; font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Values wrap instead of being cut: a hash prefix or "MP-SPDZ" must stay
+   readable in the narrow two-column grid of the vertical (390px) layout. */
+.qrf-metric dd { margin: 2px 0 0; color: #edf4ff; font: 650 17px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
+.qrf-metric.qrf-reserved dd { color: #ffd166; }
+.qrf-metric.qrf-muted dd { color: #8491a7; font-family: inherit; }
+
+.qrf-handle { width: 5px !important; height: 5px !important; min-width: 5px !important; min-height: 5px !important; border: 0 !important; background: #526783 !important; opacity: .55; }
+
+#network-graph .react-flow__edge-path { transition: opacity .2s ease, stroke .2s ease; }
+#network-graph .qrf-edge { fill: none; stroke: #52617a; stroke-width: 1.5; }
+#network-graph .qrf-edge-faint { opacity: .3; }
+#network-graph .qrf-edge-owned { opacity: .8; }
+#network-graph .qrf-edge-flow { stroke-width: 3.5; opacity: 1; }
+#network-graph .qrf-edge-done { stroke: #5678ab; opacity: .48; }
+#network-graph .qrf-edge-cut { stroke: #ff6b7a; stroke-dasharray: 5 6; opacity: .42; }
+#network-graph .qrf-edge-teal { stroke: #45d7c8; }
+#network-graph .qrf-edge-amber { stroke: #f5b942; }
+#network-graph .qrf-edge-blue { stroke: #69a7ff; }
+#network-graph .qrf-edge-flow.qrf-edge-teal,
+#network-graph .qrf-edge-flow.qrf-edge-amber,
+#network-graph .qrf-edge-flow.qrf-edge-blue { stroke-dasharray: 7 6; animation: qrf-dash .8s linear infinite; }
+@keyframes qrf-dash { to { stroke-dashoffset: -26; } }
+.qrf-particle { filter: drop-shadow(0 0 5px currentColor); }
+.qrf-particle-teal { fill: #45d7c8; color: #45d7c8; }
+.qrf-particle-amber { fill: #f5b942; color: #f5b942; }
+.qrf-particle-blue { fill: #69a7ff; color: #69a7ff; }
+
+/* Label nodes are 180px wide so they can be centred on a point; the pill itself
+   must shrink to its text or it lies across the neighbouring cards. */
+#network-graph .react-flow__node-flowLabel { text-align: center; pointer-events: none; }
+.qrf-edge-label { display: inline-block; max-width: 100%; padding: 3px 7px; border: 1px solid rgba(87, 111, 146, .35); border-radius: 999px; color: #9eacc1; background: rgba(8, 15, 27, .9); font-size: 9px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.qrf-edge-label.strong { color: #e9f3ff; border-color: rgba(91, 191, 205, .55); }
+
+#network-graph .react-flow__controls { overflow: hidden; border: 1px solid #34445e; border-radius: 10px; box-shadow: none; }
+#network-graph .react-flow__controls-button { border: 0; border-bottom: 1px solid #34445e; color: #cdd8e8; background: #111b2a; width: 30px; height: 30px; }
+#network-graph .react-flow__controls-button:hover { background: #1b2a40; }
+#network-graph .react-flow__controls-button svg { fill: currentColor; }
+#network-graph .react-flow__attribution { color: #66758b; background: rgba(7, 14, 25, .7); }
+
+@media (prefers-reduced-motion: reduce) {
+  #network-graph .qrf-edge-flow { animation: none; }
+  .qrf-node { transition: none; }
+  .qrf-node.is-interactive:hover { transform: none; }
+}
