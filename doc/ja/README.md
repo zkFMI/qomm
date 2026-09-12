@@ -13,19 +13,25 @@
 
 ## Slide decks
 
+Updated 2026-09-12: current implementation boundaries, note-proof corrections,
+PQC research status and public repository links. Historical measurements retain
+their original environments; the revision date does not imply new measurements.
+
 Three decks over the same design system. They are in Japanese; the rest of this
 repository is in English, and this directory is where that is declared rather
 than an exception somebody has to remember.
 
 | file | pages | for |
 |---|---:|---|
-| `qomm_intro.pdf` | 19 | no prerequisites, no formulas |
-| `qomm_slides.pdf` | 73 | readers who already know the field |
-| `qomm_tech.pdf` | 45 | construction, proofs and measurements |
+| `qomm_intro.pdf` | 22 | no prerequisites, no formulas |
+| `qomm_slides.pdf` | 79 | readers who already know the field |
+| `qomm_tech.pdf` | 48 | construction, proofs and measurements |
 
 Built from `papers/qomm/slides/*.tex` in the private working tree, which is not
 published. `make` there writes the PDFs here as part of building them, so the
 published copies cannot fall behind the source that produced them.
 
-Every measured number in the decks comes from `artifacts/`, and
-`papers/qomm/paper_check` fails if a deck and its artifact disagree.
+Historical measurements come from `artifacts/`. September additions also cite
+versioned acceptance and research receipts. The private source tree records exact
+source hashes and PDF verification in `papers/qomm/slides/UPDATE_2026-09-12.md`.
+PQC research execution is explicitly distinguished from full operational adoption.
